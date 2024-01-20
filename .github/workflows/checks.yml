@@ -1,0 +1,36 @@
+---
+name: Tests and Checks
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  security:
+    uses: lidofinance/linters/.github/workflows/security.yml@master
+  actions:
+    uses: lidofinance/linters/.github/workflows/actions.yml@master
+  # docker:
+  #    uses: lidofinance/linters/.github/workflows/docker.yml@master
+
+  linters:
+    name: Linters
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install node
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: ".nvmrc"
+          cache: yarn
+          cache-dependency-path: "**/yarn.lock"
+
+      - name: Install Node dependencies
+        run: yarn install --frozen-lockfile --non-interactive
+
+      - name: Linters check
+        run: yarn lint
