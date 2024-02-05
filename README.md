@@ -28,6 +28,12 @@ The algorithm is as follows:
    > - If the block has a slashing or withdrawal, report it to the CS Module
    > - If the current state of `KeysIndexer` is helthy enougth to be trusted completely, remove the root from `RootsStack`
 
+So, according to the algorithm, there are these statements:
+1. We always go sequentially by the finalized routs of blocks, taking the next one by the root of the previous one. In this way we avoid missing some blocks.
+2. If for some reason the daemon crashes, it will start from the last root running before the crash when it is launched
+3. If for some reason KeysAPI crashed or CL node stopped giving validators, we can use the previously successfully received data to guarantee that our slashings will report for another ~15h and withdrawals for ~27h (because of the new validators appearing time and `MIN_VALIDATOR_WITHDRAWABILITY_DELAY`)
+If any of these time thresholds are breached, we can't be sure that if there was a slashing or a full withdrawal there was definitely not our validator there. That's why we put the root block in the stack just in case, to process it again later when KeysAPI and CL node are well.
+
 ## Installation
 
 ```bash
