@@ -23,15 +23,22 @@ export class HandlersService {
     const payload = await this.buildProvePayload(slashings, withdrawals);
     // TODO: ask before sending if CLI or daemon in watch mode
     await this.sendProves(payload);
+    this.logger.log(`🏁 Proves sent. Root [${blockRoot}]`);
   }
 
   private async buildProvePayload(slashings: string[], withdrawals: string[]): Promise<any> {
     // TODO: implement
     //  this.consensus.getState(...)
+    if (slashings.length || withdrawals.length) {
+      this.logger.warn(`📦 Prove payload: slashings [${slashings}], withdrawals [${withdrawals}]`);
+    }
     return {};
   }
   private async sendProves(payload: any): Promise<void> {
     // TODO: implement
+    if (payload) {
+      this.logger.warn(`📡 Sending proves`);
+    }
   }
 
   private async getUnprovenSlashings(
@@ -114,7 +121,7 @@ export class HandlersService {
   ): string[] {
     const fullWithdrawals = [];
     const blockEpoch = Number(blockInfo.message.slot) / 32;
-    const withdrawals = blockInfo.message.body.execution_payload.withdrawals;
+    const withdrawals = blockInfo.message.body.execution_payload?.withdrawals ?? [];
     for (const withdrawal of withdrawals) {
       const keyInfo = keyInfoFn(Number(withdrawal.validator_index));
       if (keyInfo && blockEpoch >= keyInfo.withdrawableEpoch) {
