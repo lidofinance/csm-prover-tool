@@ -7,7 +7,7 @@ import { ConfigService } from './common/config/config.service';
 import { WorkingMode } from './common/config/env.validation';
 import { DaemonModule } from './daemon/daemon.module';
 
-async function bootstrapCli() {
+async function bootstrapCLI() {
   const cliApp = await CommandFactory.createWithoutRunning(CliModule, {
     bufferLogs: true,
   });
@@ -28,7 +28,7 @@ async function bootstrapDaemon() {
 async function bootstrap() {
   switch (process.env.WORKING_MODE) {
     case WorkingMode.CLI:
-      await bootstrapCli();
+      await bootstrapCLI();
       break;
     case WorkingMode.Daemon:
       await bootstrapDaemon();

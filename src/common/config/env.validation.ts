@@ -32,6 +32,21 @@ export class EnvironmentVariables {
   @IsEnum(WorkingMode)
   public WORKING_MODE = WorkingMode.Daemon;
 
+  public START_ROOT?: string;
+
+  @IsNotEmpty()
+  public LIDO_STAKING_MODULE_ADDRESS: string;
+
+  @IsNumber()
+  @Min(30 * 60 * 1000)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public KEYS_INDEXER_RUNNING_PERIOD: number = 3 * 60 * 60 * 1000;
+
+  @IsNumber()
+  @Min(384000) // epoch time in ms
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD: number = 8 * 60 * 60 * 1000;
+
   @IsNumber()
   @Min(1025)
   @Max(65535)

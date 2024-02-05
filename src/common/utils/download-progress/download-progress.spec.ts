@@ -1,16 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { Keysapi } from './keysapi';
+import { DownloadProgress } from './download-progress';
 
-describe('Keysapi', () => {
-  let provider: Keysapi;
+describe('DownloadProgress', () => {
+  let provider: DownloadProgress;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [Keysapi],
+      providers: [DownloadProgress],
     }).compile();
 
-    provider = module.get<Keysapi>(Keysapi);
+    provider = module.get<DownloadProgress>(DownloadProgress);
   });
 
   it('should be defined', () => {
