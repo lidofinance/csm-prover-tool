@@ -1,6 +1,7 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
+import { Consensus } from '../providers/consensus/consensus';
 import { BlockInfoResponse, RootHex } from '../providers/consensus/response.interface';
 
 export interface KeyInfo {
@@ -14,24 +15,35 @@ type KeyInfoFn = (valIndex: number) => KeyInfo | undefined;
 
 @Injectable()
 export class HandlersService {
-  constructor(@Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService) {}
+  constructor(
+    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    protected readonly consensus: Consensus,
+  ) {}
 
   public async prove(blockRoot: RootHex, blockInfo: BlockInfoResponse, keyInfoFn: KeyInfoFn): Promise<void> {
     const slashings = await this.getUnprovenSlashings(blockRoot, blockInfo, keyInfoFn);
     const withdrawals = await this.getUnprovenWithdrawals(blockRoot, blockInfo, keyInfoFn);
     if (!slashings.length && !withdrawals.length) return;
-    const payload = await this.buildProvePayload(slashings, withdrawals);
+    const payload = await this.buildProvePayload(blockInfo, slashings, withdrawals);
     // TODO: ask before sending if CLI or daemon in watch mode
     await this.sendProves(payload);
     this.logger.log(`🏁 Proves sent. Root [${blockRoot}]`);
   }
 
-  private async buildProvePayload(slashings: string[], withdrawals: string[]): Promise<any> {
+  private async buildProvePayload(
+    blockInfo: BlockInfoResponse,
+    slashings: string[],
+    withdrawals: string[],
+  ): Promise<any> {
     // TODO: implement
     //  this.consensus.getState(...)
     if (slashings.length || withdrawals.length) {
       this.logger.warn(`📦 Prove payload: slashings [${slashings}], withdrawals [${withdrawals}]`);
     }
+    // const { ssz } = await eval('import("@lodestar/types")');
+    // const stateSSZ = await this.consensus.getStateSSZ(header.header.message.slot);
+    // const stateView = ssz.deneb.BeaconState.deserializeToView(stateSSZ);
+    // const validatorsInfo = stateView.validators.type.elementType.toJson(stateView.validators.get(1337));
     return {};
   }
   private async sendProves(payload: any): Promise<void> {

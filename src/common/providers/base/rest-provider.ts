@@ -15,6 +15,7 @@ export interface RequestOptions {
   streamed?: boolean;
   requestPolicy?: RequestPolicy;
   signal?: AbortSignal;
+  headers?: Record<string, string>;
 }
 
 export abstract class BaseRestProvider {
@@ -55,6 +56,7 @@ export abstract class BaseRestProvider {
       method: 'GET',
       headersTimeout: (options.requestPolicy as RequestPolicy).timeout,
       signal: options.signal,
+      headers: options.headers,
     });
     if (statusCode !== 200) {
       const hostname = new URL(base).hostname;

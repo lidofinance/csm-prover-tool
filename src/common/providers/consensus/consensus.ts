@@ -103,7 +103,7 @@ export class Consensus extends BaseRestProvider implements OnApplicationBootstra
   }
 
   public async getState(stateId: StateId, signal?: AbortSignal): Promise<any> {
-    const resp: { body: BodyReadable; headers: IncomingHttpHeaders } = await this.baseGet(
+    const { body } = await this.baseGet<{ body: BodyReadable; headers: IncomingHttpHeaders }>(
       this.mainUrl,
       this.endpoints.state(stateId),
       {
@@ -115,9 +115,26 @@ export class Consensus extends BaseRestProvider implements OnApplicationBootstra
     // TODO: Enable for CLI only
     //this.progress.show(`State [${stateId}]`, resp);
     // Data processing
-    const pipeline = chain([resp.body, parser()]);
+    const pipeline = chain([body, parser()]);
     return await new Promise((resolve) => {
       connectTo(pipeline).on('done', (asm) => resolve(asm.current));
     });
+  }
+
+  public async getStateSSZ(stateId: StateId, signal?: AbortSignal): Promise<any> {
+    const { body } = await this.baseGet<{ body: BodyReadable; headers: IncomingHttpHeaders }>(
+      this.mainUrl,
+      this.endpoints.state(stateId),
+      {
+        streamed: true,
+        signal,
+        headers: { accept: 'application/octet-stream' },
+      },
+    );
+    // Progress bar
+    // TODO: Enable for CLI only
+    //this.progress.show(`State [${stateId}]`, resp);
+    // Data processing
+    return new Uint8Array(await body.arrayBuffer());
   }
 }

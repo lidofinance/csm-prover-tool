@@ -1,3 +1,5 @@
+import { BooleanType, ByteVectorType, ContainerNodeStructType, UintNumberType } from '@chainsafe/ssz';
+import { ListCompositeTreeView } from '@chainsafe/ssz/lib/view/listComposite';
 import { Low } from '@huanshiwushuang/lowdb';
 import { JSONFile } from '@huanshiwushuang/lowdb/node';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
@@ -6,12 +8,7 @@ import { Inject, Injectable, LoggerService, OnApplicationBootstrap } from '@nest
 import { ConfigService } from '../../common/config/config.service';
 import { KeyInfo } from '../../common/handlers/handlers.service';
 import { Consensus } from '../../common/providers/consensus/consensus';
-import {
-  BlockHeaderResponse,
-  RootHex,
-  Slot,
-  StateValidatorResponse,
-} from '../../common/providers/consensus/response.interface';
+import { BlockHeaderResponse, RootHex, Slot } from '../../common/providers/consensus/response.interface';
 import { Keysapi } from '../../common/providers/keysapi/keysapi';
 
 type Info = {
@@ -24,6 +21,21 @@ type Info = {
 type Storage = {
   [valIndex: number]: KeyInfo;
 };
+
+let types: typeof import('@lodestar/types');
+
+type Validators = ListCompositeTreeView<
+  ContainerNodeStructType<{
+    pubkey: ByteVectorType;
+    withdrawalCredentials: ByteVectorType;
+    effectiveBalance: UintNumberType;
+    slashed: BooleanType;
+    activationEligibilityEpoch: UintNumberType;
+    activationEpoch: UintNumberType;
+    exitEpoch: UintNumberType;
+    withdrawableEpoch: UintNumberType;
+  }>
+>;
 
 @Injectable()
 export class KeysIndexer implements OnApplicationBootstrap {
@@ -40,6 +52,8 @@ export class KeysIndexer implements OnApplicationBootstrap {
   ) {}
 
   public async onApplicationBootstrap(): Promise<void> {
+    // ugly hack to import ESModule to CommonJS project
+    types = await eval(`import('@lodestar/types')`);
     await this.initOrReadServiceData();
   }
 
@@ -74,60 +88,63 @@ export class KeysIndexer implements OnApplicationBootstrap {
 
   private async baseRun(stateRoot: RootHex, finalizedSlot: Slot): Promise<void> {
     this.logger.log(`Get validators. State root [${stateRoot}]`);
-    const validators = await this.consensus.getValidators(stateRoot);
-    this.logger.log(`Total validators count: ${validators.length}`);
+    const stateSSZ = await this.consensus.getStateSSZ(stateRoot);
+    const stateView = types.ssz.deneb.BeaconState.deserializeToView(stateSSZ);
+    this.logger.log(`Total validators count: ${stateView.validators.length}`);
     // TODO: do we need to store already full withdrawn keys ?
     this.info.data.lastValidatorsCount == 0
-      ? await this.initStorage(validators, finalizedSlot)
-      : await this.updateStorage(validators, finalizedSlot);
+      ? await this.initStorage(stateView.validators, finalizedSlot)
+      : await this.updateStorage(stateView.validators, finalizedSlot);
     this.logger.log(`CSM validators count: ${Object.keys(this.storage.data).length}`);
     this.info.data.storageStateSlot = finalizedSlot;
-    this.info.data.lastValidatorsCount = validators.length;
+    this.info.data.lastValidatorsCount = stateView.validators.length;
     await this.info.write();
   }
 
-  private async initStorage(validators: StateValidatorResponse[], finalizedSlot: Slot): Promise<void> {
+  private async initStorage(validators: Validators, finalizedSlot: Slot): Promise<void> {
     this.logger.log(`Init keys data`);
     const csmKeys = await this.keysapi.getModuleKeys(this.info.data.moduleId);
     this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
     const keysMap = new Map<string, { operatorIndex: number; index: number }>();
     csmKeys.data.keys.forEach((k: any) => keysMap.set(k.key, { ...k }));
-    for (const v of validators) {
-      const keyInfo = keysMap.get(v.validator.pubkey);
+    for (const [i, v] of validators.getAllReadonlyValues().entries()) {
+      const keyInfo = keysMap.get('0x'.concat(Buffer.from(v.pubkey).toString('hex')));
       if (!keyInfo) continue;
-      this.storage.data[Number(v.index)] = {
+      this.storage.data[i] = {
         operatorId: keyInfo.operatorIndex,
         keyIndex: keyInfo.index,
-        pubKey: v.validator.pubkey,
+        pubKey: v.pubkey.toString(),
         // TODO: bigint?
-        withdrawableEpoch: Number(v.validator.withdrawable_epoch),
+        withdrawableEpoch: v.withdrawableEpoch,
       };
     }
     await this.storage.write();
   }
 
-  private async updateStorage(vals: StateValidatorResponse[], finalizedSlot: Slot): Promise<void> {
+  private async updateStorage(validators: Validators, finalizedSlot: Slot): Promise<void> {
     // TODO: should we think about re-using validator indexes?
     // TODO: should we think about changing WC for existing old vaidators ?
-    if (vals.length - this.info.data.lastValidatorsCount == 0) {
+    if (validators.length - this.info.data.lastValidatorsCount == 0) {
       this.logger.log(`No new validators in the state`);
       return;
     }
-    vals = vals.slice(this.info.data.lastValidatorsCount);
-    const valKeys = vals.map((v: StateValidatorResponse) => v.validator.pubkey);
+    // TODO: can be better
+    const vals = validators.getAllReadonlyValues().slice(this.info.data.lastValidatorsCount);
+    const valKeys = vals.map((v) => '0x'.concat(Buffer.from(v.pubkey).toString('hex')));
     this.logger.log(`New appeared validators count: ${vals.length}`);
     const csmKeys = await this.keysapi.findModuleKeys(this.info.data.moduleId, valKeys);
     this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
     this.logger.log(`New appeared CSM validators count: ${csmKeys.data.keys.length}`);
     for (const csmKey of csmKeys.data.keys) {
-      for (const newVal of vals) {
-        if (newVal.validator.pubkey != csmKey.key) continue;
-        this.storage.data[Number(newVal.index)] = {
+      for (const [i, v] of vals.entries()) {
+        if (valKeys[i] != csmKey.key) continue;
+        const index = i + this.info.data.lastValidatorsCount;
+        this.storage.data[index] = {
           operatorId: csmKey.operatorIndex,
           keyIndex: csmKey.index,
           pubKey: csmKey.key,
           // TODO: bigint?
-          withdrawableEpoch: Number(newVal.validator.withdrawable_epoch),
+          withdrawableEpoch: v.withdrawableEpoch,
         };
       }
     }
