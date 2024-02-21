@@ -20,6 +20,8 @@ import { PrometheusService } from '../../prometheus/prometheus.service';
 import { DownloadProgress } from '../../utils/download-progress/download-progress';
 import { BaseRestProvider } from '../base/rest-provider';
 
+let types: typeof import('@lodestar/types');
+
 @Injectable()
 export class Consensus extends BaseRestProvider implements OnApplicationBootstrap {
   private readonly endpoints = {
@@ -53,6 +55,8 @@ export class Consensus extends BaseRestProvider implements OnApplicationBootstra
   }
 
   public async onApplicationBootstrap(): Promise<any> {
+    // ugly hack to import ESModule to CommonJS project
+    types = await eval(`import('@lodestar/types')`);
     this.logger.log(`Getting genesis timestamp`);
     const resp = await this.getGenesis();
     this.genesisTimestamp = Number(resp.genesis_time);
@@ -121,7 +125,7 @@ export class Consensus extends BaseRestProvider implements OnApplicationBootstra
     });
   }
 
-  public async getStateSSZ(stateId: StateId, signal?: AbortSignal): Promise<any> {
+  public async getStateView(stateId: StateId, signal?: AbortSignal) {
     const { body } = await this.baseGet<{ body: BodyReadable; headers: IncomingHttpHeaders }>(
       this.mainUrl,
       this.endpoints.state(stateId),
@@ -135,6 +139,8 @@ export class Consensus extends BaseRestProvider implements OnApplicationBootstra
     // TODO: Enable for CLI only
     //this.progress.show(`State [${stateId}]`, resp);
     // Data processing
-    return new Uint8Array(await body.arrayBuffer());
+    const bodyBites = new Uint8Array(await body.arrayBuffer());
+    // TODO: select fork
+    return types.ssz.deneb.BeaconState.deserializeToView(bodyBites);
   }
 }

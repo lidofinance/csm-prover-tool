@@ -1,8 +1,9 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
+import { WithdrawalsProvePayload } from './types';
 import { Consensus } from '../providers/consensus/consensus';
-import { BlockInfoResponse, RootHex } from '../providers/consensus/response.interface';
+import { BlockHeaderResponse, BlockInfoResponse, RootHex, Withdrawal } from '../providers/consensus/response.interface';
 
 export interface KeyInfo {
   operatorId: number;
@@ -20,37 +21,63 @@ export class HandlersService {
     protected readonly consensus: Consensus,
   ) {}
 
-  public async prove(blockRoot: RootHex, blockInfo: BlockInfoResponse, keyInfoFn: KeyInfoFn): Promise<void> {
+  public async proveIfNeeded(blockRoot: RootHex, blockInfo: BlockInfoResponse, keyInfoFn: KeyInfoFn): Promise<void> {
     const slashings = await this.getUnprovenSlashings(blockRoot, blockInfo, keyInfoFn);
     const withdrawals = await this.getUnprovenWithdrawals(blockRoot, blockInfo, keyInfoFn);
     if (!slashings.length && !withdrawals.length) return;
-    const payload = await this.buildProvePayload(blockInfo, slashings, withdrawals);
-    // TODO: ask before sending if CLI or daemon in watch mode
-    await this.sendProves(payload);
-    this.logger.log(`🏁 Proves sent. Root [${blockRoot}]`);
+    const header = await this.consensus.getBeaconHeader(blockRoot);
+    // TODO: wait until appears next block if doesn't exist
+    const nextHeader = await this.consensus.getBeaconHeadersByParentRoot(blockRoot);
+    const stateView = await this.consensus.getStateView(header.header.message.state_root);
+    if (slashings.length) {
+      for (const payload of this.buildSlashingsProvePayloads(blockInfo, nextHeader.data[0], stateView, slashings)) {
+        // TODO: ask before sending if CLI or daemon in watch mode
+        await this.sendSlashingsProve(payload);
+      }
+    }
+    if (withdrawals.length) {
+      for (const payload of this.buildWithdrawalsProvePayloads(blockInfo, nextHeader.data[0], stateView, withdrawals)) {
+        // TODO: ask before sending if CLI or daemon in watch mode
+        await this.sendWithdrawalsProve(payload);
+      }
+    }
+    if (!slashings.length || !withdrawals.length) this.logger.log(`🏁 Proves sent. Root [${blockRoot}]`);
   }
 
-  private async buildProvePayload(
+  private *buildSlashingsProvePayloads(
     blockInfo: BlockInfoResponse,
+    nextHeader: BlockHeaderResponse,
+    stateView: any, // TODO: type
     slashings: string[],
-    withdrawals: string[],
-  ): Promise<any> {
-    // TODO: implement
-    //  this.consensus.getState(...)
-    if (slashings.length || withdrawals.length) {
-      this.logger.warn(`📦 Prove payload: slashings [${slashings}], withdrawals [${withdrawals}]`);
+  ): Generator<any> {
+    this.logger.warn(`📦 Building prove payloads | Slashings: [${slashings}]`);
+    for (const slashing of slashings) {
+      // const validatorsInfo = stateView.validators.type.elementType.toJson(stateView.validators.get(1337));
+      yield slashing;
     }
-    // const { ssz } = await eval('import("@lodestar/types")');
-    // const stateSSZ = await this.consensus.getStateSSZ(header.header.message.slot);
-    // const stateView = ssz.deneb.BeaconState.deserializeToView(stateSSZ);
-    // const validatorsInfo = stateView.validators.type.elementType.toJson(stateView.validators.get(1337));
-    return {};
   }
-  private async sendProves(payload: any): Promise<void> {
-    // TODO: implement
-    if (payload) {
-      this.logger.warn(`📡 Sending proves`);
+
+  private *buildWithdrawalsProvePayloads(
+    blockInfo: BlockInfoResponse,
+    nextHeader: BlockHeaderResponse,
+    stateView: any, // TODO: type
+    withdrawals: Withdrawal[],
+  ): Generator<WithdrawalsProvePayload> {
+    this.logger.warn(`📦 Building prove payloads | Withdrawals: [${withdrawals}]`);
+    for (const withdrawal of withdrawals) {
+      // const validatorsInfo = stateView.validators.type.elementType.toJson(stateView.validators.get(1337));
+      yield withdrawal as WithdrawalsProvePayload;
     }
+  }
+
+  private async sendSlashingsProve(payload: any): Promise<void> {
+    // TODO: implement
+    this.logger.warn(`📡 Sending slashings prove`);
+  }
+
+  private async sendWithdrawalsProve(payload: any): Promise<void> {
+    // TODO: implement
+    this.logger.warn(`📡 Sending withdrawals prove`);
   }
 
   private async getUnprovenSlashings(
@@ -82,7 +109,7 @@ export class HandlersService {
     blockRoot: RootHex,
     blockInfo: BlockInfoResponse,
     keyInfoFn: KeyInfoFn,
-  ): Promise<string[]> {
+  ): Promise<Withdrawal[]> {
     const withdrawals = this.getFullWithdrawals(blockInfo, keyInfoFn);
     if (!withdrawals.length) return [];
     const unproven = [];
@@ -130,14 +157,15 @@ export class HandlersService {
   private getFullWithdrawals(
     blockInfo: BlockInfoResponse,
     keyInfoFn: (valIndex: number) => KeyInfo | undefined,
-  ): string[] {
+  ): Withdrawal[] {
     const fullWithdrawals = [];
     const blockEpoch = Number(blockInfo.message.slot) / 32;
     const withdrawals = blockInfo.message.body.execution_payload?.withdrawals ?? [];
     for (const withdrawal of withdrawals) {
       const keyInfo = keyInfoFn(Number(withdrawal.validator_index));
       if (keyInfo && blockEpoch >= keyInfo.withdrawableEpoch) {
-        fullWithdrawals.push(withdrawal.validator_index);
+        // TODO: think about sync committee case (balance > 0 after full withdrawal)
+        fullWithdrawals.push(withdrawal);
       }
     }
     return fullWithdrawals;

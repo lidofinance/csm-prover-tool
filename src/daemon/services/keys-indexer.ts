@@ -22,8 +22,6 @@ type Storage = {
   [valIndex: number]: KeyInfo;
 };
 
-let types: typeof import('@lodestar/types');
-
 type Validators = ListCompositeTreeView<
   ContainerNodeStructType<{
     pubkey: ByteVectorType;
@@ -36,6 +34,19 @@ type Validators = ListCompositeTreeView<
     withdrawableEpoch: UintNumberType;
   }>
 >;
+
+// At one time only one task should be running
+function Single(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+  const originalMethod = descriptor.value;
+  descriptor.value = function (...args: any[]) {
+    if (this.startedAt > 0) {
+      this.logger.warn(`🔑 Keys indexer has been running for ${Date.now() - this.startedAt}ms`);
+      return;
+    }
+    originalMethod.apply(this, args);
+  };
+  return descriptor;
+}
 
 @Injectable()
 export class KeysIndexer implements OnApplicationBootstrap {
@@ -52,8 +63,6 @@ export class KeysIndexer implements OnApplicationBootstrap {
   ) {}
 
   public async onApplicationBootstrap(): Promise<void> {
-    // ugly hack to import ESModule to CommonJS project
-    types = await eval(`import('@lodestar/types')`);
     await this.initOrReadServiceData();
   }
 
@@ -61,12 +70,8 @@ export class KeysIndexer implements OnApplicationBootstrap {
     return this.storage.data[valIndex];
   };
 
+  @Single
   public async run(finalizedHeader: BlockHeaderResponse): Promise<unknown> {
-    // At one time only one task should be running
-    if (this.startedAt > 0) {
-      this.logger.warn(`🔑 Keys indexer has been running for ${Date.now() - this.startedAt}ms`);
-      return;
-    }
     const slot = Number(finalizedHeader.header.message.slot);
     if (this.isNotTimeToRun(slot)) {
       this.logger.log('No need to run keys indexer');
@@ -88,8 +93,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
 
   private async baseRun(stateRoot: RootHex, finalizedSlot: Slot): Promise<void> {
     this.logger.log(`Get validators. State root [${stateRoot}]`);
-    const stateSSZ = await this.consensus.getStateSSZ(stateRoot);
-    const stateView = types.ssz.deneb.BeaconState.deserializeToView(stateSSZ);
+    const stateView = await this.consensus.getStateView(stateRoot);
     this.logger.log(`Total validators count: ${stateView.validators.length}`);
     // TODO: do we need to store already full withdrawn keys ?
     this.info.data.lastValidatorsCount == 0
