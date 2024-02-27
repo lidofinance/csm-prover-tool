@@ -38,7 +38,7 @@ export class DaemonService implements OnApplicationBootstrap {
     this.logger.log('🗿 Get finalized header');
     const header = await this.consensus.getBeaconHeader('finalized');
     this.logger.log(`💎 Finalized slot [${header.header.message.slot}]. Root [${header.root}]`);
-    await this.keysIndexer.run(header);
+    await this.keysIndexer.update(header);
     const nextRoot = await this.rootsProvider.getNext(header);
     if (nextRoot) {
       await this.rootsProcessor.process(nextRoot);

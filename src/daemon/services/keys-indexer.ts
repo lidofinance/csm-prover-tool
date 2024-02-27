@@ -1,9 +1,10 @@
+import { iterateNodesAtDepth } from '@chainsafe/persistent-merkle-tree';
 import { BooleanType, ByteVectorType, ContainerNodeStructType, UintNumberType } from '@chainsafe/ssz';
 import { ListCompositeTreeView } from '@chainsafe/ssz/lib/view/listComposite';
 import { Low } from '@huanshiwushuang/lowdb';
 import { JSONFile } from '@huanshiwushuang/lowdb/node';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, OnApplicationBootstrap } from '@nestjs/common';
+import { Inject, Injectable, LoggerService, OnModuleInit } from '@nestjs/common';
 
 import { ConfigService } from '../../common/config/config.service';
 import { KeyInfo } from '../../common/handlers/handlers.service';
@@ -49,7 +50,7 @@ function Single(target: any, propertyKey: string, descriptor: PropertyDescriptor
 }
 
 @Injectable()
-export class KeysIndexer implements OnApplicationBootstrap {
+export class KeysIndexer implements OnModuleInit {
   private startedAt: number = 0;
 
   private info: Low<Info>;
@@ -62,7 +63,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
     protected readonly keysapi: Keysapi,
   ) {}
 
-  public async onApplicationBootstrap(): Promise<void> {
+  public async onModuleInit(): Promise<void> {
     await this.initOrReadServiceData();
   }
 
@@ -71,87 +72,37 @@ export class KeysIndexer implements OnApplicationBootstrap {
   };
 
   @Single
-  public async run(finalizedHeader: BlockHeaderResponse): Promise<unknown> {
+  public async update(finalizedHeader: BlockHeaderResponse): Promise<void> {
+    // TODO: do we have to check integrity of data here? when `this.info` says one thing and `this.storage` another
     const slot = Number(finalizedHeader.header.message.slot);
     if (this.isNotTimeToRun(slot)) {
       this.logger.log('No need to run keys indexer');
       return;
     }
-    this.logger.log(`🔑 Keys indexer is running`);
     const stateRoot = finalizedHeader.header.message.state_root;
-    if (this.info.data.storageStateSlot == 0) {
-      await this.baseRun(stateRoot, slot);
-      return;
-    }
     // We shouldn't wait for task to finish
     // to avoid block processing if indexing fails or stuck
     this.startedAt = Date.now();
-    this.baseRun(stateRoot, slot)
+    this.baseRun(stateRoot, slot, this.updateStorage)
       .catch((e) => this.logger.error(e))
       .finally(() => (this.startedAt = 0));
   }
 
-  private async baseRun(stateRoot: RootHex, finalizedSlot: Slot): Promise<void> {
+  private async baseRun(
+    stateRoot: RootHex,
+    finalizedSlot: Slot,
+    stateDataProcessingCallback: (validators: Validators, finalizedSlot: Slot) => Promise<void>,
+  ): Promise<void> {
+    this.logger.log(`🔑 Keys indexer is running`);
     this.logger.log(`Get validators. State root [${stateRoot}]`);
     const stateView = await this.consensus.getStateView(stateRoot);
     this.logger.log(`Total validators count: ${stateView.validators.length}`);
     // TODO: do we need to store already full withdrawn keys ?
-    this.info.data.lastValidatorsCount == 0
-      ? await this.initStorage(stateView.validators, finalizedSlot)
-      : await this.updateStorage(stateView.validators, finalizedSlot);
+    await stateDataProcessingCallback(stateView.validators, finalizedSlot);
     this.logger.log(`CSM validators count: ${Object.keys(this.storage.data).length}`);
     this.info.data.storageStateSlot = finalizedSlot;
     this.info.data.lastValidatorsCount = stateView.validators.length;
     await this.info.write();
-  }
-
-  private async initStorage(validators: Validators, finalizedSlot: Slot): Promise<void> {
-    this.logger.log(`Init keys data`);
-    const csmKeys = await this.keysapi.getModuleKeys(this.info.data.moduleId);
-    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
-    const keysMap = new Map<string, { operatorIndex: number; index: number }>();
-    csmKeys.data.keys.forEach((k: any) => keysMap.set(k.key, { ...k }));
-    for (const [i, v] of validators.getAllReadonlyValues().entries()) {
-      const keyInfo = keysMap.get('0x'.concat(Buffer.from(v.pubkey).toString('hex')));
-      if (!keyInfo) continue;
-      this.storage.data[i] = {
-        operatorId: keyInfo.operatorIndex,
-        keyIndex: keyInfo.index,
-        pubKey: v.pubkey.toString(),
-        // TODO: bigint?
-        withdrawableEpoch: v.withdrawableEpoch,
-      };
-    }
-    await this.storage.write();
-  }
-
-  private async updateStorage(validators: Validators, finalizedSlot: Slot): Promise<void> {
-    // TODO: should we think about re-using validator indexes?
-    // TODO: should we think about changing WC for existing old vaidators ?
-    if (validators.length - this.info.data.lastValidatorsCount == 0) {
-      this.logger.log(`No new validators in the state`);
-      return;
-    }
-    // TODO: can be better
-    const vals = validators.getAllReadonlyValues().slice(this.info.data.lastValidatorsCount);
-    const valKeys = vals.map((v) => '0x'.concat(Buffer.from(v.pubkey).toString('hex')));
-    this.logger.log(`New appeared validators count: ${vals.length}`);
-    const csmKeys = await this.keysapi.findModuleKeys(this.info.data.moduleId, valKeys);
-    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
-    this.logger.log(`New appeared CSM validators count: ${csmKeys.data.keys.length}`);
-    for (const csmKey of csmKeys.data.keys) {
-      for (const [i, v] of vals.entries()) {
-        if (valKeys[i] != csmKey.key) continue;
-        const index = i + this.info.data.lastValidatorsCount;
-        this.storage.data[index] = {
-          operatorId: csmKey.operatorIndex,
-          keyIndex: csmKey.index,
-          pubKey: csmKey.key,
-          // TODO: bigint?
-          withdrawableEpoch: v.withdrawableEpoch,
-        };
-      }
-    }
     await this.storage.write();
   }
 
@@ -227,5 +178,82 @@ export class KeysIndexer implements OnApplicationBootstrap {
       this.info.data.moduleId = module.id;
       await this.info.write();
     }
+
+    if (this.info.data.storageStateSlot == 0 || this.info.data.lastValidatorsCount == 0) {
+      this.logger.log(`Init keys data`);
+      const finalized = await this.consensus.getBeaconHeader('finalized');
+      const finalizedSlot = Number(finalized.header.message.slot);
+      const stateRoot = finalized.header.message.state_root;
+      await this.baseRun(stateRoot, finalizedSlot, this.initStorage);
+    }
   }
+
+  initStorage = async (validators: Validators, finalizedSlot: Slot): Promise<void> => {
+    const csmKeys = await this.keysapi.getModuleKeys(this.info.data.moduleId);
+    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
+    const keysMap = new Map<string, { operatorIndex: number; index: number }>();
+    csmKeys.data.keys.forEach((k: any) => keysMap.set(k.key, { ...k }));
+    const iterator = iterateNodesAtDepth(
+      validators.type.tree_getChunksNode(validators.node),
+      validators.type.chunkDepth,
+      0,
+      validators.length,
+    );
+    for (let i = 0; i < validators.length; i++) {
+      const node = iterator.next().value;
+      const v = validators.type.elementType.tree_toValue(node);
+      const pubKey = '0x'.concat(Buffer.from(v.pubkey).toString('hex'));
+      const keyInfo = keysMap.get(pubKey);
+      if (!keyInfo) continue;
+      this.storage.data[i] = {
+        operatorId: keyInfo.operatorIndex,
+        keyIndex: keyInfo.index,
+        pubKey: pubKey,
+        // TODO: bigint?
+        withdrawableEpoch: v.withdrawableEpoch,
+      };
+    }
+  };
+
+  updateStorage = async (validators: Validators, finalizedSlot: Slot): Promise<void> => {
+    // TODO: should we think about re-using validator indexes?
+    // TODO: should we think about changing WC for existing old vaidators ?
+    const appearedValsCount = validators.length - this.info.data.lastValidatorsCount;
+    if (appearedValsCount == 0) {
+      this.logger.log(`No new validators in the state`);
+      return;
+    }
+    this.logger.log(`New appeared validators count: ${appearedValsCount}`);
+    const iterator = iterateNodesAtDepth(
+      validators.type.tree_getChunksNode(validators.node),
+      validators.type.chunkDepth,
+      this.info.data.lastValidatorsCount - 1,
+      validators.length,
+    );
+    const valKeys = [];
+    const valWithdrawableEpochs = [];
+    for (let i = this.info.data.lastValidatorsCount - 1; i < validators.length; i++) {
+      const node = iterator.next().value;
+      const v = validators.type.elementType.tree_toValue(node);
+      valKeys.push('0x'.concat(Buffer.from(v.pubkey).toString('hex')));
+      valWithdrawableEpochs.push(v.withdrawableEpoch);
+    }
+    // TODO: can be better
+    const csmKeys = await this.keysapi.findModuleKeys(this.info.data.moduleId, valKeys);
+    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
+    this.logger.log(`New appeared CSM validators count: ${csmKeys.data.keys.length}`);
+    for (const csmKey of csmKeys.data.keys) {
+      for (const [i, v] of valKeys.entries()) {
+        if (valKeys[i] != csmKey.key) continue;
+        const index = i + this.info.data.lastValidatorsCount;
+        this.storage.data[index] = {
+          operatorId: csmKey.operatorIndex,
+          keyIndex: csmKey.index,
+          pubKey: csmKey.key,
+          // TODO: bigint?
+          withdrawableEpoch: valWithdrawableEpochs[i],
+        };
+      }
+    }
+  };
 }
