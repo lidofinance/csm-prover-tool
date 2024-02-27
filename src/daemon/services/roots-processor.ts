@@ -27,7 +27,7 @@ export class RootsProcessor {
     const indexerIsOK = this.keysIndexer.eligibleForEveryDuty(rootSlot.slotNumber);
     if (!indexerIsOK) await this.rootsStack.push(rootSlot); // only new will be pushed
     await this.handlers.proveIfNeeded(blockRoot, blockInfo, this.keysIndexer.getKey);
-    if (indexerIsOK) await this.rootsStack.purge(blockRoot);
+    if (indexerIsOK) await this.rootsStack.purge(rootSlot);
     await this.rootsStack.setLastProcessed(rootSlot);
   }
 }

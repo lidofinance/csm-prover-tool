@@ -1,44 +1,46 @@
 import { Low } from '@huanshiwushuang/lowdb';
 import { JSONFile } from '@huanshiwushuang/lowdb/node';
-import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 
 import { KeysIndexer } from './keys-indexer';
 import { RootHex } from '../../common/providers/consensus/response.interface';
 
-export type RootSlot = { blockRoot: string; slotNumber: number };
+export type RootSlot = { blockRoot: RootHex; slotNumber: number };
 
 type Info = {
   lastProcessedRootSlot: RootSlot | undefined;
 };
 
-type Storage = RootSlot[];
+type Storage = { [slot: number]: RootHex };
 
 @Injectable()
-export class RootsStack implements OnApplicationBootstrap {
+export class RootsStack implements OnModuleInit {
   private info: Low<Info>;
   private storage: Low<Storage>;
 
   constructor(protected readonly keysIndexer: KeysIndexer) {}
 
-  async onApplicationBootstrap(): Promise<void> {
+  async onModuleInit(): Promise<void> {
     await this.initOrReadServiceData();
   }
 
   public getNextEligible(): RootSlot | undefined {
-    return this.storage.data.find((s) => this.keysIndexer.eligibleForAnyDuty(s.slotNumber));
+    for (const slot in this.storage.data) {
+      if (this.keysIndexer.eligibleForAnyDuty(Number(slot))) {
+        return { blockRoot: this.storage.data[slot], slotNumber: Number(slot) };
+      }
+    }
   }
 
   public async push(rs: RootSlot): Promise<void> {
-    const idx = this.storage.data.findIndex((i) => rs.blockRoot == i.blockRoot);
-    if (idx !== -1) return;
-    this.storage.data.push(rs);
+    if (this.storage.data[rs.slotNumber] !== undefined) return;
+    this.storage.data[rs.slotNumber] = rs.blockRoot;
     await this.storage.write();
   }
 
-  public async purge(blockRoot: RootHex): Promise<void> {
-    const idx = this.storage.data.findIndex((i) => blockRoot == i.blockRoot);
-    if (idx == -1) return;
-    this.storage.data.splice(idx, 1);
+  public async purge(rs: RootSlot): Promise<void> {
+    if (this.storage.data[rs.slotNumber] == undefined) return;
+    delete this.storage.data[rs.slotNumber];
     await this.storage.write();
   }
 
@@ -55,7 +57,7 @@ export class RootsStack implements OnApplicationBootstrap {
     this.info = new Low<Info>(new JSONFile('.roots-stack-info.json'), {
       lastProcessedRootSlot: undefined,
     });
-    this.storage = new Low<Storage>(new JSONFile('.roots-stack-storage.json'), []);
+    this.storage = new Low<Storage>(new JSONFile('.roots-stack-storage.json'), {});
     await this.info.read();
     await this.storage.read();
   }

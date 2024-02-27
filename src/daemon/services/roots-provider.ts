@@ -41,13 +41,13 @@ export class RootsProvider {
   }
 
   private async getChild(lastProcessed: RootSlot, finalizedHeader: BlockHeaderResponse): Promise<RootHex | undefined> {
-    this.logger.log(`⏮️ Last processed root [${lastProcessed.blockRoot}]`);
+    this.logger.log(`⏮️ Last processed slot [${lastProcessed.slotNumber}]. Root [${lastProcessed.blockRoot}]`);
     if (lastProcessed.blockRoot == finalizedHeader.root) return;
     const diff = Number(finalizedHeader.header.message.slot) - lastProcessed.slotNumber;
     this.logger.warn(`Diff between last processed and finalized is ${diff} slots`);
-    const childHeader = await this.consensus.getBeaconHeadersByParentRoot(lastProcessed.blockRoot);
-    if (!childHeader || !childHeader.finalized) return;
-    const child = childHeader.data[0].root;
+    const childHeaders = await this.consensus.getBeaconHeadersByParentRoot(lastProcessed.blockRoot);
+    if (!childHeaders || !childHeaders.finalized) return;
+    const child = childHeaders.data[0].root;
     this.logger.log(`⏭️ Next root to process [${child}]. Child of last processed`);
     return child;
   }
