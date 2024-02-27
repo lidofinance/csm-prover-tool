@@ -243,7 +243,7 @@ export class KeysIndexer implements OnModuleInit {
     this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
     this.logger.log(`New appeared CSM validators count: ${csmKeys.data.keys.length}`);
     for (const csmKey of csmKeys.data.keys) {
-      for (const [i, v] of valKeys.entries()) {
+      for (let i = 0; i < valKeys.length; i++) {
         if (valKeys[i] != csmKey.key) continue;
         const index = i + this.info.data.lastValidatorsCount;
         this.storage.data[index] = {
