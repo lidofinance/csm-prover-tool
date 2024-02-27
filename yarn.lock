@@ -778,6 +778,11 @@
   resolved "https://registry.yarnpkg.com/@lodestar/params/-/params-1.15.0.tgz#07c75e32bbf0644ecc7b0354fe57cfb69a830c8c"
   integrity sha512-E0cNJtSR3WVLs3rSGdL/uxPaUetr2jonLbckqAV4859nKHuF53Hm7awmMyoqSRKUnz012zsb96zLaoxe6kUqow==
 
+"@lodestar/params@^1.16.0":
+  version "1.16.0"
+  resolved "https://registry.yarnpkg.com/@lodestar/params/-/params-1.16.0.tgz#417ffb1ee9e179b2402ad624dac4c2c6d7d08e51"
+  integrity sha512-Fx3mO5mhAqo9VTIt6ZfgF/Wiw6qAYxfete6ZG9AWs2I56lDPEeXRDOCkggItkPeSYXesX8o9vQP6Dkiwfrm2yg==
+
 "@lodestar/types@^1.15.0":
   version "1.15.0"
   resolved "https://registry.yarnpkg.com/@lodestar/types/-/types-1.15.0.tgz#ed8d4896b427e577a98fed5f0301209cb9a91ab1"

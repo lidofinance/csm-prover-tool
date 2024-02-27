@@ -1,5 +1,5 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, OnApplicationBootstrap, Optional } from '@nestjs/common';
+import { Inject, Injectable, LoggerService, OnModuleInit, Optional } from '@nestjs/common';
 import { chain } from 'stream-chain';
 import { parser } from 'stream-json';
 import { connectTo } from 'stream-json/Assembler';
@@ -20,10 +20,11 @@ import { PrometheusService } from '../../prometheus/prometheus.service';
 import { DownloadProgress } from '../../utils/download-progress/download-progress';
 import { BaseRestProvider } from '../base/rest-provider';
 
-let types: typeof import('@lodestar/types');
+let ssz: typeof import('@lodestar/types').ssz;
+let ForkName: typeof import('@lodestar/params').ForkName;
 
 @Injectable()
-export class Consensus extends BaseRestProvider implements OnApplicationBootstrap {
+export class Consensus extends BaseRestProvider implements OnModuleInit {
   private readonly endpoints = {
     version: 'eth/v1/node/version',
     genesis: 'eth/v1/beacon/genesis',
@@ -54,9 +55,9 @@ export class Consensus extends BaseRestProvider implements OnApplicationBootstra
     );
   }
 
-  public async onApplicationBootstrap(): Promise<any> {
+  public async onModuleInit(): Promise<any> {
     // ugly hack to import ESModule to CommonJS project
-    types = await eval(`import('@lodestar/types')`);
+    ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
     this.logger.log(`Getting genesis timestamp`);
     const resp = await this.getGenesis();
     this.genesisTimestamp = Number(resp.genesis_time);
@@ -126,7 +127,7 @@ export class Consensus extends BaseRestProvider implements OnApplicationBootstra
   }
 
   public async getStateView(stateId: StateId, signal?: AbortSignal) {
-    const { body } = await this.baseGet<{ body: BodyReadable; headers: IncomingHttpHeaders }>(
+    const { body, headers } = await this.baseGet<{ body: BodyReadable; headers: IncomingHttpHeaders }>(
       this.mainUrl,
       this.endpoints.state(stateId),
       {
@@ -135,12 +136,13 @@ export class Consensus extends BaseRestProvider implements OnApplicationBootstra
         headers: { accept: 'application/octet-stream' },
       },
     );
+    const version = headers['eth-consensus-version'] as keyof typeof ForkName;
     // Progress bar
     // TODO: Enable for CLI only
     //this.progress.show(`State [${stateId}]`, resp);
     // Data processing
     const bodyBites = new Uint8Array(await body.arrayBuffer());
-    // TODO: select fork
-    return types.ssz.deneb.BeaconState.deserializeToView(bodyBites);
+    // TODO: high memory usage
+    return ssz.allForks[version].BeaconState.deserializeToView(bodyBites);
   }
 }
