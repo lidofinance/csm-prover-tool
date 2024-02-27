@@ -27,16 +27,17 @@ export class HandlersService {
     if (!slashings.length && !withdrawals.length) return;
     const header = await this.consensus.getBeaconHeader(blockRoot);
     // TODO: wait until appears next block if doesn't exist
-    const nextHeader = await this.consensus.getBeaconHeadersByParentRoot(blockRoot);
+    const nextHeaders = await this.consensus.getBeaconHeadersByParentRoot(blockRoot);
+    const nextHeader = nextHeaders.data[0];
     const stateView = await this.consensus.getStateView(header.header.message.state_root);
     if (slashings.length) {
-      for (const payload of this.buildSlashingsProvePayloads(blockInfo, nextHeader.data[0], stateView, slashings)) {
+      for (const payload of this.buildSlashingsProvePayloads(blockInfo, nextHeader, stateView, slashings)) {
         // TODO: ask before sending if CLI or daemon in watch mode
         await this.sendSlashingsProve(payload);
       }
     }
     if (withdrawals.length) {
-      for (const payload of this.buildWithdrawalsProvePayloads(blockInfo, nextHeader.data[0], stateView, withdrawals)) {
+      for (const payload of this.buildWithdrawalsProvePayloads(blockInfo, nextHeader, stateView, withdrawals)) {
         // TODO: ask before sending if CLI or daemon in watch mode
         await this.sendWithdrawalsProve(payload);
       }
@@ -72,11 +73,13 @@ export class HandlersService {
 
   private async sendSlashingsProve(payload: any): Promise<void> {
     // TODO: implement
+    this.logger.log(payload);
     this.logger.warn(`📡 Sending slashings prove`);
   }
 
   private async sendWithdrawalsProve(payload: any): Promise<void> {
     // TODO: implement
+    this.logger.log(payload);
     this.logger.warn(`📡 Sending withdrawals prove`);
   }
 
@@ -123,7 +126,7 @@ export class HandlersService {
       this.logger.log(`No full withdrawals to prove. Root [${blockRoot}]`);
       return [];
     }
-    this.logger.warn(`🔍 Unproven full withdrawals: ${unproven}`);
+    this.logger.warn(`🔍 Unproven full withdrawals: ${unproven.length}`);
     return unproven;
   }
 
@@ -159,11 +162,11 @@ export class HandlersService {
     keyInfoFn: (valIndex: number) => KeyInfo | undefined,
   ): Withdrawal[] {
     const fullWithdrawals = [];
-    const blockEpoch = Number(blockInfo.message.slot) / 32;
+    const blockEpoch = Number((Number(blockInfo.message.slot) / 32).toFixed());
     const withdrawals = blockInfo.message.body.execution_payload?.withdrawals ?? [];
     for (const withdrawal of withdrawals) {
       const keyInfo = keyInfoFn(Number(withdrawal.validator_index));
-      if (keyInfo && blockEpoch >= keyInfo.withdrawableEpoch) {
+      if (keyInfo?.withdrawableEpoch != null && keyInfo && blockEpoch >= keyInfo.withdrawableEpoch) {
         // TODO: think about sync committee case (balance > 0 after full withdrawal)
         fullWithdrawals.push(withdrawal);
       }
