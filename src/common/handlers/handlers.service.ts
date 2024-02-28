@@ -16,6 +16,9 @@ type KeyInfoFn = (valIndex: number) => KeyInfo | undefined;
 
 @Injectable()
 export class HandlersService {
+  // according to the research https://hackmd.io/1wM8vqeNTjqt4pC3XoCUKQ?view#Proposed-solution
+  private readonly FULL_WITHDRAWAL_MIN_AMOUNT = 8 * 10 ** 18; // 8 ETH
+
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
     protected readonly consensus: Consensus,
@@ -162,15 +165,21 @@ export class HandlersService {
     keyInfoFn: (valIndex: number) => KeyInfo | undefined,
   ): Withdrawal[] {
     const fullWithdrawals = [];
-    const blockEpoch = Number((Number(blockInfo.message.slot) / 32).toFixed());
+    const epoch = Number((Number(blockInfo.message.slot) / 32).toFixed());
     const withdrawals = blockInfo.message.body.execution_payload?.withdrawals ?? [];
     for (const withdrawal of withdrawals) {
       const keyInfo = keyInfoFn(Number(withdrawal.validator_index));
-      if (keyInfo?.withdrawableEpoch != null && keyInfo && blockEpoch >= keyInfo.withdrawableEpoch) {
-        // TODO: think about sync committee case (balance > 0 after full withdrawal)
-        fullWithdrawals.push(withdrawal);
-      }
+      if (!keyInfo) continue;
+      if (this.isFullWithdrawal(epoch, keyInfo, withdrawal)) fullWithdrawals.push(withdrawal);
     }
     return fullWithdrawals;
+  }
+
+  private isFullWithdrawal(epoch: number, keyInfo: KeyInfo, withdrawal: Withdrawal): boolean {
+    return (
+      keyInfo.withdrawableEpoch != null &&
+      epoch >= keyInfo.withdrawableEpoch &&
+      Number(withdrawal.amount) > this.FULL_WITHDRAWAL_MIN_AMOUNT
+    );
   }
 }
