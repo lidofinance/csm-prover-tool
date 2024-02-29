@@ -11,6 +11,7 @@ import { KeyInfo } from '../../common/handlers/handlers.service';
 import { Consensus } from '../../common/providers/consensus/consensus';
 import { BlockHeaderResponse, RootHex, Slot } from '../../common/providers/consensus/response.interface';
 import { Keysapi } from '../../common/providers/keysapi/keysapi';
+import { Key, Module } from '../../common/providers/keysapi/response.interface';
 
 type Info = {
   moduleAddress: string;
@@ -168,9 +169,9 @@ export class KeysIndexer implements OnModuleInit {
     await this.storage.read();
 
     if (this.info.data.moduleId == 0) {
-      const modules = (await this.keysapi.getModules()).data;
-      const module = modules.find(
-        (m: any) => m.stakingModuleAddress.toLowerCase() === this.info.data.moduleAddress.toLowerCase(),
+      const modulesResp = await this.keysapi.getModules();
+      const module = modulesResp.data.find(
+        (m: Module) => m.stakingModuleAddress.toLowerCase() === this.info.data.moduleAddress.toLowerCase(),
       );
       if (!module) {
         throw new Error(`Module with address ${this.info.data.moduleAddress} not found`);
@@ -192,7 +193,7 @@ export class KeysIndexer implements OnModuleInit {
     const csmKeys = await this.keysapi.getModuleKeys(this.info.data.moduleId);
     this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
     const keysMap = new Map<string, { operatorIndex: number; index: number }>();
-    csmKeys.data.keys.forEach((k: any) => keysMap.set(k.key, { ...k }));
+    csmKeys.data.keys.forEach((k: Key) => keysMap.set(k.key, { ...k }));
     const iterator = iterateNodesAtDepth(
       validators.type.tree_getChunksNode(validators.node),
       validators.type.chunkDepth,

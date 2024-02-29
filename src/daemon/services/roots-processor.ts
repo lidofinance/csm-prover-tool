@@ -17,7 +17,7 @@ export class RootsProcessor {
     protected readonly handlers: HandlersService,
   ) {}
 
-  public async process(blockRoot: RootHex): Promise<any> {
+  public async process(blockRoot: RootHex): Promise<void> {
     this.logger.log(`🛃 Root in processing [${blockRoot}]`);
     const blockInfo = await this.consensus.getBlockInfo(blockRoot);
     const rootSlot = {

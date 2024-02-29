@@ -1,10 +1,5 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService, OnModuleInit, Optional } from '@nestjs/common';
-import { chain } from 'stream-chain';
-import { parser } from 'stream-json';
-import { connectTo } from 'stream-json/Assembler';
-import { IncomingHttpHeaders } from 'undici/types/header';
-import BodyReadable from 'undici/types/readable';
 
 import {
   BlockHeaderResponse,
@@ -13,7 +8,6 @@ import {
   GenesisResponse,
   RootHex,
   StateId,
-  StateValidatorResponse,
 } from './response.interface';
 import { ConfigService } from '../../config/config.service';
 import { PrometheusService } from '../../prometheus/prometheus.service';
@@ -55,7 +49,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     );
   }
 
-  public async onModuleInit(): Promise<any> {
+  public async onModuleInit(): Promise<void> {
     // ugly hack to import ESModule to CommonJS project
     ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
     this.logger.log(`Getting genesis timestamp`);
@@ -68,74 +62,37 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   }
 
   public async getGenesis(): Promise<GenesisResponse> {
-    return (await this.baseGet<any>(this.mainUrl, this.endpoints.genesis)).data as GenesisResponse;
+    const resp = await this.baseJsonGet<{ data: GenesisResponse }>(this.mainUrl, this.endpoints.genesis);
+    return resp.data;
   }
 
   public async getBlockInfo(blockId: BlockId): Promise<BlockInfoResponse> {
-    return (await this.baseGet<any>(this.mainUrl, this.endpoints.blockInfo(blockId))).data as BlockInfoResponse;
+    const resp = await this.baseJsonGet<{ data: BlockInfoResponse }>(this.mainUrl, this.endpoints.blockInfo(blockId));
+    return resp.data;
   }
 
   public async getBeaconHeader(blockId: BlockId): Promise<BlockHeaderResponse> {
-    return (await this.baseGet<any>(this.mainUrl, this.endpoints.beaconHeader(blockId))).data as BlockHeaderResponse;
+    const resp = await this.baseJsonGet<{ data: BlockHeaderResponse }>(
+      this.mainUrl,
+      this.endpoints.beaconHeader(blockId),
+    );
+    return resp.data;
   }
 
   public async getBeaconHeadersByParentRoot(
     parentRoot: RootHex,
   ): Promise<{ finalized: boolean; data: BlockHeaderResponse[] }> {
-    return (await this.baseGet(this.mainUrl, this.endpoints.beaconHeadersByParentRoot(parentRoot))) as {
-      finalized: boolean;
-      data: BlockHeaderResponse[];
-    };
-  }
-
-  public async getValidators(stateId: StateId, signal?: AbortSignal): Promise<StateValidatorResponse[]> {
-    const resp: { body: BodyReadable; headers: IncomingHttpHeaders } = await this.baseGet(
+    return await this.baseJsonGet<{ finalized: boolean; data: BlockHeaderResponse[] }>(
       this.mainUrl,
-      this.endpoints.validators(stateId),
-      {
-        streamed: true,
-        signal,
-      },
+      this.endpoints.beaconHeadersByParentRoot(parentRoot),
     );
-    // Progress bar
-    // TODO: Enable for CLI only
-    //this.progress.show('Validators from state', resp);
-    // Data processing
-    const pipeline = chain([resp.body, parser()]);
-    return await new Promise((resolve) => {
-      connectTo(pipeline).on('done', (asm) => resolve(asm.current.data));
-    });
-  }
-
-  public async getState(stateId: StateId, signal?: AbortSignal): Promise<any> {
-    const { body } = await this.baseGet<{ body: BodyReadable; headers: IncomingHttpHeaders }>(
-      this.mainUrl,
-      this.endpoints.state(stateId),
-      {
-        streamed: true,
-        signal,
-      },
-    );
-    // Progress bar
-    // TODO: Enable for CLI only
-    //this.progress.show(`State [${stateId}]`, resp);
-    // Data processing
-    const pipeline = chain([body, parser()]);
-    return await new Promise((resolve) => {
-      connectTo(pipeline).on('done', (asm) => resolve(asm.current));
-    });
   }
 
   public async getStateView(stateId: StateId, signal?: AbortSignal) {
-    const { body, headers } = await this.baseGet<{ body: BodyReadable; headers: IncomingHttpHeaders }>(
-      this.mainUrl,
-      this.endpoints.state(stateId),
-      {
-        streamed: true,
-        signal,
-        headers: { accept: 'application/octet-stream' },
-      },
-    );
+    const { body, headers } = await this.baseStreamedGet(this.mainUrl, this.endpoints.state(stateId), {
+      signal,
+      headers: { accept: 'application/octet-stream' },
+    });
     const version = headers['eth-consensus-version'] as keyof typeof ForkName;
     // Progress bar
     // TODO: Enable for CLI only

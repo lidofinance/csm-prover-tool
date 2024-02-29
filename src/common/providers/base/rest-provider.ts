@@ -42,7 +42,43 @@ export abstract class BaseRestProvider {
   //  2. retries
   //  3. fallbacks
 
-  protected async baseGet<T>(
+  protected async baseJsonGet<T>(base: string, endpoint: string, options?: RequestOptions): Promise<T> {
+    return (await this.baseGet<T>(base, endpoint, { ...options, streamed: false })) as T;
+  }
+
+  protected async baseStreamedGet(
+    base: string,
+    endpoint: string,
+    options?: RequestOptions,
+  ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
+    return (await this.baseGet(base, endpoint, { ...options, streamed: true })) as {
+      body: BodyReadable;
+      headers: IncomingHttpHeaders;
+    };
+  }
+
+  protected async baseJsonPost<T>(
+    base: string,
+    endpoint: string,
+    requestBody: any,
+    options?: RequestOptions,
+  ): Promise<T> {
+    return (await this.basePost<T>(base, endpoint, requestBody, { ...options, streamed: false })) as T;
+  }
+
+  protected async baseStreamedPost(
+    base: string,
+    endpoint: string,
+    requestBody: any,
+    options?: RequestOptions,
+  ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
+    return (await this.basePost(base, endpoint, requestBody, { ...options, streamed: true })) as {
+      body: BodyReadable;
+      headers: IncomingHttpHeaders;
+    };
+  }
+
+  private async baseGet<T>(
     base: string,
     endpoint: string,
     options?: RequestOptions,
@@ -65,7 +101,7 @@ export abstract class BaseRestProvider {
     return options.streamed ? { body: body, headers: headers } : ((await body.json()) as T);
   }
 
-  protected async basePost<T>(
+  private async basePost<T>(
     base: string,
     endpoint: string,
     requestBody: any,
