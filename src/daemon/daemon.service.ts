@@ -38,13 +38,13 @@ export class DaemonService implements OnApplicationBootstrap {
     this.logger.log('🗿 Get finalized header');
     const header = await this.consensus.getBeaconHeader('finalized');
     this.logger.log(`💎 Finalized slot [${header.header.message.slot}]. Root [${header.root}]`);
-    await this.keysIndexer.update(header);
+    this.keysIndexer.update(header);
     const nextRoot = await this.rootsProvider.getNext(header);
     if (nextRoot) {
       await this.rootsProcessor.process(nextRoot);
-    } else {
-      this.logger.log(`💤 Wait for the next finalized root`);
-      await sleep(12000);
+      return;
     }
+    this.logger.log(`💤 Wait for the next finalized root`);
+    await sleep(12000);
   }
 }

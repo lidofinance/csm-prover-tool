@@ -18,8 +18,6 @@ export class Keysapi extends BaseRestProvider {
     findModuleKeys: (module_id: string | number): string => `v1/modules/${module_id}/keys/find`,
   };
 
-  // TODO: types
-
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
     @Optional() protected readonly prometheus: PrometheusService,
@@ -27,7 +25,7 @@ export class Keysapi extends BaseRestProvider {
   ) {
     super(
       config.get('KEYSAPI_API_URLS') as Array<string>,
-      config.get('KEYSAPI_API_RESPONSE_TIMEOUT'),
+      config.get('KEYSAPI_API_RESPONSE_TIMEOUT_MS'),
       config.get('KEYSAPI_API_MAX_RETRIES'),
       logger,
       prometheus,
@@ -37,7 +35,7 @@ export class Keysapi extends BaseRestProvider {
   public healthCheck(finalizedTimestamp: number, keysApiMetadata: { elBlockSnapshot: ELBlockSnapshot }): void {
     if (
       finalizedTimestamp - keysApiMetadata.elBlockSnapshot.timestamp >
-      this.config.get('KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD')
+      this.config.get('KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS')
     ) {
       throw new Error('KeysApi is outdated');
     }

@@ -42,7 +42,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   ) {
     super(
       config.get('CL_API_URLS') as Array<string>,
-      config.get('CL_API_RESPONSE_TIMEOUT'),
+      config.get('CL_API_RESPONSE_TIMEOUT_MS'),
       config.get('CL_API_MAX_RETRIES'),
       logger,
       prometheus,
@@ -100,6 +100,6 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     // Data processing
     const bodyBites = new Uint8Array(await body.arrayBuffer());
     // TODO: high memory usage
-    return ssz.allForks[version].BeaconState.deserializeToView(bodyBites);
+    return ssz[version].BeaconState.deserializeToView(bodyBites);
   }
 }

@@ -13,14 +13,14 @@ import { BlockHeaderResponse, RootHex, Slot } from '../../common/providers/conse
 import { Keysapi } from '../../common/providers/keysapi/keysapi';
 import { Key, Module } from '../../common/providers/keysapi/response.interface';
 
-type Info = {
+type KeysIndexerServiceInfo = {
   moduleAddress: string;
   moduleId: number;
   storageStateSlot: number;
   lastValidatorsCount: number;
 };
 
-type Storage = {
+type KeysIndexerServiceStorage = {
   [valIndex: number]: KeyInfo;
 };
 
@@ -54,8 +54,8 @@ function Single(target: any, propertyKey: string, descriptor: PropertyDescriptor
 export class KeysIndexer implements OnModuleInit {
   private startedAt: number = 0;
 
-  private info: Low<Info>;
-  private storage: Low<Storage>;
+  private info: Low<KeysIndexerServiceInfo>;
+  private storage: Low<KeysIndexerServiceStorage>;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
@@ -73,7 +73,7 @@ export class KeysIndexer implements OnModuleInit {
   };
 
   @Single
-  public async update(finalizedHeader: BlockHeaderResponse): Promise<void> {
+  public update(finalizedHeader: BlockHeaderResponse): void {
     // TODO: do we have to check integrity of data here? when `this.info` says one thing and `this.storage` another
     const slot = Number(finalizedHeader.header.message.slot);
     if (this.isNotTimeToRun(slot)) {
@@ -111,32 +111,32 @@ export class KeysIndexer implements OnModuleInit {
     const storageTimestamp = this.consensus.slotToTimestamp(this.info.data.storageStateSlot) * 1000;
     return (
       this.info.data.storageStateSlot == finalizedSlot ||
-      this.config.get('KEYS_INDEXER_RUNNING_PERIOD') >= Date.now() - storageTimestamp
+      this.config.get('KEYS_INDEXER_RUNNING_PERIOD_MS') >= Date.now() - storageTimestamp
     );
   }
 
-  public eligibleForAnyDuty(slotNumber: Slot): boolean {
-    return this.eligibleForSlashings(slotNumber) || this.eligibleForFullWithdrawals(slotNumber);
+  public isTrustedForAnyDuty(slotNumber: Slot): boolean {
+    return this.isTrustedForSlashings(slotNumber) || this.isTrustedForFullWithdrawals(slotNumber);
   }
 
-  public eligibleForEveryDuty(slotNumber: Slot): boolean {
-    const eligibleForSlashings = this.eligibleForSlashings(slotNumber);
-    const eligibleForFullWithdrawals = this.eligibleForFullWithdrawals(slotNumber);
-    if (!eligibleForSlashings)
+  public isTrustedForEveryDuty(slotNumber: Slot): boolean {
+    const trustedForSlashings = this.isTrustedForSlashings(slotNumber);
+    const trustedForFullWithdrawals = this.isTrustedForFullWithdrawals(slotNumber);
+    if (!trustedForSlashings)
       this.logger.warn(
         '🚨 Current keys indexer data might not be ready to detect slashing. ' +
           'The root will be processed later again',
       );
-    if (!eligibleForFullWithdrawals)
+    if (!trustedForFullWithdrawals)
       this.logger.warn(
         '⚠️ Current keys indexer data might not be ready to detect full withdrawal. ' +
           'The root will be processed later again',
       );
-    return eligibleForSlashings && eligibleForFullWithdrawals;
+    return trustedForSlashings && trustedForFullWithdrawals;
   }
 
-  private eligibleForSlashings(slotNumber: Slot): boolean {
-    // We are ok with oudated indexer for detection slasing
+  private isTrustedForSlashings(slotNumber: Slot): boolean {
+    // We are ok with outdated indexer for detection slashing
     // because of a bunch of delays between deposit and validator appearing
     // TODO: get constants from node
     const ETH1_FOLLOW_DISTANCE = 2048; // ~8 hours
@@ -146,8 +146,8 @@ export class KeysIndexer implements OnModuleInit {
     return slotNumber - this.info.data.storageStateSlot <= safeDelay; // ~14.8 hours
   }
 
-  private eligibleForFullWithdrawals(slotNumber: Slot): boolean {
-    // We are ok with oudated indexer for detection withdrawal
+  private isTrustedForFullWithdrawals(slotNumber: Slot): boolean {
+    // We are ok with outdated indexer for detection withdrawal
     // because of MIN_VALIDATOR_WITHDRAWABILITY_DELAY
     // TODO: get constants from node
     const MIN_VALIDATOR_WITHDRAWABILITY_DELAY = 256;
@@ -157,14 +157,20 @@ export class KeysIndexer implements OnModuleInit {
   }
 
   private async initOrReadServiceData() {
-    const defaultInfo: Info = {
+    const defaultInfo: KeysIndexerServiceInfo = {
       moduleAddress: this.config.get('LIDO_STAKING_MODULE_ADDRESS'),
       moduleId: 0,
       storageStateSlot: 0,
       lastValidatorsCount: 0,
     };
-    this.info = new Low<Info>(new JSONFile<Info>('.keys-indexer-info.json'), defaultInfo);
-    this.storage = new Low<Storage>(new JSONFile<Storage>('.keys-indexer-storage.json'), {});
+    this.info = new Low<KeysIndexerServiceInfo>(
+      new JSONFile<KeysIndexerServiceInfo>('.keys-indexer-info.json'),
+      defaultInfo,
+    );
+    this.storage = new Low<KeysIndexerServiceStorage>(
+      new JSONFile<KeysIndexerServiceStorage>('.keys-indexer-storage.json'),
+      {},
+    );
     await this.info.read();
     await this.storage.read();
 
@@ -202,7 +208,7 @@ export class KeysIndexer implements OnModuleInit {
     );
     for (let i = 0; i < validators.length; i++) {
       const node = iterator.next().value;
-      const v = validators.type.elementType.tree_toValue(node);
+      const v = node.value;
       const pubKey = '0x'.concat(Buffer.from(v.pubkey).toString('hex'));
       const keyInfo = keysMap.get(pubKey);
       if (!keyInfo) continue;

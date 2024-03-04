@@ -7,16 +7,16 @@ import { RootHex } from '../../common/providers/consensus/response.interface';
 
 export type RootSlot = { blockRoot: RootHex; slotNumber: number };
 
-type Info = {
+type RootsStackServiceInfo = {
   lastProcessedRootSlot: RootSlot | undefined;
 };
 
-type Storage = { [slot: number]: RootHex };
+type RootsStackServiceStorage = { [slot: number]: RootHex };
 
 @Injectable()
 export class RootsStack implements OnModuleInit {
-  private info: Low<Info>;
-  private storage: Low<Storage>;
+  private info: Low<RootsStackServiceInfo>;
+  private storage: Low<RootsStackServiceStorage>;
 
   constructor(protected readonly keysIndexer: KeysIndexer) {}
 
@@ -26,7 +26,7 @@ export class RootsStack implements OnModuleInit {
 
   public getNextEligible(): RootSlot | undefined {
     for (const slot in this.storage.data) {
-      if (this.keysIndexer.eligibleForAnyDuty(Number(slot))) {
+      if (this.keysIndexer.isTrustedForAnyDuty(Number(slot))) {
         return { blockRoot: this.storage.data[slot], slotNumber: Number(slot) };
       }
     }
@@ -54,10 +54,10 @@ export class RootsStack implements OnModuleInit {
   }
 
   private async initOrReadServiceData() {
-    this.info = new Low<Info>(new JSONFile('.roots-stack-info.json'), {
+    this.info = new Low<RootsStackServiceInfo>(new JSONFile('.roots-stack-info.json'), {
       lastProcessedRootSlot: undefined,
     });
-    this.storage = new Low<Storage>(new JSONFile('.roots-stack-storage.json'), {});
+    this.storage = new Low<RootsStackServiceStorage>(new JSONFile('.roots-stack-storage.json'), {});
     await this.info.read();
     await this.storage.read();
   }
