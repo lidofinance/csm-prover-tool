@@ -5,6 +5,10 @@
 # ENV
 /.env
 
+# Storage
+/.keys-indexer-*
+/.roots-stack-*
+
 # Logs
 logs
 *.log

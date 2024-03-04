@@ -1,8 +1,4 @@
-import {
-  LoggerModule as Logger,
-  jsonTransport,
-  simpleTransport,
-} from '@lido-nestjs/logger';
+import { LoggerModule as Logger, jsonTransport, simpleTransport } from '@lido-nestjs/logger';
 import { Module } from '@nestjs/common';
 
 import { ConfigModule } from '../config/config.module';
@@ -20,9 +16,7 @@ import { LogFormat } from '../config/interfaces';
         const format = configService.get('LOG_FORMAT');
         const isJSON = format === LogFormat.JSON;
 
-        const transports = isJSON
-          ? jsonTransport({ secrets })
-          : simpleTransport({ secrets });
+        const transports = isJSON ? jsonTransport({ secrets }) : simpleTransport({ secrets });
 
         return { level, transports };
       },

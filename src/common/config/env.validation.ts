@@ -7,6 +7,8 @@ import {
   IsInt,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
+  IsString,
   Max,
   Min,
   validateSync,
@@ -25,12 +27,33 @@ export enum WorkingMode {
   CLI = 'cli',
 }
 
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
+
 export class EnvironmentVariables {
   @IsEnum(Environment)
   NODE_ENV: Environment = Environment.Development;
 
   @IsEnum(WorkingMode)
   public WORKING_MODE = WorkingMode.Daemon;
+
+  @IsOptional()
+  @IsString()
+  public START_ROOT?: string;
+
+  @IsNotEmpty()
+  @IsString()
+  public LIDO_STAKING_MODULE_ADDRESS: string;
+
+  @IsNumber()
+  @Min(30 * MINUTE)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public KEYS_INDEXER_RUNNING_PERIOD_MS: number = 3 * HOUR;
+
+  @IsNumber()
+  @Min(384000) // epoch time in ms
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS: number = 8 * HOUR;
 
   @IsNumber()
   @Min(1025)
@@ -66,7 +89,7 @@ export class EnvironmentVariables {
   @IsNumber()
   @Min(1000)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public EL_RPC_RESPONSE_TIMEOUT = 60000;
+  public EL_RPC_RESPONSE_TIMEOUT_MS = MINUTE;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
@@ -84,7 +107,7 @@ export class EnvironmentVariables {
   @IsNumber()
   @Min(1000)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public CL_API_RESPONSE_TIMEOUT = 60000;
+  public CL_API_RESPONSE_TIMEOUT_MS = MINUTE;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
@@ -102,7 +125,7 @@ export class EnvironmentVariables {
   @IsNumber()
   @Min(1000)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public KEYSAPI_API_RESPONSE_TIMEOUT = 60000;
+  public KEYSAPI_API_RESPONSE_TIMEOUT_MS = MINUTE;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
