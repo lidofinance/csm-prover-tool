@@ -7,7 +7,8 @@ import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService, OnModuleInit } from '@nestjs/common';
 
 import { ConfigService } from '../../common/config/config.service';
-import { KeyInfo } from '../../common/handlers/handlers.service';
+import { toHex } from '../../common/prover/helpers/proofs';
+import { KeyInfo } from '../../common/prover/types';
 import { Consensus } from '../../common/providers/consensus/consensus';
 import { BlockHeaderResponse, RootHex, Slot } from '../../common/providers/consensus/response.interface';
 import { Keysapi } from '../../common/providers/keysapi/keysapi';
@@ -96,7 +97,8 @@ export class KeysIndexer implements OnModuleInit {
   ): Promise<void> {
     this.logger.log(`🔑 Keys indexer is running`);
     this.logger.log(`Get validators. State root [${stateRoot}]`);
-    const stateView = await this.consensus.getStateView(stateRoot);
+    const state = await this.consensus.getState(stateRoot);
+    const stateView = this.consensus.stateToView(state.bodyBytes, state.forkName);
     this.logger.log(`Total validators count: ${stateView.validators.length}`);
     // TODO: do we need to store already full withdrawn keys ?
     await stateDataProcessingCallback(stateView.validators, finalizedSlot);
@@ -138,10 +140,9 @@ export class KeysIndexer implements OnModuleInit {
   private isTrustedForSlashings(slotNumber: Slot): boolean {
     // We are ok with outdated indexer for detection slashing
     // because of a bunch of delays between deposit and validator appearing
-    // TODO: get constants from node
-    const ETH1_FOLLOW_DISTANCE = 2048; // ~8 hours
-    const EPOCHS_PER_ETH1_VOTING_PERIOD = 64; // ~6.8 hours
-    const safeDelay = ETH1_FOLLOW_DISTANCE + EPOCHS_PER_ETH1_VOTING_PERIOD * 32;
+    const ETH1_FOLLOW_DISTANCE = Number(this.consensus.beaconConfig.ETH1_FOLLOW_DISTANCE); // ~8 hours
+    const EPOCHS_PER_ETH1_VOTING_PERIOD = Number(this.consensus.beaconConfig.EPOCHS_PER_ETH1_VOTING_PERIOD); // ~6.8 hours
+    const safeDelay = ETH1_FOLLOW_DISTANCE + this.consensus.epochToSlot(EPOCHS_PER_ETH1_VOTING_PERIOD);
     if (this.info.data.storageStateSlot >= slotNumber) return true;
     return slotNumber - this.info.data.storageStateSlot <= safeDelay; // ~14.8 hours
   }
@@ -149,9 +150,8 @@ export class KeysIndexer implements OnModuleInit {
   private isTrustedForFullWithdrawals(slotNumber: Slot): boolean {
     // We are ok with outdated indexer for detection withdrawal
     // because of MIN_VALIDATOR_WITHDRAWABILITY_DELAY
-    // TODO: get constants from node
-    const MIN_VALIDATOR_WITHDRAWABILITY_DELAY = 256;
-    const safeDelay = MIN_VALIDATOR_WITHDRAWABILITY_DELAY * 32;
+    const MIN_VALIDATOR_WITHDRAWABILITY_DELAY = Number(this.consensus.beaconConfig.MIN_VALIDATOR_WITHDRAWABILITY_DELAY);
+    const safeDelay = this.consensus.epochToSlot(MIN_VALIDATOR_WITHDRAWABILITY_DELAY);
     if (this.info.data.storageStateSlot >= slotNumber) return true;
     return slotNumber - this.info.data.storageStateSlot <= safeDelay; // ~27 hours
   }
@@ -209,15 +209,13 @@ export class KeysIndexer implements OnModuleInit {
     for (let i = 0; i < validators.length; i++) {
       const node = iterator.next().value;
       const v = node.value;
-      const pubKey = '0x'.concat(Buffer.from(v.pubkey).toString('hex'));
+      const pubKey = toHex(v.pubkey);
       const keyInfo = keysMap.get(pubKey);
       if (!keyInfo) continue;
       this.storage.data[i] = {
         operatorId: keyInfo.operatorIndex,
         keyIndex: keyInfo.index,
         pubKey: pubKey,
-        // TODO: bigint?
-        withdrawableEpoch: v.withdrawableEpoch,
       };
     }
   };
@@ -242,7 +240,7 @@ export class KeysIndexer implements OnModuleInit {
     for (let i = this.info.data.lastValidatorsCount - 1; i < validators.length; i++) {
       const node = iterator.next().value;
       const v = validators.type.elementType.tree_toValue(node);
-      valKeys.push('0x'.concat(Buffer.from(v.pubkey).toString('hex')));
+      valKeys.push(toHex(v.pubkey));
       valWithdrawableEpochs.push(v.withdrawableEpoch);
     }
     // TODO: can be better
@@ -257,8 +255,6 @@ export class KeysIndexer implements OnModuleInit {
           operatorId: csmKey.operatorIndex,
           keyIndex: csmKey.index,
           pubKey: csmKey.key,
-          // TODO: bigint?
-          withdrawableEpoch: valWithdrawableEpochs[i],
         };
       }
     }

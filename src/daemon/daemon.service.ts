@@ -41,7 +41,7 @@ export class DaemonService implements OnApplicationBootstrap {
     this.keysIndexer.update(header);
     const nextRoot = await this.rootsProvider.getNext(header);
     if (nextRoot) {
-      await this.rootsProcessor.process(nextRoot);
+      await this.rootsProcessor.process(nextRoot, header.root);
       return;
     }
     this.logger.log(`💤 Wait for the next finalized root`);
