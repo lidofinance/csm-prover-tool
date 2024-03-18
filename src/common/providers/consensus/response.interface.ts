@@ -90,6 +90,15 @@ export interface GenesisResponse {
   genesis_fork_version: string;
 }
 
+export interface BeaconConfig {
+  SLOTS_PER_EPOCH: string;
+  SECONDS_PER_SLOT: string;
+  CAPELLA_FORK_EPOCH: string;
+  ETH1_FOLLOW_DISTANCE: string;
+  EPOCHS_PER_ETH1_VOTING_PERIOD: string;
+  MIN_VALIDATOR_WITHDRAWABILITY_DELAY: string;
+}
+
 export interface BeaconBlockAttestation {
   aggregation_bits: string;
   data: {

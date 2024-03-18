@@ -42,15 +42,17 @@ export class Keysapi extends BaseRestProvider {
   }
 
   public async getStatus(): Promise<Status> {
-    return await this.baseJsonGet<Status>(this.mainUrl, this.endpoints.status);
+    const { body } = await this.baseGet(this.mainUrl, this.endpoints.status);
+    return (await body.json()) as Status;
   }
 
   public async getModules(): Promise<Modules> {
-    return await this.baseJsonGet<Modules>(this.mainUrl, this.endpoints.modules);
+    const { body } = await this.baseGet(this.mainUrl, this.endpoints.modules);
+    return (await body.json()) as Modules;
   }
 
   public async getModuleKeys(module_id: string | number, signal?: AbortSignal): Promise<ModuleKeys> {
-    const resp = await this.baseStreamedGet(this.mainUrl, this.endpoints.moduleKeys(module_id), {
+    const resp = await this.baseGet(this.mainUrl, this.endpoints.moduleKeys(module_id), {
       signal,
     });
     // TODO: ignore depositSignature ?
@@ -65,9 +67,10 @@ export class Keysapi extends BaseRestProvider {
     keysToFind: string[],
     signal?: AbortSignal,
   ): Promise<ModuleKeysFind> {
-    return await this.baseJsonPost<ModuleKeysFind>(this.mainUrl, this.endpoints.findModuleKeys(module_id), {
+    const { body } = await this.basePost(this.mainUrl, this.endpoints.findModuleKeys(module_id), {
       pubkeys: keysToFind,
       signal,
     });
+    return (await body.json()) as ModuleKeysFind;
   }
 }
