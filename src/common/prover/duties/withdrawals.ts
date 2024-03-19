@@ -67,8 +67,7 @@ export class WithdrawalsService {
     const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
     this.logger.log(`Getting state for root [${blockRoot}]`);
     const state = await this.consensus.getState(blockHeader.header.message.state_root);
-    const isHistoricalBlock = Number(finalizedHeader.header.message.slot) > Number(blockInfo.message.slot) + 8192;
-    if (isHistoricalBlock) {
+    if (this.isHistoricalBlock(blockInfo, finalizedHeader)) {
       this.logger.warn('It is historical withdrawal. Processing will take longer than usual');
       await this.sendHistoricalWithdrawalProves(blockHeader, blockInfo, state, finalizedHeader, withdrawals);
     } else {
@@ -112,9 +111,8 @@ export class WithdrawalsService {
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
     this.logger.log(`Getting state for root [${finalizedHeader.root}]`);
     const finalizedState = await this.consensus.getState(finalizedHeader.header.message.state_root);
-    const capellaForkSlot = this.consensus.epochToSlot(Number(this.consensus.beaconConfig.CAPELLA_FORK_EPOCH));
-    const summaryIndex = Math.floor((Number(blockHeader.header.message.slot) - capellaForkSlot) / 8192);
-    const summarySlot = capellaForkSlot + (summaryIndex + 1) * 8192;
+    const summaryIndex = this.calcSummaryIndex(blockInfo);
+    const summarySlot = this.calcSlotOfSummary(summaryIndex);
     this.logger.log(`Getting state for slot [${summarySlot}]`);
     const summaryState = await this.consensus.getState(summarySlot);
     const payloads = this.buildWithdrawalsProveHistoricalPayloads(
@@ -126,7 +124,7 @@ export class WithdrawalsService {
       this.consensus.stateToView(state.bodyBytes, state.forkName),
       this.consensus.blockToView(blockInfo, state.forkName),
       summaryIndex,
-      Number(blockHeader.header.message.slot) % 8192,
+      this.calcRootIndexInSummary(blockInfo),
       withdrawals,
     );
     for (const payload of payloads) {
@@ -318,5 +316,29 @@ export class WithdrawalsService {
         },
       };
     }
+  }
+
+  private isHistoricalBlock(blockInfo: BlockInfoResponse, finalizedHeader: BlockHeaderResponse): boolean {
+    return (
+      Number(finalizedHeader.header.message.slot) - Number(blockInfo.message.slot) >
+      Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT)
+    );
+  }
+
+  private calcSummaryIndex(blockInfo: BlockInfoResponse): number {
+    const capellaForkSlot = this.consensus.epochToSlot(Number(this.consensus.beaconConfig.CAPELLA_FORK_EPOCH));
+    const slotsPerHistoricalRoot = Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT);
+    return Math.floor((Number(blockInfo.message.slot) - capellaForkSlot) / slotsPerHistoricalRoot);
+  }
+
+  private calcSlotOfSummary(summaryIndex: number): number {
+    const capellaForkSlot = this.consensus.epochToSlot(Number(this.consensus.beaconConfig.CAPELLA_FORK_EPOCH));
+    const slotsPerHistoricalRoot = Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT);
+    return capellaForkSlot + (summaryIndex + 1) * slotsPerHistoricalRoot;
+  }
+
+  private calcRootIndexInSummary(blockInfo: BlockInfoResponse): number {
+    const slotsPerHistoricalRoot = Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT);
+    return Number(blockInfo.message.slot) % slotsPerHistoricalRoot;
   }
 }

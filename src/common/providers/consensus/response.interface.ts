@@ -96,6 +96,7 @@ export interface BeaconConfig {
   CAPELLA_FORK_EPOCH: string;
   ETH1_FOLLOW_DISTANCE: string;
   EPOCHS_PER_ETH1_VOTING_PERIOD: string;
+  SLOTS_PER_HISTORICAL_ROOT: string;
   MIN_VALIDATOR_WITHDRAWABILITY_DELAY: string;
 }
 

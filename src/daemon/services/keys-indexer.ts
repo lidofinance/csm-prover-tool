@@ -236,12 +236,10 @@ export class KeysIndexer implements OnModuleInit {
       validators.length,
     );
     const valKeys = [];
-    const valWithdrawableEpochs = [];
     for (let i = this.info.data.lastValidatorsCount - 1; i < validators.length; i++) {
       const node = iterator.next().value;
       const v = validators.type.elementType.tree_toValue(node);
       valKeys.push(toHex(v.pubkey));
-      valWithdrawableEpochs.push(v.withdrawableEpoch);
     }
     // TODO: can be better
     const csmKeys = await this.keysapi.findModuleKeys(this.info.data.moduleId, valKeys);
