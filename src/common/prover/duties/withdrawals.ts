@@ -67,6 +67,9 @@ export class WithdrawalsService {
     const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
     this.logger.log(`Getting state for root [${blockRoot}]`);
     const state = await this.consensus.getState(blockHeader.header.message.state_root);
+    // There is a case when the block is not historical regarding the finalized block, but it is historical
+    // regarding the transaction execution time. This is possible when long finalization time
+    // The transaction will be reverted and the application will try to handle that block again
     if (this.isHistoricalBlock(blockInfo, finalizedHeader)) {
       this.logger.warn('It is historical withdrawal. Processing will take longer than usual');
       await this.sendHistoricalWithdrawalProves(blockHeader, blockInfo, state, finalizedHeader, withdrawals);
@@ -319,9 +322,11 @@ export class WithdrawalsService {
   }
 
   private isHistoricalBlock(blockInfo: BlockInfoResponse, finalizedHeader: BlockHeaderResponse): boolean {
+    const finalizationBufferEpochs = 2;
+    const finalizationBufferSlots = this.consensus.epochToSlot(finalizationBufferEpochs);
     return (
       Number(finalizedHeader.header.message.slot) - Number(blockInfo.message.slot) >
-      Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT)
+      Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT) - finalizationBufferSlots
     );
   }
 
