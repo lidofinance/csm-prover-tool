@@ -12,7 +12,6 @@ export interface RequestPolicy {
 }
 
 export interface RequestOptions {
-  streamed?: boolean;
   requestPolicy?: RequestPolicy;
   signal?: AbortSignal;
   headers?: Record<string, string>;
@@ -42,49 +41,12 @@ export abstract class BaseRestProvider {
   //  2. retries
   //  3. fallbacks
 
-  protected async baseJsonGet<T>(base: string, endpoint: string, options?: RequestOptions): Promise<T> {
-    return (await this.baseGet<T>(base, endpoint, { ...options, streamed: false })) as T;
-  }
-
-  protected async baseStreamedGet(
+  protected async baseGet(
     base: string,
     endpoint: string,
     options?: RequestOptions,
   ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
-    return (await this.baseGet(base, endpoint, { ...options, streamed: true })) as {
-      body: BodyReadable;
-      headers: IncomingHttpHeaders;
-    };
-  }
-
-  protected async baseJsonPost<T>(
-    base: string,
-    endpoint: string,
-    requestBody: any,
-    options?: RequestOptions,
-  ): Promise<T> {
-    return (await this.basePost<T>(base, endpoint, requestBody, { ...options, streamed: false })) as T;
-  }
-
-  protected async baseStreamedPost(
-    base: string,
-    endpoint: string,
-    requestBody: any,
-    options?: RequestOptions,
-  ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
-    return (await this.basePost(base, endpoint, requestBody, { ...options, streamed: true })) as {
-      body: BodyReadable;
-      headers: IncomingHttpHeaders;
-    };
-  }
-
-  private async baseGet<T>(
-    base: string,
-    endpoint: string,
-    options?: RequestOptions,
-  ): Promise<T | { body: BodyReadable; headers: IncomingHttpHeaders }> {
     options = {
-      streamed: false,
       requestPolicy: this.requestPolicy,
       ...options,
     } as RequestOptions;
@@ -98,17 +60,16 @@ export abstract class BaseRestProvider {
       const hostname = new URL(base).hostname;
       throw new Error(`Request failed with status code [${statusCode}] on host [${hostname}]: ${endpoint}`);
     }
-    return options.streamed ? { body: body, headers: headers } : ((await body.json()) as T);
+    return { body: body, headers: headers };
   }
 
-  private async basePost<T>(
+  protected async basePost(
     base: string,
     endpoint: string,
     requestBody: any,
     options?: RequestOptions,
-  ): Promise<T | { body: BodyReadable; headers: IncomingHttpHeaders }> {
+  ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
     options = {
-      streamed: false,
       requestPolicy: this.requestPolicy,
       ...options,
     } as RequestOptions;
@@ -125,6 +86,6 @@ export abstract class BaseRestProvider {
       const hostname = new URL(base).hostname;
       throw new Error(`Request failed with status code [${statusCode}] on host [${hostname}]: ${endpoint}`);
     }
-    return options.streamed ? { body: body, headers: headers } : ((await body.json()) as T);
+    return { body: body, headers: headers };
   }
 }

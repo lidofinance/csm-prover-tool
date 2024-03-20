@@ -1,7 +1,9 @@
+import { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService, OnModuleInit, Optional } from '@nestjs/common';
 
 import {
+  BeaconConfig,
   BlockHeaderResponse,
   BlockId,
   BlockInfoResponse,
@@ -15,11 +17,13 @@ import { DownloadProgress } from '../../utils/download-progress/download-progres
 import { BaseRestProvider } from '../base/rest-provider';
 
 let ssz: typeof import('@lodestar/types').ssz;
+let anySsz: typeof ssz.phase0 | typeof ssz.altair | typeof ssz.bellatrix | typeof ssz.capella | typeof ssz.deneb;
 let ForkName: typeof import('@lodestar/params').ForkName;
 
 @Injectable()
 export class Consensus extends BaseRestProvider implements OnModuleInit {
   private readonly endpoints = {
+    config: 'eth/v1/config/spec',
     version: 'eth/v1/node/version',
     genesis: 'eth/v1/beacon/genesis',
     blockInfo: (blockId: BlockId): string => `eth/v2/beacon/blocks/${blockId}`,
@@ -30,9 +34,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   };
 
   public genesisTimestamp: number;
-  // TODO: configurable
-  public SLOTS_PER_EPOCH: number = 32;
-  public SECONDS_PER_SLOT: number = 12;
+  public beaconConfig: BeaconConfig;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
@@ -53,53 +55,85 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     // ugly hack to import ESModule to CommonJS project
     ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
     this.logger.log(`Getting genesis timestamp`);
-    const resp = await this.getGenesis();
-    this.genesisTimestamp = Number(resp.genesis_time);
+    const genesis = await this.getGenesis();
+    this.genesisTimestamp = Number(genesis.genesis_time);
+    this.beaconConfig = await this.getConfig();
   }
 
   public slotToTimestamp(slot: number): number {
-    return this.genesisTimestamp + slot * this.SECONDS_PER_SLOT;
+    return this.genesisTimestamp + slot * Number(this.beaconConfig.SECONDS_PER_SLOT);
+  }
+
+  public epochToSlot(epoch: number): number {
+    return epoch * Number(this.beaconConfig.SLOTS_PER_EPOCH);
+  }
+
+  public slotToEpoch(slot: number): number {
+    return Math.floor(slot / Number(this.beaconConfig.SLOTS_PER_EPOCH));
+  }
+
+  public async getConfig(): Promise<BeaconConfig> {
+    const { body } = await this.baseGet(this.mainUrl, this.endpoints.config);
+    const jsonBody = (await body.json()) as { data: BeaconConfig };
+    return jsonBody.data;
   }
 
   public async getGenesis(): Promise<GenesisResponse> {
-    const resp = await this.baseJsonGet<{ data: GenesisResponse }>(this.mainUrl, this.endpoints.genesis);
-    return resp.data;
+    const { body } = await this.baseGet(this.mainUrl, this.endpoints.genesis);
+    const jsonBody = (await body.json()) as { data: GenesisResponse };
+    return jsonBody.data;
   }
 
   public async getBlockInfo(blockId: BlockId): Promise<BlockInfoResponse> {
-    const resp = await this.baseJsonGet<{ data: BlockInfoResponse }>(this.mainUrl, this.endpoints.blockInfo(blockId));
-    return resp.data;
+    const { body } = await this.baseGet(this.mainUrl, this.endpoints.blockInfo(blockId));
+    const jsonBody = (await body.json()) as { data: BlockInfoResponse };
+    return jsonBody.data;
   }
 
   public async getBeaconHeader(blockId: BlockId): Promise<BlockHeaderResponse> {
-    const resp = await this.baseJsonGet<{ data: BlockHeaderResponse }>(
-      this.mainUrl,
-      this.endpoints.beaconHeader(blockId),
-    );
-    return resp.data;
+    const { body } = await this.baseGet(this.mainUrl, this.endpoints.beaconHeader(blockId));
+    const jsonBody = (await body.json()) as { data: BlockHeaderResponse };
+    return jsonBody.data;
   }
 
   public async getBeaconHeadersByParentRoot(
     parentRoot: RootHex,
   ): Promise<{ finalized: boolean; data: BlockHeaderResponse[] }> {
-    return await this.baseJsonGet<{ finalized: boolean; data: BlockHeaderResponse[] }>(
-      this.mainUrl,
-      this.endpoints.beaconHeadersByParentRoot(parentRoot),
-    );
+    const { body } = await this.baseGet(this.mainUrl, this.endpoints.beaconHeadersByParentRoot(parentRoot));
+    return (await body.json()) as { finalized: boolean; data: BlockHeaderResponse[] };
   }
 
-  public async getStateView(stateId: StateId, signal?: AbortSignal) {
-    const { body, headers } = await this.baseStreamedGet(this.mainUrl, this.endpoints.state(stateId), {
+  public async getState(
+    stateId: StateId,
+    signal?: AbortSignal,
+  ): Promise<{ bodyBytes: Uint8Array; forkName: keyof typeof ForkName }> {
+    const { body, headers } = await this.baseGet(this.mainUrl, this.endpoints.state(stateId), {
       signal,
       headers: { accept: 'application/octet-stream' },
     });
-    const version = headers['eth-consensus-version'] as keyof typeof ForkName;
+    const forkName = headers['eth-consensus-version'] as keyof typeof ForkName;
     // Progress bar
     // TODO: Enable for CLI only
     //this.progress.show(`State [${stateId}]`, resp);
-    // Data processing
-    const bodyBites = new Uint8Array(await body.arrayBuffer());
-    // TODO: high memory usage
-    return ssz[version].BeaconState.deserializeToView(bodyBites);
+    const bodyBytes = new Uint8Array(await body.arrayBuffer());
+    return { bodyBytes, forkName };
+  }
+
+  public stateToView(
+    bodyBytes: Uint8Array,
+    forkName: keyof typeof ForkName,
+  ): ContainerTreeViewType<typeof anySsz.BeaconState.fields> {
+    return ssz[forkName].BeaconState.deserializeToView(bodyBytes) as ContainerTreeViewType<
+      typeof anySsz.BeaconState.fields
+    >;
+  }
+
+  public blockToView(
+    body: BlockInfoResponse,
+    forkName: keyof typeof ForkName,
+  ): ContainerTreeViewType<typeof anySsz.BeaconBlock.fields> {
+    return ssz[forkName].BeaconBlock.toView(anySsz.BeaconBlock.fromJson(body.message) as any) as ContainerTreeViewType<
+      typeof anySsz.BeaconBlock.fields
+    >;
   }
 }
