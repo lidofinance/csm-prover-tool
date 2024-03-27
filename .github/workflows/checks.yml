@@ -32,5 +32,8 @@ jobs:
       - name: Install Node dependencies
         run: yarn install --frozen-lockfile --non-interactive
 
+      - name: Generate types
+        run: yarn typechain
+
       - name: Linters check
         run: yarn lint
