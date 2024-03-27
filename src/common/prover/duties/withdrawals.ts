@@ -3,6 +3,8 @@ import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { ForkName } from '@lodestar/params';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
+import { CsmContract } from '../../contracts/csm-contract.service';
+import { VerifierContract } from '../../contracts/verifier-contract.service';
 import { Consensus } from '../../providers/consensus/consensus';
 import {
   BlockHeaderResponse,
@@ -33,6 +35,8 @@ export class WithdrawalsService {
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
     protected readonly consensus: Consensus,
+    protected readonly csm: CsmContract,
+    protected readonly verifier: VerifierContract,
   ) {}
 
   public async getUnprovenWithdrawals(
@@ -43,9 +47,7 @@ export class WithdrawalsService {
     if (!Object.keys(withdrawals).length) return {};
     const unproven: InvolvedKeysWithWithdrawal = {};
     for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
-      // TODO: implement
-      //  const proved = await this.execution.isSlashingProved(slashing);
-      const proved = false;
+      const proved = await this.csm.isWithdrawalProved(keyWithWithdrawalInfo);
       if (!proved) unproven[valIndex] = keyWithWithdrawalInfo;
     }
     const unprovenCount = Object.keys(unproven).length;
@@ -96,9 +98,7 @@ export class WithdrawalsService {
     );
     for (const payload of payloads) {
       this.logger.warn(`📡 Sending withdrawal prove payload for validator index: ${payload.witness.validatorIndex}`);
-      // TODO: implement
-      // TODO: ask before sending if CLI
-      this.logger.log(payload);
+      await this.verifier.sendGeneralWithdrawalProve(payload);
     }
   }
 
@@ -134,9 +134,7 @@ export class WithdrawalsService {
       this.logger.warn(
         `📡 Sending historical withdrawal prove payload for validator index: ${payload.witness.validatorIndex}`,
       );
-      // TODO: implement
-      // TODO: ask before sending if CLI
-      this.logger.log(payload);
+      await this.verifier.sendHistoricalWithdrawalProve(payload);
     }
   }
 
@@ -299,7 +297,8 @@ export class WithdrawalsService {
             stateRoot: headerWithWds.header.message.state_root,
             bodyRoot: headerWithWds.header.message.body_root,
           },
-          rootGIndex: Number(historicalStateProof.gindex),
+          // NOTE: the last byte can be changed due to `CSVerifier` implementation in the future
+          rootGIndex: '0x' + (historicalStateProof.gindex.toString(16) + '00').padStart(64, '0'),
           proof: historicalStateProof.witnesses.map(toHex),
         },
         witness: {

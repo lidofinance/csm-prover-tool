@@ -24,10 +24,10 @@ export class RootsProcessor {
       blockRoot: blockRootToProcess,
       slotNumber: Number(blockInfoToProcess.message.slot),
     };
-    const indexerIsTrusted = this.keysIndexer.isTrustedForEveryDuty(rootSlot.slotNumber);
-    if (!indexerIsTrusted) await this.rootsStack.push(rootSlot); // only new will be pushed
-    // prove slashings or withdrawals if needed
+    await this.rootsStack.push(rootSlot); // in case of revert we should reprocess the root
+    // TODO: need some protection from run out of account's balance when tx reverting for the same root
     await this.prover.handleBlock(blockRootToProcess, blockInfoToProcess, finalizedRoot, this.keysIndexer.getKey);
+    const indexerIsTrusted = this.keysIndexer.isTrustedForEveryDuty(rootSlot.slotNumber);
     if (indexerIsTrusted) await this.rootsStack.purge(rootSlot);
     await this.rootsStack.setLastProcessed(rootSlot);
   }

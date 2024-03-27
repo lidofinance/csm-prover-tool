@@ -132,8 +132,8 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     body: BlockInfoResponse,
     forkName: keyof typeof ForkName,
   ): ContainerTreeViewType<typeof anySsz.BeaconBlock.fields> {
-    return ssz[forkName].BeaconBlock.toView(anySsz.BeaconBlock.fromJson(body.message) as any) as ContainerTreeViewType<
-      typeof anySsz.BeaconBlock.fields
-    >;
+    return ssz[forkName].BeaconBlock.toView(
+      ssz[forkName].BeaconBlock.fromJson(body.message) as any,
+    ) as ContainerTreeViewType<typeof anySsz.BeaconBlock.fields>;
   }
 }

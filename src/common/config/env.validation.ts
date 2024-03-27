@@ -11,6 +11,7 @@ import {
   IsString,
   Max,
   Min,
+  ValidateIf,
   validateSync,
 } from 'class-validator';
 
@@ -43,7 +44,40 @@ export class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsString()
-  public LIDO_STAKING_MODULE_ADDRESS: string;
+  public CSM_ADDRESS: string;
+
+  @IsNotEmpty()
+  @IsString()
+  public VERIFIER_ADDRESS: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @ValidateIf((vars) => !vars.DRY_RUN)
+  public TX_SIGNER_PRIVATE_KEY: string;
+
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_MIN_GAS_PRIORITY_FEE = 50_000_000; // 50 mwei
+
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_MAX_GAS_PRIORITY_FEE = 10_000_000_000; // 10 gwei
+
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_GAS_PRIORITY_FEE_PERCENTILE = 25;
+
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_GAS_FEE_HISTORY_DAYS = 1;
+
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_GAS_FEE_HISTORY_PERCENTILE = 20;
+
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_GAS_LIMIT = 1_000_000;
 
   @IsNumber()
   @Min(30 * MINUTE)
@@ -68,6 +102,7 @@ export class EnvironmentVariables {
   LOG_FORMAT: LogFormat = LogFormat.Simple;
 
   @IsBoolean()
+  @Transform(({ value }) => toBoolean(value), { toClassOnly: true })
   public DRY_RUN = false;
 
   @IsNotEmpty()
@@ -145,3 +180,31 @@ export function validate(config: Record<string, unknown>) {
 
   return validatedConfig;
 }
+
+const toBoolean = (value: any): boolean => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return !!value;
+  }
+
+  if (!(typeof value === 'string')) {
+    return false;
+  }
+
+  switch (value.toLowerCase().trim()) {
+    case 'true':
+    case 'yes':
+    case '1':
+      return true;
+    case 'false':
+    case 'no':
+    case '0':
+    case null:
+      return false;
+    default:
+      return false;
+  }
+};
