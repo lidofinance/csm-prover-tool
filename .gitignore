@@ -2,6 +2,9 @@
 /dist
 /node_modules
 
+# generated files
+/src/common/contracts/types
+
 # ENV
 /.env
 
