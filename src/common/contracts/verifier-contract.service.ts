@@ -3,11 +3,7 @@ import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
 import { Verifier, Verifier__factory } from './types';
 import { ConfigService } from '../config/config.service';
-import {
-  SlashingProvePayload,
-  WithdrawalsGeneralProvePayload,
-  WithdrawalsHistoricalProvePayload,
-} from '../prover/types';
+import { HistoricalWithdrawalsProofPayload, SlashingProofPayload, WithdrawalsProofPayload } from '../prover/types';
 import { Execution } from '../providers/execution/execution';
 
 @Injectable()
@@ -22,7 +18,7 @@ export class VerifierContract {
     this.impl = Verifier__factory.connect(this.config.get('VERIFIER_ADDRESS'), this.execution.provider);
   }
 
-  public async sendSlashingProve(payload: SlashingProvePayload): Promise<void> {
+  public async sendSlashingProof(payload: SlashingProofPayload): Promise<void> {
     this.logger.debug!(payload);
     await this.execution.execute(
       this.impl.callStatic.processSlashingProof,
@@ -31,7 +27,7 @@ export class VerifierContract {
     );
   }
 
-  public async sendGeneralWithdrawalProve(payload: WithdrawalsGeneralProvePayload): Promise<void> {
+  public async sendWithdrawalProof(payload: WithdrawalsProofPayload): Promise<void> {
     this.logger.debug!(payload);
     await this.execution.execute(
       this.impl.callStatic.processWithdrawalProof,
@@ -40,7 +36,7 @@ export class VerifierContract {
     );
   }
 
-  public async sendHistoricalWithdrawalProve(payload: WithdrawalsHistoricalProvePayload): Promise<void> {
+  public async sendHistoricalWithdrawalProof(payload: HistoricalWithdrawalsProofPayload): Promise<void> {
     await this.execution.execute(
       this.impl.callStatic.processHistoricalWithdrawalProof,
       this.impl.populateTransaction.processHistoricalWithdrawalProof,

@@ -6,14 +6,14 @@ export interface KeyInfo {
 
 export type KeyInfoFn = (valIndex: number) => KeyInfo | undefined;
 
-export type WithdrawalsGeneralProvePayload = {
+export type WithdrawalsProofPayload = {
   beaconBlock: ProvableBeaconBlockHeader;
   witness: WithdrawalWitness;
   nodeOperatorId: number;
   keyIndex: number;
 };
 
-export type WithdrawalsHistoricalProvePayload = {
+export type HistoricalWithdrawalsProofPayload = {
   beaconBlock: ProvableBeaconBlockHeader;
   oldBlock: HistoricalHeaderWitness;
   witness: WithdrawalWitness;
@@ -21,7 +21,7 @@ export type WithdrawalsHistoricalProvePayload = {
   keyIndex: number;
 };
 
-export type SlashingProvePayload = {
+export type SlashingProofPayload = {
   beaconBlock: ProvableBeaconBlockHeader;
   witness: SlashingWitness;
   nodeOperatorId: number;

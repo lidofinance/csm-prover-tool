@@ -57,13 +57,14 @@ export class EnvironmentVariables {
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public TX_MIN_GAS_PRIORITY_FEE = 50_000_000; // 50 mwei
+  public TX_MIN_GAS_PRIORITY_FEE = 50_000_000; // 0.05 gwei
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public TX_MAX_GAS_PRIORITY_FEE = 10_000_000_000; // 10 gwei
 
   @IsNumber()
+  @Max(100)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public TX_GAS_PRIORITY_FEE_PERCENTILE = 25;
 
@@ -72,6 +73,7 @@ export class EnvironmentVariables {
   public TX_GAS_FEE_HISTORY_DAYS = 1;
 
   @IsNumber()
+  @Max(100)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public TX_GAS_FEE_HISTORY_PERCENTILE = 20;
 
