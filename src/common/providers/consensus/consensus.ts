@@ -1,6 +1,7 @@
 import { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService, OnModuleInit, Optional } from '@nestjs/common';
+import ora from 'ora';
 
 import {
   BeaconConfig,
@@ -39,8 +40,8 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
     @Optional() protected readonly prometheus: PrometheusService,
+    @Optional() protected readonly progress: DownloadProgress,
     protected readonly config: ConfigService,
-    protected readonly progress: DownloadProgress,
   ) {
     super(
       config.get('CL_API_URLS') as Array<string>,
@@ -107,14 +108,18 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     stateId: StateId,
     signal?: AbortSignal,
   ): Promise<{ bodyBytes: Uint8Array; forkName: keyof typeof ForkName }> {
-    const { body, headers } = await this.baseGet(this.mainUrl, this.endpoints.state(stateId), {
+    const requestPromise = this.baseGet(this.mainUrl, this.endpoints.state(stateId), {
       signal,
       headers: { accept: 'application/octet-stream' },
     });
+    if (this.progress) {
+      ora.promise(requestPromise, { text: `Getting state response for state id [${stateId}]` });
+    } else {
+      this.logger.log(`Getting state response for state id [${stateId}]`);
+    }
+    const { body, headers } = await requestPromise;
+    this.progress?.show('State downloading', { body, headers });
     const forkName = headers['eth-consensus-version'] as keyof typeof ForkName;
-    // Progress bar
-    // TODO: Enable for CLI only
-    //this.progress.show(`State [${stateId}]`, resp);
     const bodyBytes = new Uint8Array(await body.arrayBuffer());
     return { bodyBytes, forkName };
   }
