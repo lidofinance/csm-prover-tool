@@ -1,5 +1,5 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, OnApplicationBootstrap } from '@nestjs/common';
+import { Inject, Injectable, LoggerService, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
 
 import { KeysIndexer } from './services/keys-indexer';
 import { RootsProcessor } from './services/roots-processor';
@@ -9,7 +9,7 @@ import { ConfigService } from '../common/config/config.service';
 import { Consensus } from '../common/providers/consensus/consensus';
 
 @Injectable()
-export class DaemonService implements OnApplicationBootstrap {
+export class DaemonService implements OnModuleInit, OnApplicationBootstrap {
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
     protected readonly config: ConfigService,
@@ -18,6 +18,10 @@ export class DaemonService implements OnApplicationBootstrap {
     protected readonly rootsProvider: RootsProvider,
     protected readonly rootsProcessor: RootsProcessor,
   ) {}
+
+  async onModuleInit() {
+    this.logger.log('Working mode: DAEMON');
+  }
 
   async onApplicationBootstrap() {
     this.loop().then();
@@ -41,7 +45,7 @@ export class DaemonService implements OnApplicationBootstrap {
     this.keysIndexer.update(header);
     const nextRoot = await this.rootsProvider.getNext(header);
     if (nextRoot) {
-      await this.rootsProcessor.process(nextRoot, header.root);
+      await this.rootsProcessor.process(nextRoot, header);
       return;
     }
     this.logger.log(`💤 Wait for the next finalized root`);
