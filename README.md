@@ -38,6 +38,7 @@ If any of these time thresholds are breached, we can't be sure that if there was
 
 ```bash
 $ yarn install
+$ yarn run typechain
 ```
 
 ## Running the app

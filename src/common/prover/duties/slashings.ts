@@ -2,10 +2,12 @@ import { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
+import { CsmContract } from '../../contracts/csm-contract.service';
+import { VerifierContract } from '../../contracts/verifier-contract.service';
 import { Consensus } from '../../providers/consensus/consensus';
 import { BlockHeaderResponse, BlockInfoResponse } from '../../providers/consensus/response.interface';
 import { generateValidatorProof, toHex, verifyProof } from '../helpers/proofs';
-import { KeyInfo, KeyInfoFn, SlashingProvePayload } from '../types';
+import { KeyInfo, KeyInfoFn, SlashingProofPayload } from '../types';
 
 let ssz: typeof import('@lodestar/types').ssz;
 let anySsz: typeof ssz.phase0 | typeof ssz.altair | typeof ssz.bellatrix | typeof ssz.capella | typeof ssz.deneb;
@@ -17,6 +19,8 @@ export class SlashingsService {
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
     protected readonly consensus: Consensus,
+    protected readonly csm: CsmContract,
+    protected readonly verifier: VerifierContract,
   ) {}
 
   public async getUnprovenSlashings(blockInfo: BlockInfoResponse, keyInfoFn: KeyInfoFn): Promise<InvolvedKeys> {
@@ -27,9 +31,7 @@ export class SlashingsService {
     if (!Object.keys(slashings).length) return {};
     const unproven: InvolvedKeys = {};
     for (const [valIndex, keyInfo] of Object.entries(slashings)) {
-      // TODO: implement
-      //  const proved = await this.execution.isSlashingProved(slashing);
-      const proved = false;
+      const proved = await this.csm.isSlashingProved(keyInfo);
       if (!proved) unproven[valIndex] = keyInfo;
     }
     const unprovenCount = Object.keys(unproven).length;
@@ -41,19 +43,17 @@ export class SlashingsService {
     return unproven;
   }
 
-  public async sendSlashingProves(finalizedHeader: BlockHeaderResponse, slashings: InvolvedKeys): Promise<void> {
+  public async sendSlashingProof(finalizedHeader: BlockHeaderResponse, slashings: InvolvedKeys): Promise<void> {
     if (!Object.keys(slashings).length) return;
     this.logger.log(`Getting state for root [${finalizedHeader.root}]`);
     const finalizedState = await this.consensus.getState(finalizedHeader.header.message.state_root);
     const nextHeader = (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data[0];
     const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
     const stateView = this.consensus.stateToView(finalizedState.bodyBytes, finalizedState.forkName);
-    const payloads = this.buildSlashingsProvePayloads(finalizedHeader, nextHeaderTs, stateView, slashings);
+    const payloads = this.buildSlashingsProofPayloads(finalizedHeader, nextHeaderTs, stateView, slashings);
     for (const payload of payloads) {
-      this.logger.warn(`📡 Sending slashing prove payload for validator index: ${payload.witness.validatorIndex}`);
-      // TODO: implement
-      // TODO: ask before sending if CLI
-      this.logger.log(payload);
+      this.logger.warn(`📡 Sending slashing proof payload for validator index: ${payload.witness.validatorIndex}`);
+      await this.verifier.sendSlashingProof(payload);
     }
   }
 
@@ -88,12 +88,12 @@ export class SlashingsService {
     return slashed;
   }
 
-  private *buildSlashingsProvePayloads(
+  private *buildSlashingsProofPayloads(
     currentHeader: BlockHeaderResponse,
     nextHeaderTimestamp: number,
     stateView: ContainerTreeViewType<typeof anySsz.BeaconState.fields>,
     slashings: InvolvedKeys,
-  ): Generator<SlashingProvePayload> {
+  ): Generator<SlashingProofPayload> {
     for (const [valIndex, keyInfo] of Object.entries(slashings)) {
       const validator = stateView.validators.get(Number(valIndex));
       const validatorProof = generateValidatorProof(stateView, Number(valIndex));

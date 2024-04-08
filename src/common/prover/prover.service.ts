@@ -30,8 +30,8 @@ export class ProverService {
     }
     const finalizedHeader = await this.consensus.getBeaconHeader(finalizedBlockRoot);
     // do it consistently because of the high resource usage (both the app and CL node)
-    await this.slashings.sendSlashingProves(finalizedHeader, slashings);
-    await this.withdrawals.sendWithdrawalProves(blockRoot, blockInfo, finalizedHeader, withdrawals);
-    this.logger.log('🏁 Prove(s) sent');
+    await this.slashings.sendSlashingProof(finalizedHeader, slashings);
+    await this.withdrawals.sendWithdrawalProofs(blockRoot, blockInfo, finalizedHeader, withdrawals);
+    this.logger.log('🏁 Proof(s) sent');
   }
 }

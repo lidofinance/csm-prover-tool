@@ -158,7 +158,7 @@ export class KeysIndexer implements OnModuleInit {
 
   private async initOrReadServiceData() {
     const defaultInfo: KeysIndexerServiceInfo = {
-      moduleAddress: this.config.get('LIDO_STAKING_MODULE_ADDRESS'),
+      moduleAddress: this.config.get('CSM_ADDRESS'),
       moduleId: 0,
       storageStateSlot: 0,
       lastValidatorsCount: 0,

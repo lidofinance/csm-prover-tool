@@ -3,6 +3,8 @@ import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { ForkName } from '@lodestar/params';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
+import { CsmContract } from '../../contracts/csm-contract.service';
+import { VerifierContract } from '../../contracts/verifier-contract.service';
 import { Consensus } from '../../providers/consensus/consensus';
 import {
   BlockHeaderResponse,
@@ -17,7 +19,7 @@ import {
   toHex,
   verifyProof,
 } from '../helpers/proofs';
-import { KeyInfo, KeyInfoFn, WithdrawalsGeneralProvePayload, WithdrawalsHistoricalProvePayload } from '../types';
+import { HistoricalWithdrawalsProofPayload, KeyInfo, KeyInfoFn, WithdrawalsProofPayload } from '../types';
 
 let ssz: typeof import('@lodestar/types').ssz;
 let anySsz: typeof ssz.phase0 | typeof ssz.altair | typeof ssz.bellatrix | typeof ssz.capella | typeof ssz.deneb;
@@ -33,6 +35,8 @@ export class WithdrawalsService {
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
     protected readonly consensus: Consensus,
+    protected readonly csm: CsmContract,
+    protected readonly verifier: VerifierContract,
   ) {}
 
   public async getUnprovenWithdrawals(
@@ -43,9 +47,7 @@ export class WithdrawalsService {
     if (!Object.keys(withdrawals).length) return {};
     const unproven: InvolvedKeysWithWithdrawal = {};
     for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
-      // TODO: implement
-      //  const proved = await this.execution.isSlashingProved(slashing);
-      const proved = false;
+      const proved = await this.csm.isWithdrawalProved(keyWithWithdrawalInfo);
       if (!proved) unproven[valIndex] = keyWithWithdrawalInfo;
     }
     const unprovenCount = Object.keys(unproven).length;
@@ -57,7 +59,7 @@ export class WithdrawalsService {
     return unproven;
   }
 
-  public async sendWithdrawalProves(
+  public async sendWithdrawalProofs(
     blockRoot: RootHex,
     blockInfo: BlockInfoResponse,
     finalizedHeader: BlockHeaderResponse,
@@ -72,13 +74,13 @@ export class WithdrawalsService {
     // The transaction will be reverted and the application will try to handle that block again
     if (this.isHistoricalBlock(blockInfo, finalizedHeader)) {
       this.logger.warn('It is historical withdrawal. Processing will take longer than usual');
-      await this.sendHistoricalWithdrawalProves(blockHeader, blockInfo, state, finalizedHeader, withdrawals);
+      await this.sendHistoricalWithdrawalProofs(blockHeader, blockInfo, state, finalizedHeader, withdrawals);
     } else {
-      await this.sendGeneralWithdrawalProves(blockHeader, blockInfo, state, withdrawals);
+      await this.sendGeneralWithdrawalProofs(blockHeader, blockInfo, state, withdrawals);
     }
   }
 
-  private async sendGeneralWithdrawalProves(
+  private async sendGeneralWithdrawalProofs(
     blockHeader: BlockHeaderResponse,
     blockInfo: BlockInfoResponse,
     state: { bodyBytes: Uint8Array; forkName: keyof typeof ForkName },
@@ -87,7 +89,7 @@ export class WithdrawalsService {
     // create proof against the state with withdrawals
     const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data[0];
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
-    const payloads = this.buildWithdrawalsProveGeneralPayloads(
+    const payloads = this.buildWithdrawalsProofPayloads(
       blockHeader,
       nextBlockTs,
       this.consensus.stateToView(state.bodyBytes, state.forkName),
@@ -95,14 +97,12 @@ export class WithdrawalsService {
       withdrawals,
     );
     for (const payload of payloads) {
-      this.logger.warn(`📡 Sending withdrawal prove payload for validator index: ${payload.witness.validatorIndex}`);
-      // TODO: implement
-      // TODO: ask before sending if CLI
-      this.logger.log(payload);
+      this.logger.warn(`📡 Sending withdrawal proof payload for validator index: ${payload.witness.validatorIndex}`);
+      await this.verifier.sendWithdrawalProof(payload);
     }
   }
 
-  private async sendHistoricalWithdrawalProves(
+  private async sendHistoricalWithdrawalProofs(
     blockHeader: BlockHeaderResponse,
     blockInfo: BlockInfoResponse,
     state: { bodyBytes: Uint8Array; forkName: keyof typeof ForkName },
@@ -118,7 +118,7 @@ export class WithdrawalsService {
     const summarySlot = this.calcSlotOfSummary(summaryIndex);
     this.logger.log(`Getting state for slot [${summarySlot}]`);
     const summaryState = await this.consensus.getState(summarySlot);
-    const payloads = this.buildWithdrawalsProveHistoricalPayloads(
+    const payloads = this.buildHistoricalWithdrawalsProofPayloads(
       blockHeader,
       finalizedHeader,
       nextBlockTs,
@@ -132,11 +132,9 @@ export class WithdrawalsService {
     );
     for (const payload of payloads) {
       this.logger.warn(
-        `📡 Sending historical withdrawal prove payload for validator index: ${payload.witness.validatorIndex}`,
+        `📡 Sending historical withdrawal proof payload for validator index: ${payload.witness.validatorIndex}`,
       );
-      // TODO: implement
-      // TODO: ask before sending if CLI
-      this.logger.log(payload);
+      await this.verifier.sendHistoricalWithdrawalProof(payload);
     }
   }
 
@@ -155,13 +153,13 @@ export class WithdrawalsService {
     return fullWithdrawals;
   }
 
-  private *buildWithdrawalsProveGeneralPayloads(
+  private *buildWithdrawalsProofPayloads(
     currentHeader: BlockHeaderResponse,
     nextHeaderTimestamp: number,
     stateView: ContainerTreeViewType<typeof anySsz.BeaconState.fields>,
     currentBlockView: ContainerTreeViewType<typeof anySsz.BeaconBlock.fields>,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Generator<WithdrawalsGeneralProvePayload> {
+  ): Generator<WithdrawalsProofPayload> {
     const epoch = this.consensus.slotToEpoch(Number(currentHeader.header.message.slot));
     for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
       const validator = stateView.validators.get(Number(valIndex));
@@ -220,7 +218,7 @@ export class WithdrawalsService {
     }
   }
 
-  private *buildWithdrawalsProveHistoricalPayloads(
+  private *buildHistoricalWithdrawalsProofPayloads(
     headerWithWds: BlockHeaderResponse,
     finalHeader: BlockHeaderResponse,
     nextToFinalizedHeaderTimestamp: number,
@@ -231,7 +229,7 @@ export class WithdrawalsService {
     summaryIndex: number,
     rootIndexInSummary: number,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Generator<WithdrawalsHistoricalProvePayload> {
+  ): Generator<HistoricalWithdrawalsProofPayload> {
     const epoch = this.consensus.slotToEpoch(Number(headerWithWds.header.message.slot));
     for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
       const validator = stateWithWdsView.validators.get(Number(valIndex));
@@ -299,7 +297,8 @@ export class WithdrawalsService {
             stateRoot: headerWithWds.header.message.state_root,
             bodyRoot: headerWithWds.header.message.body_root,
           },
-          rootGIndex: Number(historicalStateProof.gindex),
+          // NOTE: the last byte can be changed due to `CSVerifier` implementation in the future
+          rootGIndex: '0x' + (historicalStateProof.gindex.toString(16) + '00').padStart(64, '0'),
           proof: historicalStateProof.witnesses.map(toHex),
         },
         witness: {
