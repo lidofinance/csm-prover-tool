@@ -1,4 +1,3 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { NestFactory } from '@nestjs/core';
 import { CommandFactory } from 'nest-commander';
 
@@ -8,19 +7,18 @@ import { WorkingMode } from './common/config/env.validation';
 import { DaemonModule } from './daemon/daemon.module';
 
 async function bootstrapCLI() {
-  const cliApp = await CommandFactory.createWithoutRunning(CliModule, {
-    bufferLogs: true,
-  });
-  cliApp.useLogger(cliApp.get(LOGGER_PROVIDER));
+  process
+    .on('SIGINT', () => process.exit()) // CTRL+C
+    .on('SIGQUIT', () => process.exit()) // Keyboard quit
+    .on('SIGTERM', () => process.exit()); // `kill` command
+
+  const cliApp = await CommandFactory.createWithoutRunning(CliModule, { logger: false }); // disable initialising logs from NestJS
   await CommandFactory.runApplication(cliApp);
   await cliApp.close();
 }
 
 async function bootstrapDaemon() {
-  const daemonApp = await NestFactory.create(DaemonModule, {
-    bufferLogs: true,
-  });
-  daemonApp.useLogger(daemonApp.get(LOGGER_PROVIDER));
+  const daemonApp = await NestFactory.create(DaemonModule, { logger: false }); // disable initialising logs from NestJS
   const configService: ConfigService = daemonApp.get(ConfigService);
   await daemonApp.listen(configService.get('HTTP_PORT'), '0.0.0.0');
 }

@@ -36,11 +36,13 @@ const ExecutionCli = () =>
 
 @Module({
   imports: [
-    UtilsModule,
     ConditionalModule.registerWhen(ExecutionDaemon(), (env: NodeJS.ProcessEnv) => {
       return env['WORKING_MODE'] === WorkingMode.Daemon;
     }),
     ConditionalModule.registerWhen(ExecutionCli(), (env: NodeJS.ProcessEnv) => {
+      return env['WORKING_MODE'] === WorkingMode.CLI;
+    }),
+    ConditionalModule.registerWhen(UtilsModule, (env: NodeJS.ProcessEnv) => {
       return env['WORKING_MODE'] === WorkingMode.CLI;
     }),
   ],

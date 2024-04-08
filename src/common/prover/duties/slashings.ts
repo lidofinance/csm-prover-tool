@@ -45,11 +45,11 @@ export class SlashingsService {
 
   public async sendSlashingProof(finalizedHeader: BlockHeaderResponse, slashings: InvolvedKeys): Promise<void> {
     if (!Object.keys(slashings).length) return;
-    this.logger.log(`Getting state for root [${finalizedHeader.root}]`);
     const finalizedState = await this.consensus.getState(finalizedHeader.header.message.state_root);
     const nextHeader = (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data[0];
     const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
     const stateView = this.consensus.stateToView(finalizedState.bodyBytes, finalizedState.forkName);
+    this.logger.log(`Building slashing proof payloads`);
     const payloads = this.buildSlashingsProofPayloads(finalizedHeader, nextHeaderTs, stateView, slashings);
     for (const payload of payloads) {
       this.logger.warn(`📡 Sending slashing proof payload for validator index: ${payload.witness.validatorIndex}`);

@@ -5,7 +5,7 @@ import { SlashingsService } from './duties/slashings';
 import { WithdrawalsService } from './duties/withdrawals';
 import { KeyInfoFn } from './types';
 import { Consensus } from '../providers/consensus/consensus';
-import { BlockInfoResponse, RootHex } from '../providers/consensus/response.interface';
+import { BlockHeaderResponse, BlockInfoResponse, RootHex } from '../providers/consensus/response.interface';
 
 @Injectable()
 export class ProverService {
@@ -19,19 +19,39 @@ export class ProverService {
   public async handleBlock(
     blockRoot: RootHex,
     blockInfo: BlockInfoResponse,
-    finalizedBlockRoot: RootHex,
+    finalizedHeader: BlockHeaderResponse,
+    keyInfoFn: KeyInfoFn,
+  ): Promise<void> {
+    await this.handleWithdrawalsInBlock(blockRoot, blockInfo, finalizedHeader, keyInfoFn);
+    await this.handleSlashingsInBlock(blockInfo, finalizedHeader, keyInfoFn);
+  }
+
+  public async handleWithdrawalsInBlock(
+    blockRoot: RootHex,
+    blockInfo: BlockInfoResponse,
+    finalizedHeader: BlockHeaderResponse,
+    keyInfoFn: KeyInfoFn,
+  ): Promise<void> {
+    const withdrawals = await this.withdrawals.getUnprovenWithdrawals(blockInfo, keyInfoFn);
+    if (!Object.keys(withdrawals).length) {
+      this.logger.log('No withdrawals to prove');
+      return;
+    }
+    await this.withdrawals.sendWithdrawalProofs(blockRoot, blockInfo, finalizedHeader, withdrawals);
+    this.logger.log('🏁 Withdrawal proof(s) sent');
+  }
+
+  public async handleSlashingsInBlock(
+    blockInfo: BlockInfoResponse,
+    finalizedHeader: BlockHeaderResponse,
     keyInfoFn: KeyInfoFn,
   ): Promise<void> {
     const slashings = await this.slashings.getUnprovenSlashings(blockInfo, keyInfoFn);
-    const withdrawals = await this.withdrawals.getUnprovenWithdrawals(blockInfo, keyInfoFn);
-    if (!Object.keys(slashings).length && !Object.keys(withdrawals).length) {
-      this.logger.log('Nothing to prove');
+    if (!Object.keys(slashings).length) {
+      this.logger.log('No slashings to prove');
       return;
     }
-    const finalizedHeader = await this.consensus.getBeaconHeader(finalizedBlockRoot);
-    // do it consistently because of the high resource usage (both the app and CL node)
     await this.slashings.sendSlashingProof(finalizedHeader, slashings);
-    await this.withdrawals.sendWithdrawalProofs(blockRoot, blockInfo, finalizedHeader, withdrawals);
-    this.logger.log('🏁 Proof(s) sent');
+    this.logger.log('🏁 Slashing proof(s) sent');
   }
 }
