@@ -7,7 +7,6 @@ import { CsmContract } from '../../common/contracts/csm-contract.service';
 import { ProverService } from '../../common/prover/prover.service';
 import { KeyInfoFn } from '../../common/prover/types';
 import { Consensus } from '../../common/providers/consensus/consensus';
-import { Execution } from '../../common/providers/execution/execution';
 
 type ProofOptions = {
   nodeOperatorId: string;
@@ -35,7 +34,6 @@ export class ProveCommand extends CommandRunner {
     protected readonly inquirerService: InquirerService,
     protected readonly csm: CsmContract,
     protected readonly consensus: Consensus,
-    protected readonly execution: Execution,
     protected readonly prover: ProverService,
   ) {
     super();
