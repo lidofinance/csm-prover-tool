@@ -1,5 +1,3 @@
-import { INestApplication } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
 import { CommandTestFactory } from 'nest-commander-testing';
 
 import { CliModule } from '../src/cli/cli.module';
@@ -16,10 +14,8 @@ class CustomConfigService extends ConfigService {
 }
 
 describe('Cli (e2e)', () => {
-  let app: INestApplication;
-
   beforeEach(async () => {
-    const moduleFixture: TestingModule = await CommandTestFactory.createTestingCommand({
+    await CommandTestFactory.createTestingCommand({
       imports: [CliModule],
     })
       .overrideProvider(ConfigService)

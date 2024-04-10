@@ -6,10 +6,17 @@ import BodyReadable from 'undici/types/readable';
 import { RequestOptions, RequestPolicy, rejectDelay, retrier } from './utils/func';
 import { PrometheusService } from '../../prometheus';
 
-export type RetryOptions = RequestOptions & RequestPolicy & { useFallbackOnRejected?: (err: Error, current_error: Error) => boolean; useFallbackOnResolved?: (data: any) => boolean}
+export type RetryOptions = RequestOptions &
+  RequestPolicy & {
+    useFallbackOnRejected?: (err: Error, current_error: Error) => boolean;
+    useFallbackOnResolved?: (data: any) => boolean;
+  };
 
 class RequestError extends Error {
-  constructor(message: string, public readonly statusCode?: number) {
+  constructor(
+    message: string,
+    public readonly statusCode?: number,
+  ) {
     super(message);
   }
 }
@@ -35,13 +42,16 @@ export abstract class BaseRestProvider {
   }
 
   protected async retryRequest(
-    callback: (apiURL: string, options?: RequestOptions) => Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }>,
+    callback: (
+      apiURL: string,
+      options?: RequestOptions,
+    ) => Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }>,
     options?: RetryOptions,
   ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
     options = {
       ...this.requestPolicy,
-      useFallbackOnRejected: (() => true), //  use fallback on error as default
-      useFallbackOnResolved: (() => false), // do NOT use fallback on success as default
+      useFallbackOnRejected: () => true, //  use fallback on error as default
+      useFallbackOnResolved: () => false, // do NOT use fallback on success as default
       ...options,
     };
     const retry = retrier(this.logger, options.maxRetries, this.requestPolicy.retryDelay, 10000, true);
@@ -95,10 +105,13 @@ export abstract class BaseRestProvider {
     });
     if (statusCode !== 200) {
       const hostname = new URL(base).hostname;
-      throw new RequestError(`Request failed with status code [${statusCode}] on host [${hostname}]: ${endpoint}`, statusCode);
+      throw new RequestError(
+        `Request failed with status code [${statusCode}] on host [${hostname}]: ${endpoint}`,
+        statusCode,
+      );
     }
     return { body: body, headers: headers };
-  };
+  }
 
   protected async basePost(
     base: string,
@@ -121,8 +134,11 @@ export abstract class BaseRestProvider {
     });
     if (statusCode !== 200) {
       const hostname = new URL(base).hostname;
-      throw new RequestError(`Request failed with status code [${statusCode}] on host [${hostname}]: ${endpoint}`, statusCode);
+      throw new RequestError(
+        `Request failed with status code [${statusCode}] on host [${hostname}]: ${endpoint}`,
+        statusCode,
+      );
     }
     return { body: body, headers: headers };
-  };
+  }
 }
