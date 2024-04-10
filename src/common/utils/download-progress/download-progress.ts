@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import ora, { Ora } from 'ora';
+import ora = require('ora-classic');
+import { Ora } from 'ora-classic';
 import { IncomingHttpHeaders } from 'undici/types/header';
 import BodyReadable from 'undici/types/readable';
 
