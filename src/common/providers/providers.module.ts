@@ -7,17 +7,43 @@ import { Execution } from './execution/execution';
 import { Keysapi } from './keysapi/keysapi';
 import { ConfigService } from '../config/config.service';
 import { WorkingMode } from '../config/env.validation';
-import { PrometheusService } from '../prometheus/prometheus.service';
+import { PrometheusService, RequestStatus } from '../prometheus';
 import { UtilsModule } from '../utils/utils.module';
 
 const ExecutionDaemon = () =>
   FallbackProviderModule.forRootAsync({
-    async useFactory(configService: ConfigService) {
+    async useFactory(configService: ConfigService, prometheusService: PrometheusService) {
       return {
         urls: configService.get('EL_RPC_URLS') as NonEmptyArray<string>,
         network: configService.get('ETH_NETWORK'),
-        // TODO: add prometheus metrics
-        // fetchMiddlewares: [ ... ],
+        fetchMiddlewares: [
+          async (next, ctx) => {
+            const targetName = new URL(ctx.provider.connection.url).hostname;
+            const reqName = 'batch';
+            const stop = prometheusService.outgoingELRequestsDuration.startTimer({
+              name: reqName,
+              target: targetName,
+            });
+            return await next()
+              .then((r: any) => {
+                prometheusService.outgoingELRequestsCount.inc({
+                  name: reqName,
+                  target: targetName,
+                  status: RequestStatus.COMPLETE,
+                });
+                return r;
+              })
+              .catch((e: any) => {
+                prometheusService.outgoingELRequestsCount.inc({
+                  name: reqName,
+                  target: targetName,
+                  status: RequestStatus.ERROR,
+                });
+                throw e;
+              })
+              .finally(() => stop());
+          },
+        ],
       };
     },
     inject: [ConfigService, PrometheusService],

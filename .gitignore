@@ -8,9 +8,8 @@
 # ENV
 /.env
 
-# Storage
-/.keys-indexer-*
-/.roots-stack-*
+# Application storage
+/storage
 
 # Logs
 logs

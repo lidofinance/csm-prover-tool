@@ -153,7 +153,8 @@ export class EnvironmentVariables {
   @IsArray()
   @ArrayMinSize(1)
   @Transform(({ value }) => value.split(','))
-  public KEYSAPI_API_URLS!: string[];
+  @ValidateIf((vars) => vars.WORKING_MODE === WorkingMode.Daemon)
+  public KEYSAPI_API_URLS: string[];
 
   @IsInt()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })

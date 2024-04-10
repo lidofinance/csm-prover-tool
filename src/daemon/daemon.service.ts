@@ -1,5 +1,5 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, LoggerService, OnModuleInit } from '@nestjs/common';
 
 import { KeysIndexer } from './services/keys-indexer';
 import { RootsProcessor } from './services/roots-processor';
@@ -9,7 +9,7 @@ import { ConfigService } from '../common/config/config.service';
 import { Consensus } from '../common/providers/consensus/consensus';
 
 @Injectable()
-export class DaemonService implements OnModuleInit, OnApplicationBootstrap {
+export class DaemonService implements OnModuleInit {
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
     protected readonly config: ConfigService,
@@ -23,11 +23,7 @@ export class DaemonService implements OnModuleInit, OnApplicationBootstrap {
     this.logger.log('Working mode: DAEMON');
   }
 
-  async onApplicationBootstrap() {
-    this.loop().then();
-  }
-
-  private async loop() {
+  public async loop() {
     while (true) {
       try {
         await this.baseRun();

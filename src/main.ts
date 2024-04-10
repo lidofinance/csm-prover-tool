@@ -5,6 +5,7 @@ import { CliModule } from './cli/cli.module';
 import { ConfigService } from './common/config/config.service';
 import { WorkingMode } from './common/config/env.validation';
 import { DaemonModule } from './daemon/daemon.module';
+import { DaemonService } from './daemon/daemon.service';
 
 async function bootstrapCLI() {
   process
@@ -21,6 +22,7 @@ async function bootstrapDaemon() {
   const daemonApp = await NestFactory.create(DaemonModule, { logger: false }); // disable initialising logs from NestJS
   const configService: ConfigService = daemonApp.get(ConfigService);
   await daemonApp.listen(configService.get('HTTP_PORT'), '0.0.0.0');
+  daemonApp.get(DaemonService).loop().then();
 }
 
 async function bootstrap() {

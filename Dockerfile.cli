@@ -1,0 +1,22 @@
+FROM node:20.12.1-alpine as building
+
+WORKDIR /app
+
+COPY package.json yarn.lock ./
+COPY ./tsconfig*.json ./
+COPY ./src ./src
+
+RUN yarn install --frozen-lockfile --non-interactive && yarn cache clean && yarn typechain
+RUN yarn build
+
+FROM node:20.12.1-alpine
+
+WORKDIR /app
+
+COPY --from=building /app/dist ./dist
+COPY --from=building /app/node_modules ./node_modules
+COPY ./package.json ./
+
+USER node
+
+ENTRYPOINT ["yarn"]
