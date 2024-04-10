@@ -1,0 +1,74 @@
+services:
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+
+  daemon:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.daemon
+    container_name: prover-daemon
+    restart: unless-stopped
+    environment:
+      - DRY_RUN=${DRY_RUN:-false}
+      - ETH_NETWORK=${ETH_NETWORK}
+      - KEYSAPI_API_URLS=${KEYSAPI_API_URLS}
+      - EL_RPC_URLS=${EL_RPC_URLS}
+      - CL_API_URLS=${CL_API_URLS}
+      - CSM_ADDRESS=${CSM_ADDRESS}
+      - VERIFIER_ADDRESS=${VERIFIER_ADDRESS}
+      - TX_SIGNER_PRIVATE_KEY=${TX_SIGNER_PRIVATE_KEY:-}
+    expose:
+      - "${HTTP_PORT:-8080}"
+    ports:
+      - "${EXTERNAL_HTTP_PORT:-${HTTP_PORT:-8080}}:${HTTP_PORT:-8080}"
+    volumes:
+      - ./storage/:/app/storage/
+    depends_on:
+      - prometheus
+
+  #
+  # CLI tools
+  #
+  withdrawal:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.cli
+    entrypoint:
+      - yarn
+      - withdrawal
+    container_name: prover-cli-withdrawal
+    restart: no
+    environment:
+      - DRY_RUN=${DRY_RUN:-false}
+      - ETH_NETWORK=${ETH_NETWORK}
+      - EL_RPC_URLS=${EL_RPC_URLS}
+      - CL_API_URLS=${CL_API_URLS}
+      - CSM_ADDRESS=${CSM_ADDRESS}
+      - VERIFIER_ADDRESS=${VERIFIER_ADDRESS}
+      - TX_SIGNER_PRIVATE_KEY=${TX_SIGNER_PRIVATE_KEY:-}
+
+  slashing:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.cli
+    entrypoint:
+      - yarn
+      - slashing
+    container_name: prover-cli-slashing
+    restart: no
+    environment:
+      - DRY_RUN=${DRY_RUN:-false}
+      - ETH_NETWORK=${ETH_NETWORK}
+      - EL_RPC_URLS=${EL_RPC_URLS}
+      - CL_API_URLS=${CL_API_URLS}
+      - CSM_ADDRESS=${CSM_ADDRESS}
+      - VERIFIER_ADDRESS=${VERIFIER_ADDRESS}
+      - TX_SIGNER_PRIVATE_KEY=${TX_SIGNER_PRIVATE_KEY:-}
