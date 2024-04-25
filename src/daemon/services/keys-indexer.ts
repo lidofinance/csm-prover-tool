@@ -59,6 +59,8 @@ function Single(target: any, propertyKey: string, descriptor: PropertyDescriptor
   return descriptor;
 }
 
+class ModuleNotFoundError extends Error {}
+
 @Injectable()
 export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
   private startedAt: number = 0;
@@ -75,7 +77,18 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
   ) {}
 
   public async onModuleInit(): Promise<void> {
-    await this.initOrReadServiceData();
+    while (true) {
+      try {
+        await this.initOrReadServiceData();
+      } catch (e) {
+        if (e instanceof ModuleNotFoundError) {
+          this.logger.error(e);
+          await sleep(60000);
+          continue;
+        }
+        throw e;
+      }
+    }
   }
 
   public async onApplicationBootstrap(): Promise<void> {
@@ -194,12 +207,9 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
         (m: Module) => m.stakingModuleAddress.toLowerCase() === this.info.data.moduleAddress.toLowerCase(),
       );
       if (!module) {
-        this.logger.error(
+        throw new ModuleNotFoundError(
           `Module with address ${this.info.data.moduleAddress} not found! Wrong address? Try to find again in 1m`,
         );
-        await sleep(60000);
-        await this.initOrReadServiceData();
-        return;
       }
       this.info.data.moduleId = module.id;
       await this.info.write();
