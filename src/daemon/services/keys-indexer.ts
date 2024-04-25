@@ -65,6 +65,8 @@ class ModuleNotFoundError extends Error {}
 export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
   private startedAt: number = 0;
 
+  private MODULE_NOT_FOUND_NEXT_TRY_MS = 60000;
+
   private info: Low<KeysIndexerServiceInfo>;
   private storage: Low<KeysIndexerServiceStorage>;
 
@@ -80,10 +82,11 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
     while (true) {
       try {
         await this.initOrReadServiceData();
+        return;
       } catch (e) {
         if (e instanceof ModuleNotFoundError) {
           this.logger.error(e);
-          await sleep(60000);
+          await sleep(this.MODULE_NOT_FOUND_NEXT_TRY_MS);
           continue;
         }
         throw e;
@@ -208,7 +211,8 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
       );
       if (!module) {
         throw new ModuleNotFoundError(
-          `Module with address ${this.info.data.moduleAddress} not found! Wrong address? Try to find again in 1m`,
+          `Module with address ${this.info.data.moduleAddress} not found! ` +
+            'Update configs if this is the wrong address. Next automatic attempt to find it will be in 1m',
         );
       }
       this.info.data.moduleId = module.id;
