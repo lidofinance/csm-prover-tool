@@ -195,9 +195,9 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
       );
       if (!module) {
         this.logger.error(
-          `Module with address ${this.info.data.moduleAddress} not found! Wrong address? Try to find again in 12s`,
+          `Module with address ${this.info.data.moduleAddress} not found! Wrong address? Try to find again in 1m`,
         );
-        await sleep(12000);
+        await sleep(60000);
         await this.initOrReadServiceData();
         return;
       }
