@@ -16,6 +16,7 @@ import {
 } from '../../common/prometheus';
 import { toHex } from '../../common/prover/helpers/proofs';
 import { KeyInfo } from '../../common/prover/types';
+import { sleep } from '../../common/providers/base/utils/func';
 import { Consensus } from '../../common/providers/consensus/consensus';
 import { BlockHeaderResponse, RootHex, Slot } from '../../common/providers/consensus/response.interface';
 import { Keysapi } from '../../common/providers/keysapi/keysapi';
@@ -193,7 +194,12 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
         (m: Module) => m.stakingModuleAddress.toLowerCase() === this.info.data.moduleAddress.toLowerCase(),
       );
       if (!module) {
-        throw new Error(`Module with address ${this.info.data.moduleAddress} not found`);
+        this.logger.error(
+          `Module with address ${this.info.data.moduleAddress} not found! Wrong address? Try to find again in 12s`,
+        );
+        await sleep(12000);
+        await this.initOrReadServiceData();
+        return;
       }
       this.info.data.moduleId = module.id;
       await this.info.write();
