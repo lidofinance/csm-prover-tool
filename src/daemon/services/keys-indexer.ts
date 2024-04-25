@@ -16,6 +16,7 @@ import {
 } from '../../common/prometheus';
 import { toHex } from '../../common/prover/helpers/proofs';
 import { KeyInfo } from '../../common/prover/types';
+import { sleep } from '../../common/providers/base/utils/func';
 import { Consensus } from '../../common/providers/consensus/consensus';
 import { BlockHeaderResponse, RootHex, Slot } from '../../common/providers/consensus/response.interface';
 import { Keysapi } from '../../common/providers/keysapi/keysapi';
@@ -58,9 +59,13 @@ function Single(target: any, propertyKey: string, descriptor: PropertyDescriptor
   return descriptor;
 }
 
+class ModuleNotFoundError extends Error {}
+
 @Injectable()
 export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
   private startedAt: number = 0;
+
+  private MODULE_NOT_FOUND_NEXT_TRY_MS = 60000;
 
   private info: Low<KeysIndexerServiceInfo>;
   private storage: Low<KeysIndexerServiceStorage>;
@@ -74,7 +79,19 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
   ) {}
 
   public async onModuleInit(): Promise<void> {
-    await this.initOrReadServiceData();
+    while (true) {
+      try {
+        await this.initOrReadServiceData();
+        return;
+      } catch (e) {
+        if (e instanceof ModuleNotFoundError) {
+          this.logger.error(e);
+          await sleep(this.MODULE_NOT_FOUND_NEXT_TRY_MS);
+          continue;
+        }
+        throw e;
+      }
+    }
   }
 
   public async onApplicationBootstrap(): Promise<void> {
@@ -193,7 +210,10 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
         (m: Module) => m.stakingModuleAddress.toLowerCase() === this.info.data.moduleAddress.toLowerCase(),
       );
       if (!module) {
-        throw new Error(`Module with address ${this.info.data.moduleAddress} not found`);
+        throw new ModuleNotFoundError(
+          `Module with address ${this.info.data.moduleAddress} not found! ` +
+            'Update configs if this is the wrong address. Next automatic attempt to find it will be in 1m',
+        );
       }
       this.info.data.moduleId = module.id;
       await this.info.write();
