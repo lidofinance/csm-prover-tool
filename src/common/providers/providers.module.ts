@@ -15,7 +15,7 @@ const ExecutionDaemon = () =>
     async useFactory(configService: ConfigService, prometheusService: PrometheusService) {
       return {
         urls: configService.get('EL_RPC_URLS') as NonEmptyArray<string>,
-        network: configService.get('ETH_NETWORK'),
+        network: configService.get('CHAIN_ID'),
         fetchMiddlewares: [
           async (next, ctx) => {
             const targetName = new URL(ctx.provider.connection.url).hostname;
@@ -54,7 +54,7 @@ const ExecutionCli = () =>
     async useFactory(configService: ConfigService) {
       return {
         urls: configService.get('EL_RPC_URLS') as NonEmptyArray<string>,
-        network: configService.get('ETH_NETWORK'),
+        network: configService.get('CHAIN_ID'),
       };
     },
     inject: [ConfigService],
