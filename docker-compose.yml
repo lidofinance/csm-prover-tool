@@ -17,6 +17,7 @@ services:
     container_name: prover-daemon
     restart: unless-stopped
     environment:
+      - HTTP_PORT=${HTTP_PORT:-8080}
       - DRY_RUN=${DRY_RUN:-false}
       - CHAIN_ID=${CHAIN_ID}
       - KEYSAPI_API_URLS=${KEYSAPI_API_URLS}
