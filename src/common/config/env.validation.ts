@@ -112,7 +112,7 @@ export class EnvironmentVariables {
   @Min(1)
   @Max(5000000)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public ETH_NETWORK!: Network;
+  public CHAIN_ID!: Network;
 
   @IsArray()
   @ArrayMinSize(1)

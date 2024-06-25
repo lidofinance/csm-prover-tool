@@ -18,7 +18,7 @@ services:
     restart: unless-stopped
     environment:
       - DRY_RUN=${DRY_RUN:-false}
-      - ETH_NETWORK=${ETH_NETWORK}
+      - CHAIN_ID=${CHAIN_ID}
       - KEYSAPI_API_URLS=${KEYSAPI_API_URLS}
       - EL_RPC_URLS=${EL_RPC_URLS}
       - CL_API_URLS=${CL_API_URLS}
@@ -30,7 +30,7 @@ services:
     ports:
       - "${EXTERNAL_HTTP_PORT:-${HTTP_PORT:-8080}}:${HTTP_PORT:-8080}"
     volumes:
-      - ./storage/:/app/storage/
+      - storage:/app/storage/
     depends_on:
       - prometheus
 
@@ -48,7 +48,7 @@ services:
     restart: no
     environment:
       - DRY_RUN=${DRY_RUN:-false}
-      - ETH_NETWORK=${ETH_NETWORK}
+      - CHAIN_ID=${CHAIN_ID}
       - EL_RPC_URLS=${EL_RPC_URLS}
       - CL_API_URLS=${CL_API_URLS}
       - CSM_ADDRESS=${CSM_ADDRESS}
@@ -66,9 +66,12 @@ services:
     restart: no
     environment:
       - DRY_RUN=${DRY_RUN:-false}
-      - ETH_NETWORK=${ETH_NETWORK}
+      - CHAIN_ID=${CHAIN_ID}
       - EL_RPC_URLS=${EL_RPC_URLS}
       - CL_API_URLS=${CL_API_URLS}
       - CSM_ADDRESS=${CSM_ADDRESS}
       - VERIFIER_ADDRESS=${VERIFIER_ADDRESS}
       - TX_SIGNER_PRIVATE_KEY=${TX_SIGNER_PRIVATE_KEY:-}
+
+volumes:
+  storage:
