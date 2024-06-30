@@ -7,6 +7,7 @@ import { Metric, Options } from './interfaces';
 import {
   METRICS_PREFIX,
   METRIC_BUILD_INFO,
+  METRIC_HIGH_GAS_FEE_INTERRUPTIONS_COUNT,
   METRIC_OUTGOING_CL_REQUESTS_COUNT,
   METRIC_OUTGOING_CL_REQUESTS_DURATION_SECONDS,
   METRIC_OUTGOING_EL_REQUESTS_COUNT,
@@ -118,6 +119,11 @@ export class PrometheusService {
     name: METRIC_TASK_RESULT_COUNT,
     help: 'Count of passed or failed tasks',
     labelNames: ['name', 'status'],
+  });
+
+  public highGasFeeInterruptionsCount = this.getOrCreateMetric('Counter', {
+    name: METRIC_HIGH_GAS_FEE_INTERRUPTIONS_COUNT,
+    help: 'Count of high gas fee interruptions',
   });
 }
 
