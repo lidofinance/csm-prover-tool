@@ -105,7 +105,7 @@ So, according to the algorithm, there are the following statements:
 
 `--validator-index` - Validator index in the Consensus Layer
 
-`--block` - Block number (slot or root of block on the Consensus Layer)
+`--block` - Block number (slot or root of block on the Consensus Layer which contains the validator withdrawal or where it is already slashed)
 
 `--help` - Show help
 
