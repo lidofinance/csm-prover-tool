@@ -1,3 +1,4 @@
+import { TransactionResponse } from '@ethersproject/abstract-provider';
 import { MAX_BLOCKCOUNT, SimpleFallbackJsonRpcBatchProvider } from '@lido-nestjs/execution';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService, Optional } from '@nestjs/common';
@@ -69,12 +70,13 @@ export class Execution {
     this.logger.debug!(payload);
     const tx = await populateTxCallback(...payload);
     let context: { payload: any[]; tx?: any } = { payload, tx };
+    this.logger.log('Emulating call');
     try {
       await emulateTxCallback(...payload);
-      this.logger.log('✅ Emulated call succeeded');
     } catch (e) {
       throw new EmulatedCallError(e, context);
     }
+    this.logger.log('✅ Emulated call succeeded');
     if (!this.signer) {
       throw new NoSignerError('No specified signer. Only emulated calls are available', context);
     }
@@ -102,13 +104,14 @@ export class Execution {
       }
     }
     const signed = await this.signer.signTransaction(populated);
+    let submitted: TransactionResponse;
     try {
-      const submitted = await this.provider.sendTransaction(signed);
+      submitted = await this.provider.sendTransaction(signed);
       await submitted.wait();
     } catch (e) {
       throw new SendTransactionError(e, context);
     }
-    this.logger.log('✅ Transaction succeeded');
+    this.logger.log(`✅ Transaction succeeded! Hash: ${submitted?.hash}`);
   }
 
   //
