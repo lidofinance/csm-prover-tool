@@ -9,7 +9,7 @@ import { promise as spinnerFor } from 'ora-classic';
 import { bigIntMax, bigIntMin, percentile } from './utils/common';
 import { ConfigService } from '../../config/config.service';
 import { WorkingMode } from '../../config/env.validation';
-import { PrometheusService } from '../../prometheus';
+import { PrometheusService } from '../../prometheus/prometheus.service';
 
 class ErrorWithContext extends Error {
   public readonly context: any;
@@ -37,8 +37,8 @@ export class Execution {
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
-    protected readonly prometheus: PrometheusService,
     protected readonly config: ConfigService,
+    @Optional() protected readonly prometheus: PrometheusService,
     @Optional() protected readonly inquirerService: InquirerService,
     public readonly provider: SimpleFallbackJsonRpcBatchProvider,
   ) {
