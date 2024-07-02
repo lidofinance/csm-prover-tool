@@ -4,11 +4,12 @@ import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService, Optional } from '@nestjs/common';
 import { PopulatedTransaction, Wallet, utils } from 'ethers';
 import { InquirerService } from 'nest-commander';
+import { promise as spinnerFor } from 'ora-classic';
 
 import { bigIntMax, bigIntMin, percentile } from './utils/common';
 import { ConfigService } from '../../config/config.service';
 import { WorkingMode } from '../../config/env.validation';
-import { PrometheusService } from '../../prometheus';
+import { PrometheusService } from '../../prometheus/prometheus.service';
 
 class ErrorWithContext extends Error {
   public readonly context: any;
@@ -36,8 +37,8 @@ export class Execution {
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
-    protected readonly prometheus: PrometheusService,
     protected readonly config: ConfigService,
+    @Optional() protected readonly prometheus: PrometheusService,
     @Optional() protected readonly inquirerService: InquirerService,
     public readonly provider: SimpleFallbackJsonRpcBatchProvider,
   ) {
@@ -92,7 +93,7 @@ export class Execution {
       throw new DryRunError('Dry run mode is enabled. Transaction is prepared, but not sent', context);
     }
     const isFeePerGasAcceptable = await this.isFeePerGasAcceptable();
-    if (this.config.get('WORKING_MODE') == WorkingMode.CLI) {
+    if (this.isCLI()) {
       const opts = await this.inquirerService.ask('tx-execution', {} as { sendingConfirmed: boolean });
       if (!opts.sendingConfirmed) {
         throw new UserCancellationError('Transaction is not sent due to user cancellation', context);
@@ -106,8 +107,16 @@ export class Execution {
     const signed = await this.signer.signTransaction(populated);
     let submitted: TransactionResponse;
     try {
-      submitted = await this.provider.sendTransaction(signed);
-      await submitted.wait();
+      const submittedPromise = this.provider.sendTransaction(signed);
+      if (this.isCLI()) {
+        spinnerFor(submittedPromise, { text: 'Sending transaction' });
+      }
+      submitted = await submittedPromise;
+      const waitingPromise = submitted.wait();
+      if (this.isCLI()) {
+        spinnerFor(submittedPromise, { text: 'Waiting until the transaction has been mined' });
+      }
+      await waitingPromise;
     } catch (e) {
       throw new SendTransactionError(e, context);
     }
@@ -188,5 +197,9 @@ export class Execution {
       ...newGasFees,
     ];
     this.lastFeeHistoryBlockNumber = latestBlockNumber;
+  }
+
+  private isCLI(): boolean {
+    return this.config.get('WORKING_MODE') == WorkingMode.CLI;
   }
 }
