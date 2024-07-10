@@ -166,7 +166,7 @@ export class WithdrawalsService {
         this.logger.warn(`Validator ${valIndex} is not full withdrawn. Just huge amount of ETH. Skipped`);
         continue;
       }
-      this.logger.log('Generating validator proof');
+      this.logger.log(`Generating validator [${valIndex}] proof`);
       const validatorProof = generateValidatorProof(stateView, Number(valIndex));
       this.logger.log('Generating withdrawal proof');
       const withdrawalProof = generateWithdrawalProof(
@@ -238,7 +238,7 @@ export class WithdrawalsService {
         this.logger.warn(`Validator ${valIndex} is not full withdrawn. Just huge amount of ETH. Skipped`);
         continue;
       }
-      this.logger.log('Generating validator proof');
+      this.logger.log(`Generating validator [${valIndex}] proof`);
       const validatorProof = generateValidatorProof(stateWithWdsView, Number(valIndex));
       this.logger.log('Generating withdrawal proof');
       const withdrawalProof = generateWithdrawalProof(
