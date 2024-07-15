@@ -112,7 +112,7 @@ export class EnvironmentVariables {
   @Min(1)
   @Max(5000000)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public ETH_NETWORK!: Network;
+  public CHAIN_ID!: Network;
 
   @IsArray()
   @ArrayMinSize(1)
@@ -153,7 +153,8 @@ export class EnvironmentVariables {
   @IsArray()
   @ArrayMinSize(1)
   @Transform(({ value }) => value.split(','))
-  public KEYSAPI_API_URLS!: string[];
+  @ValidateIf((vars) => vars.WORKING_MODE === WorkingMode.Daemon)
+  public KEYSAPI_API_URLS: string[];
 
   @IsInt()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })

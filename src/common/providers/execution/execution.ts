@@ -1,10 +1,32 @@
+import { TransactionResponse } from '@ethersproject/abstract-provider';
 import { MAX_BLOCKCOUNT, SimpleFallbackJsonRpcBatchProvider } from '@lido-nestjs/execution';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import { Inject, Injectable, LoggerService, Optional } from '@nestjs/common';
 import { PopulatedTransaction, Wallet, utils } from 'ethers';
+import { InquirerService } from 'nest-commander';
+import { promise as spinnerFor } from 'ora-classic';
 
 import { bigIntMax, bigIntMin, percentile } from './utils/common';
 import { ConfigService } from '../../config/config.service';
+import { WorkingMode } from '../../config/env.validation';
+import { PrometheusService } from '../../prometheus/prometheus.service';
+
+class ErrorWithContext extends Error {
+  public readonly context: any;
+
+  constructor(message?: string, ctx?: any) {
+    super(message);
+    this.context = ctx;
+  }
+}
+
+class EmulatedCallError extends ErrorWithContext {}
+class SendTransactionError extends ErrorWithContext {}
+class HighGasFeeError extends ErrorWithContext {}
+class UserCancellationError extends ErrorWithContext {}
+
+class NoSignerError extends ErrorWithContext {}
+class DryRunError extends ErrorWithContext {}
 
 @Injectable()
 export class Execution {
@@ -16,6 +38,8 @@ export class Execution {
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
     protected readonly config: ConfigService,
+    @Optional() protected readonly prometheus: PrometheusService,
+    @Optional() protected readonly inquirerService: InquirerService,
     public readonly provider: SimpleFallbackJsonRpcBatchProvider,
   ) {
     const key = this.config.get('TX_SIGNER_PRIVATE_KEY');
@@ -27,16 +51,47 @@ export class Execution {
     populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
     payload: any[],
   ): Promise<void> {
+    // endless loop to retry transaction execution in case of high gas fee
+    while (true) {
+      try {
+        await this._execute(emulateTxCallback, populateTxCallback, payload);
+        return;
+      } catch (e) {
+        if (e instanceof NoSignerError || e instanceof DryRunError) {
+          this.logger.warn(e);
+          return;
+        }
+        if (!this.isCLI() && e instanceof HighGasFeeError) {
+          this.prometheus.highGasFeeInterruptionsCount.inc();
+          this.logger.warn(e);
+          this.logger.warn('Retrying in 1 minute...');
+          await new Promise((resolve) => setTimeout(resolve, 60 * 1000));
+          continue;
+        }
+        this.prometheus.txSendingErrors.inc();
+        this.logger.error(e);
+        throw e;
+      }
+    }
+  }
+
+  private async _execute(
+    emulateTxCallback: (...payload: any[]) => Promise<any>,
+    populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
+    payload: any[],
+  ): Promise<void> {
     this.logger.debug!(payload);
     const tx = await populateTxCallback(...payload);
-    await emulateTxCallback(...payload).catch((e) => {
-      this.logger.error('❌ Emulated call failed');
-      throw e;
-    });
+    let context: { payload: any[]; tx?: any } = { payload, tx };
+    this.logger.log('Emulating call');
+    try {
+      await emulateTxCallback(...payload);
+    } catch (e) {
+      throw new EmulatedCallError(e, context);
+    }
     this.logger.log('✅ Emulated call succeeded');
     if (!this.signer) {
-      this.logger.warn('✴️ No specified signer. Only emulated calls are available');
-      return;
+      throw new NoSignerError('No specified signer. Only emulated calls are available', context);
     }
     const priorityFeeParams = await this.calcPriorityFee();
     const populated = await this.signer.populateTransaction({
@@ -45,30 +100,45 @@ export class Execution {
       maxPriorityFeePerGas: priorityFeeParams.maxPriorityFeePerGas,
       gasLimit: this.config.get('TX_GAS_LIMIT'),
     });
-    // TODO: For CLI:
-    //  ask before sending;
-    //  suggest to send tx even if high gas fee;
-    //  suggest to specify custom gas fee (especially if gas history fails)
+    context = { ...context, tx: populated };
     if (this.config.get('DRY_RUN')) {
-      this.logger.warn('✴️ Dry run mode is enabled. Transaction is prepared, but not sent:');
-      this.logger.warn(populated);
-      return;
+      throw new DryRunError('Dry run mode is enabled. Transaction is prepared, but not sent', context);
     }
     const isFeePerGasAcceptable = await this.isFeePerGasAcceptable();
-    if (!isFeePerGasAcceptable) {
-      this.logger.warn('❌ Transaction is not sent due to high gas fee:');
-      this.logger.warn(populated);
-      throw new Error('Transaction is not sent due to high gas fee');
+    if (this.isCLI()) {
+      const opts = await this.inquirerService.ask('tx-execution', {} as { sendingConfirmed: boolean });
+      if (!opts.sendingConfirmed) {
+        throw new UserCancellationError('Transaction is not sent due to user cancellation', context);
+      }
+    } else {
+      if (!isFeePerGasAcceptable) {
+        throw new HighGasFeeError('Transaction is not sent due to high gas fee', context);
+      }
     }
     const signed = await this.signer.signTransaction(populated);
+    let submitted: TransactionResponse;
     try {
-      const submitted = await this.provider.sendTransaction(signed);
-      await submitted.wait();
+      const submittedPromise = this.provider.sendTransaction(signed);
+      let msg = `Sending transaction with nonce ${populated.nonce} and gasLimit: ${populated.gasLimit}, maxFeePerGas: ${populated.maxFeePerGas}, maxPriorityFeePerGas: ${populated.maxPriorityFeePerGas}`;
+      if (this.isCLI()) {
+        spinnerFor(submittedPromise, { text: msg });
+      } else {
+        this.logger.log(msg);
+      }
+      submitted = await submittedPromise;
+      this.logger.log(`Transaction sent to mempool. Hash: ${submitted.hash}`);
+      const waitingPromise = submitted.wait();
+      msg = `Waiting until the transaction has been mined`;
+      if (this.isCLI()) {
+        spinnerFor(waitingPromise, { text: msg });
+      } else {
+        this.logger.log(msg);
+      }
+      await waitingPromise;
     } catch (e) {
-      this.logger.error('❌ Transaction failed');
-      throw e;
+      throw new SendTransactionError(e, context);
     }
-    this.logger.log('✅ Transaction succeeded');
+    this.logger.log(`✅ Transaction succeeded! Hash: ${submitted?.hash}`);
   }
 
   //
@@ -77,8 +147,8 @@ export class Execution {
 
   private async isFeePerGasAcceptable(): Promise<boolean> {
     const { current, recommended } = await this.calcFeePerGas();
-    const currentGwei = Number(utils.formatUnits(current, 'gwei')).toFixed(2);
-    const recommendedGwei = Number(utils.formatUnits(recommended, 'gwei')).toFixed(2);
+    const currentGwei = utils.formatUnits(current, 'gwei');
+    const recommendedGwei = utils.formatUnits(recommended, 'gwei');
     const info = `Current: ${currentGwei} Gwei | Recommended: ${recommendedGwei} Gwei`;
     if (current > recommended) {
       this.logger.warn(`📛 Current gas fee is HIGH! ${info}`);
@@ -145,5 +215,9 @@ export class Execution {
       ...newGasFees,
     ];
     this.lastFeeHistoryBlockNumber = latestBlockNumber;
+  }
+
+  private isCLI(): boolean {
+    return this.config.get('WORKING_MODE') == WorkingMode.CLI;
   }
 }

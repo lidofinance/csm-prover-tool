@@ -1,6 +1,9 @@
 import { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService, OnModuleInit, Optional } from '@nestjs/common';
+import { promise as spinnerFor } from 'ora-classic';
+import { IncomingHttpHeaders } from 'undici/types/header';
+import BodyReadable from 'undici/types/readable';
 
 import {
   BeaconConfig,
@@ -12,9 +15,10 @@ import {
   StateId,
 } from './response.interface';
 import { ConfigService } from '../../config/config.service';
-import { PrometheusService } from '../../prometheus/prometheus.service';
+import { PrometheusService, TrackCLRequest } from '../../prometheus';
 import { DownloadProgress } from '../../utils/download-progress/download-progress';
 import { BaseRestProvider } from '../base/rest-provider';
+import { RequestOptions } from '../base/utils/func';
 
 let ssz: typeof import('@lodestar/types').ssz;
 let anySsz: typeof ssz.phase0 | typeof ssz.altair | typeof ssz.bellatrix | typeof ssz.capella | typeof ssz.deneb;
@@ -39,13 +43,14 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
     @Optional() protected readonly prometheus: PrometheusService,
+    @Optional() protected readonly progress: DownloadProgress,
     protected readonly config: ConfigService,
-    protected readonly progress: DownloadProgress,
   ) {
     super(
       config.get('CL_API_URLS') as Array<string>,
       config.get('CL_API_RESPONSE_TIMEOUT_MS'),
       config.get('CL_API_MAX_RETRIES'),
+      config.get('CL_API_RETRY_DELAY_MS'),
       logger,
       prometheus,
     );
@@ -73,25 +78,25 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   }
 
   public async getConfig(): Promise<BeaconConfig> {
-    const { body } = await this.baseGet(this.mainUrl, this.endpoints.config);
+    const { body } = await this.retryRequest((baseUrl) => this.baseGet(baseUrl, this.endpoints.config));
     const jsonBody = (await body.json()) as { data: BeaconConfig };
     return jsonBody.data;
   }
 
   public async getGenesis(): Promise<GenesisResponse> {
-    const { body } = await this.baseGet(this.mainUrl, this.endpoints.genesis);
+    const { body } = await this.retryRequest((baseUrl) => this.baseGet(baseUrl, this.endpoints.genesis));
     const jsonBody = (await body.json()) as { data: GenesisResponse };
     return jsonBody.data;
   }
 
   public async getBlockInfo(blockId: BlockId): Promise<BlockInfoResponse> {
-    const { body } = await this.baseGet(this.mainUrl, this.endpoints.blockInfo(blockId));
+    const { body } = await this.retryRequest((baseUrl) => this.baseGet(baseUrl, this.endpoints.blockInfo(blockId)));
     const jsonBody = (await body.json()) as { data: BlockInfoResponse };
     return jsonBody.data;
   }
 
   public async getBeaconHeader(blockId: BlockId): Promise<BlockHeaderResponse> {
-    const { body } = await this.baseGet(this.mainUrl, this.endpoints.beaconHeader(blockId));
+    const { body } = await this.retryRequest((baseUrl) => this.baseGet(baseUrl, this.endpoints.beaconHeader(blockId)));
     const jsonBody = (await body.json()) as { data: BlockHeaderResponse };
     return jsonBody.data;
   }
@@ -99,7 +104,9 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   public async getBeaconHeadersByParentRoot(
     parentRoot: RootHex,
   ): Promise<{ finalized: boolean; data: BlockHeaderResponse[] }> {
-    const { body } = await this.baseGet(this.mainUrl, this.endpoints.beaconHeadersByParentRoot(parentRoot));
+    const { body } = await this.retryRequest((baseUrl) =>
+      this.baseGet(baseUrl, this.endpoints.beaconHeadersByParentRoot(parentRoot)),
+    );
     return (await body.json()) as { finalized: boolean; data: BlockHeaderResponse[] };
   }
 
@@ -107,16 +114,31 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     stateId: StateId,
     signal?: AbortSignal,
   ): Promise<{ bodyBytes: Uint8Array; forkName: keyof typeof ForkName }> {
-    const { body, headers } = await this.baseGet(this.mainUrl, this.endpoints.state(stateId), {
-      signal,
-      headers: { accept: 'application/octet-stream' },
-    });
+    const requestPromise = this.retryRequest(async (baseUrl) =>
+      this.baseGet(baseUrl, this.endpoints.state(stateId), {
+        signal,
+        headers: { accept: 'application/octet-stream' },
+      }),
+    );
+    if (this.progress) {
+      spinnerFor(requestPromise, { text: `Getting state response for state id [${stateId}]` });
+    } else {
+      this.logger.log(`Getting state response for state id [${stateId}]`);
+    }
+    const { body, headers } = await requestPromise;
+    this.progress?.show('State downloading', { body, headers });
     const forkName = headers['eth-consensus-version'] as keyof typeof ForkName;
-    // Progress bar
-    // TODO: Enable for CLI only
-    //this.progress.show(`State [${stateId}]`, resp);
     const bodyBytes = new Uint8Array(await body.arrayBuffer());
     return { bodyBytes, forkName };
+  }
+
+  @TrackCLRequest
+  protected baseGet(
+    baseUrl: string,
+    endpoint: string,
+    options?: RequestOptions,
+  ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
+    return super.baseGet(baseUrl, endpoint, options);
   }
 
   public stateToView(

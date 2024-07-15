@@ -15,6 +15,10 @@ describe('Daemon (e2e)', () => {
     await app.init();
   });
 
+  afterEach(async () => {
+    await app.close();
+  });
+
   it('does nothing', () => {
     return;
   });

@@ -6,8 +6,14 @@ import { CliModule } from './cli/cli.module';
 import { ConfigService } from './common/config/config.service';
 import { WorkingMode } from './common/config/env.validation';
 import { DaemonModule } from './daemon/daemon.module';
+import { DaemonService } from './daemon/daemon.service';
 
 async function bootstrapCLI() {
+  process
+    .on('SIGINT', () => process.exit()) // CTRL+C
+    .on('SIGQUIT', () => process.exit()) // Keyboard quit
+    .on('SIGTERM', () => process.exit()); // `kill` command
+
   const cliApp = await CommandFactory.createWithoutRunning(CliModule, {
     bufferLogs: true,
   });
@@ -23,6 +29,7 @@ async function bootstrapDaemon() {
   daemonApp.useLogger(daemonApp.get(LOGGER_PROVIDER));
   const configService: ConfigService = daemonApp.get(ConfigService);
   await daemonApp.listen(configService.get('HTTP_PORT'), '0.0.0.0');
+  daemonApp.get(DaemonService).loop().then();
 }
 
 async function bootstrap() {

@@ -45,14 +45,14 @@ export class SlashingsService {
 
   public async sendSlashingProof(finalizedHeader: BlockHeaderResponse, slashings: InvolvedKeys): Promise<void> {
     if (!Object.keys(slashings).length) return;
-    this.logger.log(`Getting state for root [${finalizedHeader.root}]`);
     const finalizedState = await this.consensus.getState(finalizedHeader.header.message.state_root);
     const nextHeader = (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data[0];
     const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
     const stateView = this.consensus.stateToView(finalizedState.bodyBytes, finalizedState.forkName);
+    this.logger.log(`Building slashing proof payloads`);
     const payloads = this.buildSlashingsProofPayloads(finalizedHeader, nextHeaderTs, stateView, slashings);
     for (const payload of payloads) {
-      this.logger.warn(`📡 Sending slashing proof payload for validator index: ${payload.witness.validatorIndex}`);
+      this.logger.log(`📡 Sending slashing proof payload for validator index: ${payload.witness.validatorIndex}`);
       await this.verifier.sendSlashingProof(payload);
     }
   }
@@ -96,8 +96,9 @@ export class SlashingsService {
   ): Generator<SlashingProofPayload> {
     for (const [valIndex, keyInfo] of Object.entries(slashings)) {
       const validator = stateView.validators.get(Number(valIndex));
+      this.logger.log(`Generating validator [${valIndex}] proof`);
       const validatorProof = generateValidatorProof(stateView, Number(valIndex));
-      // verify validator proof
+      this.logger.log('Verifying validator proof locally');
       verifyProof(stateView.hashTreeRoot(), validatorProof.gindex, validatorProof.witnesses, validator.hashTreeRoot());
       yield {
         keyIndex: keyInfo.keyIndex,

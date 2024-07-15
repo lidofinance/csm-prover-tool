@@ -25,7 +25,7 @@ let ssz: typeof import('@lodestar/types').ssz;
 let anySsz: typeof ssz.phase0 | typeof ssz.altair | typeof ssz.bellatrix | typeof ssz.capella | typeof ssz.deneb;
 
 // according to the research https://hackmd.io/1wM8vqeNTjqt4pC3XoCUKQ?view#Proposed-solution
-const FULL_WITHDRAWAL_MIN_AMOUNT = 8 * 10 ** 18; // 8 ETH
+const FULL_WITHDRAWAL_MIN_AMOUNT = 8 * 10 ** 9; // 8 ETH in Gwei
 
 type WithdrawalWithOffset = Withdrawal & { offset: number };
 type InvolvedKeysWithWithdrawal = { [valIndex: string]: KeyInfo & { withdrawal: WithdrawalWithOffset } };
@@ -67,7 +67,6 @@ export class WithdrawalsService {
   ): Promise<void> {
     if (!Object.keys(withdrawals).length) return;
     const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
-    this.logger.log(`Getting state for root [${blockRoot}]`);
     const state = await this.consensus.getState(blockHeader.header.message.state_root);
     // There is a case when the block is not historical regarding the finalized block, but it is historical
     // regarding the transaction execution time. This is possible when long finalization time
@@ -89,6 +88,7 @@ export class WithdrawalsService {
     // create proof against the state with withdrawals
     const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data[0];
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
+    this.logger.log(`Building withdrawal proof payloads`);
     const payloads = this.buildWithdrawalsProofPayloads(
       blockHeader,
       nextBlockTs,
@@ -97,7 +97,7 @@ export class WithdrawalsService {
       withdrawals,
     );
     for (const payload of payloads) {
-      this.logger.warn(`📡 Sending withdrawal proof payload for validator index: ${payload.witness.validatorIndex}`);
+      this.logger.log(`📡 Sending withdrawal proof payload for validator index: ${payload.witness.validatorIndex}`);
       await this.verifier.sendWithdrawalProof(payload);
     }
   }
@@ -112,12 +112,11 @@ export class WithdrawalsService {
     // create proof against the historical state with withdrawals
     const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data[0];
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
-    this.logger.log(`Getting state for root [${finalizedHeader.root}]`);
     const finalizedState = await this.consensus.getState(finalizedHeader.header.message.state_root);
     const summaryIndex = this.calcSummaryIndex(blockInfo);
     const summarySlot = this.calcSlotOfSummary(summaryIndex);
-    this.logger.log(`Getting state for slot [${summarySlot}]`);
     const summaryState = await this.consensus.getState(summarySlot);
+    this.logger.log(`Building historical withdrawal proof payloads`);
     const payloads = this.buildHistoricalWithdrawalsProofPayloads(
       blockHeader,
       finalizedHeader,
@@ -131,7 +130,7 @@ export class WithdrawalsService {
       withdrawals,
     );
     for (const payload of payloads) {
-      this.logger.warn(
+      this.logger.log(
         `📡 Sending historical withdrawal proof payload for validator index: ${payload.witness.validatorIndex}`,
       );
       await this.verifier.sendHistoricalWithdrawalProof(payload);
@@ -167,15 +166,17 @@ export class WithdrawalsService {
         this.logger.warn(`Validator ${valIndex} is not full withdrawn. Just huge amount of ETH. Skipped`);
         continue;
       }
+      this.logger.log(`Generating validator [${valIndex}] proof`);
       const validatorProof = generateValidatorProof(stateView, Number(valIndex));
+      this.logger.log('Generating withdrawal proof');
       const withdrawalProof = generateWithdrawalProof(
         stateView,
         currentBlockView,
         keyWithWithdrawalInfo.withdrawal.offset,
       );
-      // verify validator proof
+      this.logger.log('Verifying validator proof locally');
       verifyProof(stateView.hashTreeRoot(), validatorProof.gindex, validatorProof.witnesses, validator.hashTreeRoot());
-      // verify withdrawal proof
+      this.logger.log('Verifying withdrawal proof locally');
       verifyProof(
         stateView.hashTreeRoot(),
         withdrawalProof.gindex,
@@ -237,26 +238,29 @@ export class WithdrawalsService {
         this.logger.warn(`Validator ${valIndex} is not full withdrawn. Just huge amount of ETH. Skipped`);
         continue;
       }
+      this.logger.log(`Generating validator [${valIndex}] proof`);
       const validatorProof = generateValidatorProof(stateWithWdsView, Number(valIndex));
+      this.logger.log('Generating withdrawal proof');
       const withdrawalProof = generateWithdrawalProof(
         stateWithWdsView,
         blockWithWdsView,
         keyWithWithdrawalInfo.withdrawal.offset,
       );
+      this.logger.log('Generating historical state proof');
       const historicalStateProof = generateHistoricalStateProof(
         finalizedStateView,
         summaryStateView,
         summaryIndex,
         rootIndexInSummary,
       );
-      // verify validator proof
+      this.logger.log('Verifying validator proof locally');
       verifyProof(
         stateWithWdsView.hashTreeRoot(),
         validatorProof.gindex,
         validatorProof.witnesses,
         validator.hashTreeRoot(),
       );
-      // verify withdrawal proof
+      this.logger.log('Verifying withdrawal proof locally');
       verifyProof(
         stateWithWdsView.hashTreeRoot(),
         withdrawalProof.gindex,
@@ -267,7 +271,7 @@ export class WithdrawalsService {
           .get(keyWithWithdrawalInfo.withdrawal.offset)
           .hashTreeRoot(),
       );
-      // verify historical state proof
+      this.logger.log('Verifying historical state proof locally');
       verifyProof(
         finalizedStateView.hashTreeRoot(),
         historicalStateProof.gindex,

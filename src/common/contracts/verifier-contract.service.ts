@@ -19,7 +19,6 @@ export class VerifierContract {
   }
 
   public async sendSlashingProof(payload: SlashingProofPayload): Promise<void> {
-    this.logger.debug!(payload);
     await this.execution.execute(
       this.impl.callStatic.processSlashingProof,
       this.impl.populateTransaction.processSlashingProof,
@@ -28,7 +27,6 @@ export class VerifierContract {
   }
 
   public async sendWithdrawalProof(payload: WithdrawalsProofPayload): Promise<void> {
-    this.logger.debug!(payload);
     await this.execution.execute(
       this.impl.callStatic.processWithdrawalProof,
       this.impl.populateTransaction.processWithdrawalProof,
