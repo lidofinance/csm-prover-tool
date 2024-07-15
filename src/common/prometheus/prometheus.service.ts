@@ -125,6 +125,11 @@ export class PrometheusService {
     name: METRIC_HIGH_GAS_FEE_INTERRUPTIONS_COUNT,
     help: 'Count of high gas fee interruptions',
   });
+
+  public txSendingErrors = this.getOrCreateMetric('Counter', {
+    name: 'tx_sending_errors',
+    help: 'Count of transaction sending errors',
+  });
 }
 
 export function TrackCLRequest(target: any, propertyKey: string, descriptor: PropertyDescriptor) {

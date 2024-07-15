@@ -51,15 +51,27 @@ export class Execution {
     populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
     payload: any[],
   ): Promise<void> {
-    try {
-      await this._execute(emulateTxCallback, populateTxCallback, payload);
-    } catch (e) {
-      if (e instanceof NoSignerError || e instanceof DryRunError) {
-        this.logger.warn(e);
+    // endless loop to retry transaction execution in case of high gas fee
+    while (true) {
+      try {
+        await this._execute(emulateTxCallback, populateTxCallback, payload);
         return;
+      } catch (e) {
+        if (e instanceof NoSignerError || e instanceof DryRunError) {
+          this.logger.warn(e);
+          return;
+        }
+        if (!this.isCLI() && e instanceof HighGasFeeError) {
+          this.prometheus.highGasFeeInterruptionsCount.inc();
+          this.logger.warn(e);
+          this.logger.warn('Retrying in 1 minute...');
+          await new Promise((resolve) => setTimeout(resolve, 60 * 1000));
+          continue;
+        }
+        this.prometheus.txSendingErrors.inc();
+        this.logger.error(e);
+        throw e;
       }
-      this.logger.error(e);
-      throw e;
     }
   }
 
@@ -100,7 +112,6 @@ export class Execution {
       }
     } else {
       if (!isFeePerGasAcceptable) {
-        this.prometheus.highGasFeeInterruptionsCount.inc();
         throw new HighGasFeeError('Transaction is not sent due to high gas fee', context);
       }
     }
@@ -108,13 +119,20 @@ export class Execution {
     let submitted: TransactionResponse;
     try {
       const submittedPromise = this.provider.sendTransaction(signed);
+      let msg = `Sending transaction with nonce ${populated.nonce} and gasLimit: ${populated.gasLimit}, maxFeePerGas: ${populated.maxFeePerGas}, maxPriorityFeePerGas: ${populated.maxPriorityFeePerGas}`;
       if (this.isCLI()) {
-        spinnerFor(submittedPromise, { text: 'Sending transaction' });
+        spinnerFor(submittedPromise, { text: msg });
+      } else {
+        this.logger.log(msg);
       }
       submitted = await submittedPromise;
+      this.logger.log(`Transaction sent to mempool. Hash: ${submitted.hash}`);
       const waitingPromise = submitted.wait();
+      msg = `Waiting until the transaction has been mined`;
       if (this.isCLI()) {
-        spinnerFor(submittedPromise, { text: 'Waiting until the transaction has been mined' });
+        spinnerFor(waitingPromise, { text: msg });
+      } else {
+        this.logger.log(msg);
       }
       await waitingPromise;
     } catch (e) {
