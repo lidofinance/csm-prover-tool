@@ -97,7 +97,7 @@ export class WithdrawalsService {
       withdrawals,
     );
     for (const payload of payloads) {
-      this.logger.warn(`📡 Sending withdrawal proof payload for validator index: ${payload.witness.validatorIndex}`);
+      this.logger.log(`📡 Sending withdrawal proof payload for validator index: ${payload.witness.validatorIndex}`);
       await this.verifier.sendWithdrawalProof(payload);
     }
   }
@@ -130,7 +130,7 @@ export class WithdrawalsService {
       withdrawals,
     );
     for (const payload of payloads) {
-      this.logger.warn(
+      this.logger.log(
         `📡 Sending historical withdrawal proof payload for validator index: ${payload.witness.validatorIndex}`,
       );
       await this.verifier.sendHistoricalWithdrawalProof(payload);
