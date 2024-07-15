@@ -166,15 +166,17 @@ export class WithdrawalsService {
         this.logger.warn(`Validator ${valIndex} is not full withdrawn. Just huge amount of ETH. Skipped`);
         continue;
       }
+      this.logger.log(`Generating validator [${valIndex}] proof`);
       const validatorProof = generateValidatorProof(stateView, Number(valIndex));
+      this.logger.log('Generating withdrawal proof');
       const withdrawalProof = generateWithdrawalProof(
         stateView,
         currentBlockView,
         keyWithWithdrawalInfo.withdrawal.offset,
       );
-      // verify validator proof
+      this.logger.log('Verifying validator proof locally');
       verifyProof(stateView.hashTreeRoot(), validatorProof.gindex, validatorProof.witnesses, validator.hashTreeRoot());
-      // verify withdrawal proof
+      this.logger.log('Verifying withdrawal proof locally');
       verifyProof(
         stateView.hashTreeRoot(),
         withdrawalProof.gindex,
@@ -236,26 +238,29 @@ export class WithdrawalsService {
         this.logger.warn(`Validator ${valIndex} is not full withdrawn. Just huge amount of ETH. Skipped`);
         continue;
       }
+      this.logger.log(`Generating validator [${valIndex}] proof`);
       const validatorProof = generateValidatorProof(stateWithWdsView, Number(valIndex));
+      this.logger.log('Generating withdrawal proof');
       const withdrawalProof = generateWithdrawalProof(
         stateWithWdsView,
         blockWithWdsView,
         keyWithWithdrawalInfo.withdrawal.offset,
       );
+      this.logger.log('Generating historical state proof');
       const historicalStateProof = generateHistoricalStateProof(
         finalizedStateView,
         summaryStateView,
         summaryIndex,
         rootIndexInSummary,
       );
-      // verify validator proof
+      this.logger.log('Verifying validator proof locally');
       verifyProof(
         stateWithWdsView.hashTreeRoot(),
         validatorProof.gindex,
         validatorProof.witnesses,
         validator.hashTreeRoot(),
       );
-      // verify withdrawal proof
+      this.logger.log('Verifying withdrawal proof locally');
       verifyProof(
         stateWithWdsView.hashTreeRoot(),
         withdrawalProof.gindex,
@@ -266,7 +271,7 @@ export class WithdrawalsService {
           .get(keyWithWithdrawalInfo.withdrawal.offset)
           .hashTreeRoot(),
       );
-      // verify historical state proof
+      this.logger.log('Verifying historical state proof locally');
       verifyProof(
         finalizedStateView.hashTreeRoot(),
         historicalStateProof.gindex,
