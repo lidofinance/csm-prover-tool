@@ -265,11 +265,11 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
     const iterator = iterateNodesAtDepth(
       validators.type.tree_getChunksNode(validators.node),
       validators.type.chunkDepth,
-      this.info.data.lastValidatorsCount - 1,
-      validators.length,
+      this.info.data.lastValidatorsCount,
+      appearedValsCount,
     );
     const valKeys = [];
-    for (let i = this.info.data.lastValidatorsCount - 1; i < validators.length; i++) {
+    for (let i = this.info.data.lastValidatorsCount; i < validators.length; i++) {
       const node = iterator.next().value;
       const v = validators.type.elementType.tree_toValue(node);
       valKeys.push(toHex(v.pubkey));
