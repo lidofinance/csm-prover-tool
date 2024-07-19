@@ -68,7 +68,9 @@ export class Execution {
           await new Promise((resolve) => setTimeout(resolve, 60 * 1000));
           continue;
         }
-        this.prometheus.txSendingErrors.inc();
+        if (!this.isCLI()) {
+          this.prometheus.txSendingErrors.inc();
+        }
         this.logger.error(e);
         throw e;
       }
