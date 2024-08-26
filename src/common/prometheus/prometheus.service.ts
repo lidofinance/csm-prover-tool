@@ -16,6 +16,7 @@ import {
   METRIC_OUTGOING_KEYSAPI_REQUESTS_DURATION_SECONDS,
   METRIC_TASK_DURATION_SECONDS,
   METRIC_TASK_RESULT_COUNT,
+  METRIC_TRANSACTION_COUNTER,
 } from './prometheus.constants';
 import { ConfigService } from '../config/config.service';
 import { WorkingMode } from '../config/env.validation';
@@ -126,9 +127,10 @@ export class PrometheusService {
     help: 'Count of high gas fee interruptions',
   });
 
-  public txSendingErrors = this.getOrCreateMetric('Counter', {
-    name: 'tx_sending_errors',
-    help: 'Count of transaction sending errors',
+  public transactionCount = this.getOrCreateMetric('Gauge', {
+    name: METRIC_TRANSACTION_COUNTER,
+    help: 'Count of transactions',
+    labelNames: ['status'],
   });
 }
 
