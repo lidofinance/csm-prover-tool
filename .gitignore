@@ -8,9 +8,6 @@
 # ENV
 /.env
 
-# Application storage
-/storage
-
 # Logs
 logs
 *.log
