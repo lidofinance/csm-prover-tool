@@ -11,6 +11,12 @@ import { ConfigService } from '../../config/config.service';
 import { WorkingMode } from '../../config/env.validation';
 import { PrometheusService } from '../../prometheus/prometheus.service';
 
+export enum TransactionStatus {
+  confirmed = 'confirmed',
+  pending = 'pending',
+  error = 'error',
+}
+
 class ErrorWithContext extends Error {
   public readonly context: any;
 
@@ -51,28 +57,59 @@ export class Execution {
     populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
     payload: any[],
   ): Promise<void> {
+    if (this.isCLI()) {
+      return await this.executeCLI(emulateTxCallback, populateTxCallback, payload);
+    }
+    return await this.executeDaemon(emulateTxCallback, populateTxCallback, payload);
+  }
+
+  public async executeCLI(
+    emulateTxCallback: (...payload: any[]) => Promise<any>,
+    populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
+    payload: any[],
+  ): Promise<void> {
+    try {
+      await this._execute(emulateTxCallback, populateTxCallback, payload);
+      return;
+    } catch (e) {
+      if (e instanceof NoSignerError || e instanceof DryRunError) {
+        this.logger.warn(e);
+        return;
+      }
+      this.logger.error(e);
+      throw e;
+    }
+  }
+
+  public async executeDaemon(
+    emulateTxCallback: (...payload: any[]) => Promise<any>,
+    populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
+    payload: any[],
+  ): Promise<void> {
     // endless loop to retry transaction execution in case of high gas fee
     while (true) {
       try {
+        this.prometheus.transactionCount.inc({ status: TransactionStatus.pending });
         await this._execute(emulateTxCallback, populateTxCallback, payload);
+        this.prometheus.transactionCount.inc({ status: TransactionStatus.confirmed });
         return;
       } catch (e) {
         if (e instanceof NoSignerError || e instanceof DryRunError) {
           this.logger.warn(e);
           return;
         }
-        if (!this.isCLI() && e instanceof HighGasFeeError) {
+        if (e instanceof HighGasFeeError) {
           this.prometheus.highGasFeeInterruptionsCount.inc();
           this.logger.warn(e);
           this.logger.warn('Retrying in 1 minute...');
           await new Promise((resolve) => setTimeout(resolve, 60 * 1000));
           continue;
         }
-        if (!this.isCLI()) {
-          this.prometheus.txSendingErrors.inc();
-        }
+        this.prometheus.transactionCount.inc({ status: TransactionStatus.error });
         this.logger.error(e);
         throw e;
+      } finally {
+        this.prometheus.transactionCount.dec({ status: TransactionStatus.pending });
       }
     }
   }

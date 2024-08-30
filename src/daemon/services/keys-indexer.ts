@@ -194,11 +194,11 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
       lastValidatorsCount: 0,
     };
     this.info = new Low<KeysIndexerServiceInfo>(
-      new JSONFile<KeysIndexerServiceInfo>('storage/.keys-indexer-info.json'),
+      new JSONFile<KeysIndexerServiceInfo>('storage/keys-indexer-info.json'),
       defaultInfo,
     );
     this.storage = new Low<KeysIndexerServiceStorage>(
-      new JSONFile<KeysIndexerServiceStorage>('storage/.keys-indexer-storage.json'),
+      new JSONFile<KeysIndexerServiceStorage>('storage/keys-indexer-storage.json'),
       {},
     );
     await this.info.read();

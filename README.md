@@ -109,6 +109,42 @@ So, according to the algorithm, there are the following statements:
 
 `--help` - Show help
 
+## Environment variables
+
+| Name                                    | Description                                       | Required               | Default                  |
+|-----------------------------------------|---------------------------------------------------|------------------------|--------------------------|
+| WORKING_MODE                            | Working mode of the tool (daemon or cli)          | no                     | daemon                   |
+| DRY_RUN                                 | Dry run mode                                      | no                     | false                    |
+| EL_PRC_URLS                             | Comma-separated list of EL RPC URLs               | yes                    |                          |
+| EL_RPC_RETRY_DELAY_MS                   | Delay between EL RPC retries in milliseconds      | no                     | 500                      |
+| EL_RPC_RESPONSE_TIMEOUT_MS              | EL RPC response timeout in milliseconds           | no                     | 60_000                   |
+| EL_RPC_MAX_RETRIES                      | Maximum number of EL RPC retries                  | no                     | 3                        |
+| CL_API_URLS                             | Comma-separated list of CL API URLs               | yes                    |                          |
+| CL_API_RETRY_DELAY_MS                   | Delay between CL API retries in milliseconds      | no                     | 500                      |
+| CL_API_RESPONSE_TIMEOUT_MS              | CL API response timeout in milliseconds           | no                     | 60_000                   |
+| CL_API_MAX_RETRIES                      | Maximum number of CL API retries                  | no                     | 3                        |
+| KEYSAPI_API_URLS                        | Comma-separated list of KeysAPI API URLs          | yes (daemon mode only) |                          |
+| KEYSAPI_API_RETRY_DELAY_MS              | Delay between KeysAPI API retries in milliseconds | no                     | 500                      |
+| KEYSAPI_API_RESPONSE_TIMEOUT_MS         | KeysAPI API response timeout in milliseconds      | no                     | 60_000                   |
+| KEYSAPI_API_MAX_RETRIES                 | Maximum number of KeysAPI API retries             | no                     | 3                        |
+| START_ROOT                              | Start consensus layer block root for the daemon   | no                     |                          |
+| CSM_ADDRESS                             | Address of the CSM contract                       | yes                    |                          |
+| VERIFIER_ADDRESS                        | Address of the verifier contract                  | yes                    |                          |
+| TX_SIGNER_PRIVATE_KEY                   | Private key of the transaction signer             | yes (if not dry run)   |                          |
+| TX_MIN_GAS_PRIORITY_FEES                | Minimum gas priority fees for the transaction     | no                     | 50_000_000 (0.05 gwei)   |
+| TX_MAX_GAS_PRIORITY_FEES                | Maximum gas priority fees for the transaction     | no                     | 10_000_000_000 (10 gwei) |
+| TX_GAS_PRIORITY_FEE_PERCENTILE          | Gas priority fee percentile for the transaction   | no                     | 25                       |
+| TX_GAS_FEE_HISTORY_DAYS                 | Days of gas fee history for analyzing gas         | no                     | 1                        |
+| TX_GAS_FEE_HISTORY_PERCENTILE           | Gas fee percentile for analyzing gas              | no                     | 20                       |
+| TX_GAS_LIMIT                            | Gas limit for the transaction                     | no                     | 1_000_000                |
+| KEYS_INDEXER_RUNNING_PERIOD_MS          | Period of running keys indexer in milliseconds    | no                     | 3 * 3_600_000 (3 hours)  |
+| KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS | Period of keys indexer freshness in milliseconds  | no                     | 8 * 3_600_000 (8 hours)  |
+| HTTP_PORT                               | Port for the HTTP server                          | no                     | 8080                     |
+| LOG_LEVEL                               | Log level                                         | no                     | info                     |
+| LOG_FORMAT                              | Log format                                        | no                     | simple                   |
+
+
+
 ## Test
 
 ```bash

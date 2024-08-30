@@ -70,10 +70,10 @@ export class RootsStack implements OnModuleInit, OnApplicationBootstrap {
   }
 
   private async initOrReadServiceData() {
-    this.info = new Low<RootsStackServiceInfo>(new JSONFile('storage/.roots-stack-info.json'), {
+    this.info = new Low<RootsStackServiceInfo>(new JSONFile('storage/roots-stack-info.json'), {
       lastProcessedRootSlot: undefined,
     });
-    this.storage = new Low<RootsStackServiceStorage>(new JSONFile('storage/.roots-stack-storage.json'), {});
+    this.storage = new Low<RootsStackServiceStorage>(new JSONFile('storage/roots-stack-storage.json'), {});
     await this.info.read();
     await this.storage.read();
   }

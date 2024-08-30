@@ -16,6 +16,7 @@ export const METRIC_TASK_DURATION_SECONDS = `task_duration_seconds`;
 export const METRIC_TASK_RESULT_COUNT = `task_result_count`;
 
 export const METRIC_HIGH_GAS_FEE_INTERRUPTIONS_COUNT = `high_gas_fee_interruptions_count`;
+export const METRIC_TRANSACTION_COUNTER = `transaction_total`;
 
 export const METRIC_DATA_ACTUALITY = `data_actuality`;
 export const METRIC_LAST_PROCESSED_SLOT_NUMBER = `last_processed_slot_number`;
