@@ -7,6 +7,12 @@ import { CsmContract } from '../../common/contracts/csm-contract.service';
 import { ProverService } from '../../common/prover/prover.service';
 import { KeyInfoFn } from '../../common/prover/types';
 import { Consensus } from '../../common/providers/consensus/consensus';
+import {
+  validateBlock,
+  validateKeyIndex,
+  validateNodeOperatorId,
+  validateValidatorIndex,
+} from '../questions/proof-input.question';
 
 type ProofOptions = {
   nodeOperatorId: string;
@@ -69,7 +75,7 @@ export class ProveCommand extends CommandRunner {
     description: 'Node Operator ID from the CSM',
   })
   parseNodeOperatorId(val: string) {
-    return val;
+    return validateNodeOperatorId(val);
   }
 
   @Option({
@@ -77,7 +83,7 @@ export class ProveCommand extends CommandRunner {
     description: 'Key Index from the CSM',
   })
   parseKeyIndex(val: string) {
-    return val;
+    return validateKeyIndex(val);
   }
 
   @Option({
@@ -85,7 +91,7 @@ export class ProveCommand extends CommandRunner {
     description: 'Validator Index from the Consensus Layer',
   })
   parseValidatorIndex(val: string) {
-    return val;
+    return validateValidatorIndex(val);
   }
 
   @Option({
@@ -93,7 +99,7 @@ export class ProveCommand extends CommandRunner {
     description: 'Block from the Consensus Layer with validator withdrawal. Might be a block root or a slot number',
   })
   parseBlock(val: string) {
-    return val;
+    return validateBlock(val);
   }
 
   keyInfoFn: KeyInfoFn = (valIndex: number) => {

@@ -1,5 +1,33 @@
 import { Question, QuestionSet } from 'nest-commander';
 
+export const validateNodeOperatorId = (val: string) => {
+  if (!/^\d+$/.test(val)) {
+    throw new Error('Node operator ID must be a number');
+  }
+  return val;
+};
+
+export const validateKeyIndex = (val: string) => {
+  if (!/^\d+$/.test(val)) {
+    throw new Error('Key index must be a number');
+  }
+  return val;
+};
+
+export const validateValidatorIndex = (val: string) => {
+  if (!/^\d+$/.test(val)) {
+    throw new Error('Validator index must be a number');
+  }
+  return val;
+};
+
+export const validateBlock = (val: string) => {
+  if (!/^0x[a-fA-F0-9]{64}$|^\d+$/.test(val)) {
+    throw new Error('Block must be a 32-byte hex string or a number');
+  }
+  return val;
+};
+
 @QuestionSet({ name: 'proof-input' })
 export class ProofInputQuestion {
   @Question({
@@ -7,14 +35,15 @@ export class ProofInputQuestion {
     name: 'nodeOperatorId',
   })
   parseNodeOperatorId(val: string) {
-    return val;
+    return validateNodeOperatorId(val);
   }
+
   @Question({
     message: 'Key index:',
     name: 'keyIndex',
   })
   parseKeyIndex(val: string) {
-    return val;
+    return validateKeyIndex(val);
   }
 
   @Question({
@@ -22,7 +51,7 @@ export class ProofInputQuestion {
     name: 'validatorIndex',
   })
   parseValidatorIndex(val: string) {
-    return val;
+    return validateValidatorIndex(val);
   }
 
   @Question({
@@ -30,6 +59,6 @@ export class ProofInputQuestion {
     name: 'block',
   })
   parseBlock(val: string) {
-    return val;
+    return validateBlock(val);
   }
 }
