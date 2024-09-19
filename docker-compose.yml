@@ -45,7 +45,7 @@ services:
   daemon:
     build:
       context: .
-      dockerfile: ./Dockerfile.daemon
+      dockerfile: ./Dockerfile
     container_name: prover-daemon
     restart: unless-stopped
     environment:
