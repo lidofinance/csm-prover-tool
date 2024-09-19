@@ -25,5 +25,5 @@ jobs:
           APP_ID: ${{ secrets.APP_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
           TARGET_REPO: "lidofinance/infra-mainnet"
-          TARGET_WORKFLOW: "deploy_testnet_csm_prover_daemon.yaml"
+          TARGET_WORKFLOW: "deploy_testnet_csm_prover_tool.yaml"
           TARGET: "develop"
