@@ -1,4 +1,4 @@
-FROM node:20.12.1-alpine as building
+FROM node:20.12.1-alpine AS building
 
 WORKDIR /app
 
@@ -22,6 +22,6 @@ RUN mkdir -p ./storage/ && chown -R node:node ./storage/
 USER node
 
 HEALTHCHECK --interval=120s --timeout=60s --retries=3 \
-  CMD sh -c "wget -nv -t1 --spider http://localhost:$HTTP_PORT/health" || exit 1
+  CMD sh -c "wget -nv -t1 --spider http://127.0.0.1:$HTTP_PORT/health" || exit 1
 
 CMD ["yarn", "start:prod"]
