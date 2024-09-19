@@ -3,7 +3,7 @@ import { request } from 'undici';
 import { IncomingHttpHeaders } from 'undici/types/header';
 import BodyReadable from 'undici/types/readable';
 
-import { RequestOptions, RequestPolicy, rejectDelay, retrier } from './utils/func';
+import { RequestOptions, RequestPolicy, rejectDelay, retrier, urljoin } from './utils/func';
 import { PrometheusService } from '../../prometheus';
 
 export type RetryOptions = RequestOptions &
@@ -97,7 +97,7 @@ export abstract class BaseRestProvider {
       requestPolicy: this.requestPolicy,
       ...options,
     } as RequestOptions;
-    const { body, headers, statusCode } = await request(new URL(endpoint, base), {
+    const { body, headers, statusCode } = await request(urljoin(base, endpoint), {
       method: 'GET',
       headersTimeout: (options.requestPolicy as RequestPolicy).timeout,
       signal: options.signal,
@@ -123,7 +123,7 @@ export abstract class BaseRestProvider {
       requestPolicy: this.requestPolicy,
       ...options,
     } as RequestOptions;
-    const { body, headers, statusCode } = await request(new URL(endpoint, base), {
+    const { body, headers, statusCode } = await request(urljoin(base, endpoint), {
       method: 'POST',
       headersTimeout: (options.requestPolicy as RequestPolicy).timeout,
       signal: options.signal,
