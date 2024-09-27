@@ -1,4 +1,4 @@
-FROM node:20.12.1-alpine AS building
+FROM node:20.12.1-bookworm-slim AS building
 
 WORKDIR /app
 
@@ -9,7 +9,7 @@ COPY ./src ./src
 RUN yarn install --frozen-lockfile --non-interactive && yarn cache clean && yarn typechain
 RUN yarn build
 
-FROM node:20.12.1-alpine
+FROM node:20.12.1-bookworm-slim
 
 WORKDIR /app
 
