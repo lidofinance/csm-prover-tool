@@ -114,7 +114,11 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
     // We shouldn't wait for task to finish
     // to avoid block processing if indexing fails or stuck
     this.startedAt = Date.now();
-    this.baseRun(stateRoot, slot, this.updateStorage)
+    this.baseRun(
+      stateRoot,
+      slot,
+      async (validators, finalizedSlot) => await this.updateStorage(validators, finalizedSlot),
+    )
       .catch((e) => this.logger.error(e))
       .finally(() => (this.startedAt = 0));
   }
@@ -131,10 +135,11 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
     const stateView = this.consensus.stateToView(state.bodyBytes, state.forkName);
     this.logger.log(`Total validators count: ${stateView.validators.length}`);
     // TODO: do we need to store already full withdrawn keys ?
+    const currValidatorsCount = stateView.validators.length;
     await stateDataProcessingCallback(stateView.validators, finalizedSlot);
     this.logger.log(`CSM validators count: ${Object.keys(this.storage.data).length}`);
     this.info.data.storageStateSlot = finalizedSlot;
-    this.info.data.lastValidatorsCount = stateView.validators.length;
+    this.info.data.lastValidatorsCount = currValidatorsCount;
     await this.info.write();
     await this.storage.write();
   }
@@ -224,22 +229,27 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
       const finalized = await this.consensus.getBeaconHeader('finalized');
       const finalizedSlot = Number(finalized.header.message.slot);
       const stateRoot = finalized.header.message.state_root;
-      await this.baseRun(stateRoot, finalizedSlot, this.initStorage);
+      await this.baseRun(
+        stateRoot,
+        finalizedSlot,
+        async (validators, finalizedSlot) => await this.initStorage(validators, finalizedSlot),
+      );
     }
   }
 
-  initStorage = async (validators: Validators, finalizedSlot: Slot): Promise<void> => {
+  private async initStorage(validators: Validators, finalizedSlot: Slot): Promise<void> {
     const csmKeys = await this.keysapi.getModuleKeys(this.info.data.moduleId);
     this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
     const keysMap = new Map<string, { operatorIndex: number; index: number }>();
     csmKeys.data.keys.forEach((k: Key) => keysMap.set(k.key, { ...k }));
+    const valLength = validators.length;
     const iterator = iterateNodesAtDepth(
       validators.type.tree_getChunksNode(validators.node),
       validators.type.chunkDepth,
       0,
-      validators.length,
+      valLength,
     );
-    for (let i = 0; i < validators.length; i++) {
+    for (let i = 0; i < valLength; i++) {
       const node = iterator.next().value;
       const v = node.value;
       const pubKey = toHex(v.pubkey);
@@ -251,12 +261,14 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
         pubKey: pubKey,
       };
     }
-  };
+    iterator.return && iterator.return();
+  }
 
-  updateStorage = async (validators: Validators, finalizedSlot: Slot): Promise<void> => {
+  private async updateStorage(validators: Validators, finalizedSlot: Slot): Promise<void> {
     // TODO: should we think about re-using validator indexes?
     // TODO: should we think about changing WC for existing old vaidators ?
-    const appearedValsCount = validators.length - this.info.data.lastValidatorsCount;
+    const valLength = validators.length;
+    const appearedValsCount = valLength - this.info.data.lastValidatorsCount;
     if (appearedValsCount == 0) {
       this.logger.log(`No new validators in the state`);
       return;
@@ -269,7 +281,7 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
       appearedValsCount,
     );
     const valKeys = [];
-    for (let i = this.info.data.lastValidatorsCount; i < validators.length; i++) {
+    for (let i = this.info.data.lastValidatorsCount; i < valLength; i++) {
       const node = iterator.next().value;
       const v = validators.type.elementType.tree_toValue(node);
       valKeys.push(toHex(v.pubkey));
@@ -278,8 +290,9 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
     const csmKeys = await this.keysapi.findModuleKeys(this.info.data.moduleId, valKeys);
     this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
     this.logger.log(`New appeared CSM validators count: ${csmKeys.data.keys.length}`);
+    const valKeysLength = valKeys.length;
     for (const csmKey of csmKeys.data.keys) {
-      for (let i = 0; i < valKeys.length; i++) {
+      for (let i = 0; i < valKeysLength; i++) {
         if (valKeys[i] != csmKey.key) continue;
         const index = i + this.info.data.lastValidatorsCount;
         this.storage.data[index] = {
@@ -289,7 +302,8 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
         };
       }
     }
-  };
+    iterator.return && iterator.return();
+  }
 
   private setMetrics() {
     const info = () => this.info.data;

@@ -1,4 +1,9 @@
-FROM node:20.12.1-alpine as building
+FROM node:20.12.1-bookworm-slim AS building
+
+RUN apt-get update && apt-get install -y --no-install-recommends -qq \
+    curl=7.88.1-10+deb12u7 \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -9,7 +14,7 @@ COPY ./src ./src
 RUN yarn install --frozen-lockfile --non-interactive && yarn cache clean && yarn typechain
 RUN yarn build
 
-FROM node:20.12.1-alpine
+FROM building AS production
 
 WORKDIR /app
 
@@ -22,6 +27,6 @@ RUN mkdir -p ./storage/ && chown -R node:node ./storage/
 USER node
 
 HEALTHCHECK --interval=120s --timeout=60s --retries=3 \
-  CMD sh -c "wget -nv -t1 --spider http://localhost:$HTTP_PORT/health" || exit 1
+    CMD curl -f http://localhost:$HTTP_PORT/health || exit 1
 
 CMD ["yarn", "start:prod"]
