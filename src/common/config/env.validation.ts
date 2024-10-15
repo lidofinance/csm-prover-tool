@@ -82,6 +82,14 @@ export class EnvironmentVariables {
   public TX_GAS_LIMIT = 1_000_000;
 
   @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_MINING_WAITING_TIMEOUT_MS = HOUR;
+
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_CONFIRMATIONS = 1;
+
+  @IsNumber()
   @Min(30 * MINUTE)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public KEYS_INDEXER_RUNNING_PERIOD_MS: number = 3 * HOUR;
