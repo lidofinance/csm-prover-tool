@@ -75,7 +75,7 @@ export class EnvironmentVariables {
   @IsNumber()
   @Max(100)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public TX_GAS_FEE_HISTORY_PERCENTILE = 20;
+  public TX_GAS_FEE_HISTORY_PERCENTILE = 50;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
