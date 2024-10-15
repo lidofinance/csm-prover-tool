@@ -21,7 +21,7 @@ RUN mkdir -p ./storage/ && chown -R node:node ./storage/
 
 USER node
 
-HEALTHCHECK --interval=120s --timeout=60s --retries=3 \
+HEALTHCHECK --interval=360s --timeout=120s --retries=3 \
   CMD sh -c "wget -nv -t1 --spider http://127.0.0.1:$HTTP_PORT/health" || exit 1
 
 CMD ["yarn", "start:prod"]
