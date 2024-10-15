@@ -1,5 +1,10 @@
 FROM node:20.12.1-bookworm-slim AS building
 
+RUN apt-get update && apt-get install -y --no-install-recommends -qq \
+    curl=7.88.1-10+deb12u7 \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY package.json yarn.lock build-info.json ./
@@ -9,7 +14,7 @@ COPY ./src ./src
 RUN yarn install --frozen-lockfile --non-interactive && yarn cache clean && yarn typechain
 RUN yarn build
 
-FROM node:20.12.1-bookworm-slim
+FROM building AS production
 
 WORKDIR /app
 
