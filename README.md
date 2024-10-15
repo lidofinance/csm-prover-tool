@@ -135,8 +135,10 @@ So, according to the algorithm, there are the following statements:
 | TX_MAX_GAS_PRIORITY_FEES                | Maximum gas priority fees for the transaction     | no                     | 10_000_000_000 (10 gwei) |
 | TX_GAS_PRIORITY_FEE_PERCENTILE          | Gas priority fee percentile for the transaction   | no                     | 25                       |
 | TX_GAS_FEE_HISTORY_DAYS                 | Days of gas fee history for analyzing gas         | no                     | 1                        |
-| TX_GAS_FEE_HISTORY_PERCENTILE           | Gas fee percentile for analyzing gas              | no                     | 20                       |
+| TX_GAS_FEE_HISTORY_PERCENTILE           | Gas fee percentile for analyzing gas              | no                     | 50                       |
 | TX_GAS_LIMIT                            | Gas limit for the transaction                     | no                     | 1_000_000                |
+| TX_MINING_WAITING_TIMEOUT_MS            | Timeout for waiting for the transaction mining    | no                     | 3_600_000 (1 hour)       |
+| TX_CONFIRMATIONS                        | Number of confirmations for the transaction       | no                     | 1                        |
 | KEYS_INDEXER_RUNNING_PERIOD_MS          | Period of running keys indexer in milliseconds    | no                     | 3 * 3_600_000 (3 hours)  |
 | KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS | Period of keys indexer freshness in milliseconds  | no                     | 8 * 3_600_000 (8 hours)  |
 | HTTP_PORT                               | Port for the HTTP server                          | no                     | 8080                     |

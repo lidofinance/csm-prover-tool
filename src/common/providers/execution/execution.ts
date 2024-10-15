@@ -166,8 +166,12 @@ export class Execution {
       }
       submitted = await submittedPromise;
       this.logger.log(`Transaction sent to mempool. Hash: ${submitted.hash}`);
-      const waitingPromise = submitted.wait();
-      msg = `Waiting until the transaction has been mined`;
+      const waitingPromise = this.provider.waitForTransaction(
+        submitted.hash,
+        this.config.get('TX_CONFIRMATIONS'),
+        this.config.get('TX_MINING_WAITING_TIMEOUT_MS'),
+      );
+      msg = `Waiting until the transaction has been mined and confirmed ${this.config.get('TX_CONFIRMATIONS')} times`;
       if (this.isCLI()) {
         spinnerFor(waitingPromise, { text: msg });
       } else {
