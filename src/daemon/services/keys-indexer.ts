@@ -4,7 +4,7 @@ import { ListCompositeTreeView } from '@chainsafe/ssz/lib/view/listComposite';
 import { Low } from '@huanshiwushuang/lowdb';
 import { JSONFile } from '@huanshiwushuang/lowdb/node';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, LoggerService, OnApplicationBootstrap } from '@nestjs/common';
 
 import { ConfigService } from '../../common/config/config.service';
 import {
@@ -16,7 +16,6 @@ import {
 } from '../../common/prometheus';
 import { toHex } from '../../common/prover/helpers/proofs';
 import { KeyInfo } from '../../common/prover/types';
-import { sleep } from '../../common/providers/base/utils/func';
 import { Consensus } from '../../common/providers/consensus/consensus';
 import { BlockHeaderResponse, RootHex, Slot } from '../../common/providers/consensus/response.interface';
 import { Keysapi } from '../../common/providers/keysapi/keysapi';
@@ -59,13 +58,14 @@ function Single(target: any, propertyKey: string, descriptor: PropertyDescriptor
   return descriptor;
 }
 
-class ModuleNotFoundError extends Error {}
+export class ModuleNotFoundError extends Error {}
 
 @Injectable()
-export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
-  private startedAt: number = 0;
+export class KeysIndexer implements OnApplicationBootstrap {
+  public MODULE_NOT_FOUND_NEXT_TRY_MS = 60000;
 
-  private MODULE_NOT_FOUND_NEXT_TRY_MS = 60000;
+  // it actually used by `Single` decorator
+  private startedAt: number = 0;
 
   private info: Low<KeysIndexerServiceInfo>;
   private storage: Low<KeysIndexerServiceStorage>;
@@ -77,22 +77,6 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
     protected readonly consensus: Consensus,
     protected readonly keysapi: Keysapi,
   ) {}
-
-  public async onModuleInit(): Promise<void> {
-    while (true) {
-      try {
-        await this.initOrReadServiceData();
-        return;
-      } catch (e) {
-        if (e instanceof ModuleNotFoundError) {
-          this.logger.error(e);
-          await sleep(this.MODULE_NOT_FOUND_NEXT_TRY_MS);
-          continue;
-        }
-        throw e;
-      }
-    }
-  }
 
   public async onApplicationBootstrap(): Promise<void> {
     this.setMetrics();
@@ -191,7 +175,13 @@ export class KeysIndexer implements OnModuleInit, OnApplicationBootstrap {
     return slotNumber - this.info.data.storageStateSlot <= safeDelay; // ~27 hours
   }
 
-  private async initOrReadServiceData() {
+  public isInitialized(): boolean {
+    return Boolean(
+      this.info?.data?.moduleId && this.info?.data?.storageStateSlot && this.info?.data?.lastValidatorsCount,
+    );
+  }
+
+  public async initOrReadServiceData() {
     const defaultInfo: KeysIndexerServiceInfo = {
       moduleAddress: this.config.get('CSM_ADDRESS'),
       moduleId: 0,
