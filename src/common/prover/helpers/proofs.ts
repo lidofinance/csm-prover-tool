@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { ProofType, SingleProof, concatGindices, createProof } from '@chainsafe/persistent-merkle-tree';
+import { ProofType, SingleProof, Tree, concatGindices, createProof } from '@chainsafe/persistent-merkle-tree';
 import { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
 
 let ssz: typeof import('@lodestar/types').ssz;
@@ -20,7 +20,7 @@ export function generateWithdrawalProof(
   withdrawalOffset: number,
 ): SingleProof {
   // NOTE: ugly hack to replace root with the value to make a proof
-  const patchedTree = (stateView as any).tree.clone();
+  const patchedTree = new Tree(stateView.node);
   const stateWdGindex = stateView.type.getPathInfo(['latestExecutionPayloadHeader', 'withdrawalsRoot']).gindex;
   patchedTree.setNode(
     stateWdGindex,
@@ -43,7 +43,7 @@ export function generateHistoricalStateProof(
   rootIndex: number,
 ): SingleProof {
   // NOTE: ugly hack to replace root with the value to make a proof
-  const patchedTree = (finalizedStateView as any).tree.clone();
+  const patchedTree = new Tree(finalizedStateView.node);
   const blockSummaryRootGI = finalizedStateView.type.getPathInfo([
     'historicalSummaries',
     summaryIndex,
