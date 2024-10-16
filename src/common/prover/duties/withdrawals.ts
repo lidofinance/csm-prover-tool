@@ -161,7 +161,7 @@ export class WithdrawalsService {
   ): Generator<WithdrawalsProofPayload> {
     const epoch = this.consensus.slotToEpoch(Number(currentHeader.header.message.slot));
     for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
-      const validator = stateView.validators.get(Number(valIndex));
+      const validator = stateView.validators.getReadonly(Number(valIndex));
       if (epoch < validator.withdrawableEpoch) {
         this.logger.warn(`Validator ${valIndex} is not full withdrawn. Just huge amount of ETH. Skipped`);
         continue;
@@ -184,7 +184,7 @@ export class WithdrawalsService {
         (
           currentBlockView as ContainerTreeViewType<typeof ssz.capella.BeaconBlock.fields>
         ).body.executionPayload.withdrawals
-          .get(keyWithWithdrawalInfo.withdrawal.offset)
+          .getReadonly(keyWithWithdrawalInfo.withdrawal.offset)
           .hashTreeRoot(),
       );
       yield {
@@ -233,7 +233,7 @@ export class WithdrawalsService {
   ): Generator<HistoricalWithdrawalsProofPayload> {
     const epoch = this.consensus.slotToEpoch(Number(headerWithWds.header.message.slot));
     for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
-      const validator = stateWithWdsView.validators.get(Number(valIndex));
+      const validator = stateWithWdsView.validators.getReadonly(Number(valIndex));
       if (epoch < validator.withdrawableEpoch) {
         this.logger.warn(`Validator ${valIndex} is not full withdrawn. Just huge amount of ETH. Skipped`);
         continue;
@@ -268,7 +268,7 @@ export class WithdrawalsService {
         (
           blockWithWdsView as ContainerTreeViewType<typeof ssz.capella.BeaconBlock.fields>
         ).body.executionPayload.withdrawals
-          .get(keyWithWithdrawalInfo.withdrawal.offset)
+          .getReadonly(keyWithWithdrawalInfo.withdrawal.offset)
           .hashTreeRoot(),
       );
       this.logger.log('Verifying historical state proof locally');
@@ -276,7 +276,7 @@ export class WithdrawalsService {
         finalizedStateView.hashTreeRoot(),
         historicalStateProof.gindex,
         historicalStateProof.witnesses,
-        (summaryStateView as ContainerTreeViewType<typeof ssz.capella.BeaconState.fields>).blockRoots.get(
+        (summaryStateView as ContainerTreeViewType<typeof ssz.capella.BeaconState.fields>).blockRoots.getReadonly(
           rootIndexInSummary,
         ),
       );
