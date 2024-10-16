@@ -95,7 +95,7 @@ export class SlashingsService {
     slashings: InvolvedKeys,
   ): Generator<SlashingProofPayload> {
     for (const [valIndex, keyInfo] of Object.entries(slashings)) {
-      const validator = stateView.validators.get(Number(valIndex));
+      const validator = stateView.validators.getReadonly(Number(valIndex));
       this.logger.log(`Generating validator [${valIndex}] proof`);
       const validatorProof = generateValidatorProof(stateView, Number(valIndex));
       this.logger.log('Verifying validator proof locally');

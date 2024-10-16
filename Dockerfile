@@ -26,7 +26,7 @@ RUN mkdir -p ./storage/ && chown -R node:node ./storage/
 
 USER node
 
-HEALTHCHECK --interval=120s --timeout=60s --retries=3 \
-    CMD curl -f http://localhost:$HTTP_PORT/health || exit 1
+HEALTHCHECK --interval=360s --timeout=120s --retries=3 \
+  CMD curl -f http://localhost:$HTTP_PORT/health || exit 1
 
 CMD ["yarn", "start:prod"]
