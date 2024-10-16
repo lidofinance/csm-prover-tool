@@ -3,7 +3,7 @@ import { Inject, Injectable, LoggerService, OnModuleInit } from '@nestjs/common'
 
 import * as buildInfo from 'build-info';
 
-import { KeysIndexer } from './services/keys-indexer';
+import { KeysIndexer, ModuleNotFoundError } from './services/keys-indexer';
 import { RootsProcessor } from './services/roots-processor';
 import { RootsProvider } from './services/roots-provider';
 import sleep from './utils/sleep';
@@ -37,10 +37,13 @@ export class DaemonService implements OnModuleInit {
   public async loop() {
     while (true) {
       try {
+        if (!this.keysIndexer.isInitialized()) await this.keysIndexer.initOrReadServiceData();
         await this.baseRun();
       } catch (e) {
         this.logger.error(e);
-        await sleep(1000);
+        e instanceof ModuleNotFoundError
+          ? await sleep(this.keysIndexer.MODULE_NOT_FOUND_NEXT_TRY_MS)
+          : await sleep(1000);
       }
     }
   }
