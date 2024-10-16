@@ -22,8 +22,8 @@ export class ProverService {
     finalizedHeader: BlockHeaderResponse,
     keyInfoFn: KeyInfoFn,
   ): Promise<void> {
-    await this.handleWithdrawalsInBlock(blockRoot, blockInfo, finalizedHeader, keyInfoFn);
     await this.handleSlashingsInBlock(blockInfo, finalizedHeader, keyInfoFn);
+    await this.handleWithdrawalsInBlock(blockRoot, blockInfo, finalizedHeader, keyInfoFn);
   }
 
   public async handleWithdrawalsInBlock(

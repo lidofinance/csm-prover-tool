@@ -209,6 +209,7 @@ export class Execution {
   }
 
   private async calcPriorityFee(): Promise<{ maxFeePerGas: bigint; maxPriorityFeePerGas: bigint }> {
+    this.logger.log('🔄 Calculating priority fee');
     const { baseFeePerGas } = await this.provider.getBlock('pending');
     const { reward } = await this.provider.getFeeHistory(1, 'latest', [
       this.config.get('TX_GAS_PRIORITY_FEE_PERCENTILE'),
