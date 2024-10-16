@@ -128,7 +128,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     const { body, headers } = await requestPromise;
     this.progress?.show('State downloading', { body, headers });
     const forkName = headers['eth-consensus-version'] as keyof typeof ForkName;
-    const bodyBytes = new Uint8Array(await body.arrayBuffer());
+    const bodyBytes = await body.bytes();
     return { bodyBytes, forkName };
   }
 
