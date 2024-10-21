@@ -5,7 +5,7 @@ import { Inject, Injectable, LoggerService, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { WorkingMode } from '../config/env.validation';
-import { PrometheusService, TrackTask } from '../prometheus';
+import { PrometheusService, TrackWorker } from '../prometheus';
 
 export function parentWarn(message: string): void {
   parentPort?.postMessage(new ParentLoggerMessage('warn', message));
@@ -35,15 +35,14 @@ export class WorkersService {
   ) {}
 
   public async run<T>(name: string, data: any): Promise<T> {
-    if (this.config.get('WORKING_MODE') == WorkingMode.CLI) {
-      return await this._run(name, data);
-    } else {
-      return await this._withWithTracker(name, data);
+    if (this.config.get('WORKING_MODE') == WorkingMode.Daemon) {
+      return await this._runWithTracker(name, data);
     }
+    return await this._run(name, data);
   }
 
-  @TrackTask('run-worker')
-  private async _withWithTracker<T>(name: string, data: any): Promise<T> {
+  @TrackWorker()
+  private async _runWithTracker<T>(name: string, data: any): Promise<T> {
     return await this._run(name, data);
   }
 
