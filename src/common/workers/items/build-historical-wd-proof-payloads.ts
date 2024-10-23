@@ -10,15 +10,30 @@ import {
   verifyProof,
 } from '../../helpers/proofs';
 import { InvolvedKeysWithWithdrawal } from '../../prover/duties/withdrawals.service';
+import { HistoricalWithdrawalsProofPayload } from '../../prover/types';
 import { State } from '../../providers/consensus/consensus';
 import { BlockHeaderResponse, BlockInfoResponse } from '../../providers/consensus/response.interface';
-import { parentLog, parentWarn } from '../workers.service';
+import { WorkerLogger } from '../workers.service';
 
 let ssz: typeof import('@lodestar/types').ssz;
 let anySsz: typeof ssz.phase0 | typeof ssz.altair | typeof ssz.bellatrix | typeof ssz.capella | typeof ssz.deneb;
 let ForkName: typeof import('@lodestar/params').ForkName;
 
-async function buildHistoricalWithdrawalsProofPayloads(): Promise<void> {
+export type BuildHistoricalWithdrawalProofArgs = {
+  headerWithWds: BlockHeaderResponse;
+  finalHeader: BlockHeaderResponse;
+  nextToFinalizedHeaderTimestamp: number;
+  finalizedState: State;
+  summaryState: State;
+  stateWithWds: State;
+  blockWithWds: BlockInfoResponse;
+  summaryIndex: number;
+  rootIndexInSummary: number;
+  withdrawals: InvolvedKeysWithWithdrawal;
+  epoch: number;
+};
+
+async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWithdrawalsProofPayload[]> {
   ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
   const {
     headerWithWds,
@@ -32,19 +47,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<void> {
     rootIndexInSummary,
     withdrawals,
     epoch,
-  } = workerData as {
-    headerWithWds: BlockHeaderResponse;
-    finalHeader: BlockHeaderResponse;
-    nextToFinalizedHeaderTimestamp: number;
-    finalizedState: State;
-    summaryState: State;
-    stateWithWds: State;
-    blockWithWds: BlockInfoResponse;
-    summaryIndex: number;
-    rootIndexInSummary: number;
-    withdrawals: InvolvedKeysWithWithdrawal;
-    epoch: number;
-  };
+  } = workerData as BuildHistoricalWithdrawalProofArgs;
   //
   // Get views
   //
@@ -67,32 +70,32 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<void> {
   for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
     const validator = stateWithWdsView.validators.getReadonly(Number(valIndex));
     if (epoch < validator.withdrawableEpoch) {
-      parentWarn(`Validator ${valIndex} is not full withdrawn. Just huge amount of ETH. Skipped`);
+      WorkerLogger.warn(`Validator ${valIndex} is not full withdrawn. Just huge amount of ETH. Skipped`);
       continue;
     }
-    parentLog(`Generating validator [${valIndex}] proof`);
+    WorkerLogger.log(`Generating validator [${valIndex}] proof`);
     const validatorProof = generateValidatorProof(stateWithWdsView, Number(valIndex));
-    parentLog('Generating withdrawal proof');
+    WorkerLogger.log('Generating withdrawal proof');
     const withdrawalProof = generateWithdrawalProof(
       stateWithWdsView,
       blockWithWdsView,
       keyWithWithdrawalInfo.withdrawal.offset,
     );
-    parentLog('Generating historical state proof');
+    WorkerLogger.log('Generating historical state proof');
     const historicalStateProof = generateHistoricalStateProof(
       finalizedStateView,
       summaryStateView,
       summaryIndex,
       rootIndexInSummary,
     );
-    parentLog('Verifying validator proof locally');
+    WorkerLogger.log('Verifying validator proof locally');
     verifyProof(
       stateWithWdsView.hashTreeRoot(),
       validatorProof.gindex,
       validatorProof.witnesses,
       validator.hashTreeRoot(),
     );
-    parentLog('Verifying withdrawal proof locally');
+    WorkerLogger.log('Verifying withdrawal proof locally');
     verifyProof(
       stateWithWdsView.hashTreeRoot(),
       withdrawalProof.gindex,
@@ -103,7 +106,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<void> {
         .getReadonly(keyWithWithdrawalInfo.withdrawal.offset)
         .hashTreeRoot(),
     );
-    parentLog('Verifying historical state proof locally');
+    WorkerLogger.log('Verifying historical state proof locally');
     verifyProof(
       finalizedStateView.hashTreeRoot(),
       historicalStateProof.gindex,
@@ -154,10 +157,12 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<void> {
       },
     });
   }
-  parentPort?.postMessage(payloads);
+  return payloads;
 }
 
-buildHistoricalWithdrawalsProofPayloads().catch((e) => {
-  console.error(e);
-  throw e;
-});
+buildHistoricalWithdrawalsProofPayloads()
+  .then((v) => parentPort?.postMessage(v))
+  .catch((e) => {
+    console.error(e);
+    throw e;
+  });

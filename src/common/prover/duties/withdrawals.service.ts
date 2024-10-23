@@ -12,7 +12,7 @@ import {
   Withdrawal,
 } from '../../providers/consensus/response.interface';
 import { WorkersService } from '../../workers/workers.service';
-import { HistoricalWithdrawalsProofPayload, KeyInfo, KeyInfoFn, WithdrawalsProofPayload } from '../types';
+import { KeyInfo, KeyInfoFn } from '../types';
 
 // according to the research https://hackmd.io/1wM8vqeNTjqt4pC3XoCUKQ?view#Proposed-solution
 const FULL_WITHDRAWAL_MIN_AMOUNT = 8 * 10 ** 9; // 8 ETH in Gwei
@@ -80,7 +80,7 @@ export class WithdrawalsService {
     const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data[0];
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
     this.logger.log(`Building withdrawal proof payloads`);
-    const payloads = await this.workers.run<WithdrawalsProofPayload[]>('build-general-wd-proof-payloads', {
+    const payloads = await this.workers.getGeneralWithdrawalProofPayloads({
       currentHeader: blockHeader,
       nextHeaderTimestamp: nextBlockTs,
       state,
@@ -108,8 +108,8 @@ export class WithdrawalsService {
     const summaryIndex = this.calcSummaryIndex(blockInfo);
     const summarySlot = this.calcSlotOfSummary(summaryIndex);
     const summaryState = await this.consensus.getState(summarySlot);
-    this.logger.log(`Building historical withdrawal proof payloads`);
-    const payloads = await this.workers.run<HistoricalWithdrawalsProofPayload[]>('build-historical-wd-proof-payloads', {
+    this.logger.log('Building historical withdrawal proof payloads');
+    const payloads = await this.workers.getHistoricalWithdrawalProofPayloads({
       headerWithWds: blockHeader,
       finalHeader: finalizedHeader,
       nextToFinalizedHeaderTimestamp: nextBlockTs,

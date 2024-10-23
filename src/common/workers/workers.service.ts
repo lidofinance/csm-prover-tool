@@ -6,23 +6,38 @@ import { ConfigService } from '@nestjs/config';
 
 import { WorkingMode } from '../config/env.validation';
 import { PrometheusService, TrackWorker } from '../prometheus';
-
-export function parentWarn(message: string): void {
-  parentPort?.postMessage(new ParentLoggerMessage('warn', message));
-}
-
-export function parentLog(message: string): void {
-  parentPort?.postMessage(new ParentLoggerMessage('log', message));
-}
+import { HistoricalWithdrawalsProofPayload, SlashingProofPayload, WithdrawalsProofPayload } from '../prover/types';
+import { BuildGeneralWithdrawalProofArgs } from './items/build-general-wd-proof-payloads';
+import { BuildHistoricalWithdrawalProofArgs } from './items/build-historical-wd-proof-payloads';
+import { BuildSlashingProofArgs } from './items/build-slashing-proof-payloads';
+import { GetValidatorsArgs, GetValidatorsResult } from './items/get-validators';
 
 class ParentLoggerMessage {
+  __class: string;
   level: string;
   message: string;
-  logger?: LoggerService;
 
   constructor(level: string, message: string) {
+    this.__class = ParentLoggerMessage.name;
     this.level = level;
     this.message = message;
+  }
+
+  // override `instanceof` behavior to allow simple type checking
+  static get [Symbol.hasInstance]() {
+    return function (instance: any) {
+      return instance.__class === ParentLoggerMessage.name;
+    };
+  }
+}
+
+export class WorkerLogger {
+  public static warn(message: string): void {
+    parentPort?.postMessage(new ParentLoggerMessage('warn', message));
+  }
+
+  public static log(message: string): void {
+    parentPort?.postMessage(new ParentLoggerMessage('log', message));
   }
 }
 
@@ -34,19 +49,39 @@ export class WorkersService {
     protected readonly config: ConfigService,
   ) {}
 
-  public async run<T>(name: string, data: any): Promise<T> {
-    if (this.config.get('WORKING_MODE') == WorkingMode.Daemon) {
-      return await this._runWithTracker(name, data);
-    }
-    return await this._run(name, data);
+  public async getValidators(args: GetValidatorsArgs): Promise<GetValidatorsResult> {
+    return await this._run('get-validators', args);
   }
 
-  @TrackWorker()
-  private async _runWithTracker<T>(name: string, data: any): Promise<T> {
-    return await this._run(name, data);
+  public async getSlashingProofPayloads(args: BuildSlashingProofArgs): Promise<SlashingProofPayload[]> {
+    return await this._run('build-slashing-proof-payloads', args);
+  }
+
+  public async getGeneralWithdrawalProofPayloads(
+    args: BuildGeneralWithdrawalProofArgs,
+  ): Promise<WithdrawalsProofPayload[]> {
+    return await this._run('build-general-wd-proof-payloads', args);
+  }
+
+  public async getHistoricalWithdrawalProofPayloads(
+    args: BuildHistoricalWithdrawalProofArgs,
+  ): Promise<HistoricalWithdrawalsProofPayload[]> {
+    return await this._run('build-historical-wd-proof-payloads', args);
   }
 
   private async _run<T>(name: string, data: any): Promise<T> {
+    if (this.config.get('WORKING_MODE') == WorkingMode.Daemon) {
+      return await this._baseRunWithTracker(name, data);
+    }
+    return await this._baseRun(name, data);
+  }
+
+  @TrackWorker()
+  private async _baseRunWithTracker<T>(name: string, data: any): Promise<T> {
+    return await this._baseRun(name, data);
+  }
+
+  private async _baseRun<T>(name: string, data: any): Promise<T> {
     return new Promise((resolve, reject) => {
       const worker = new Worker(__dirname + `/items/${name}.js`, {
         workerData: data,
@@ -55,7 +90,7 @@ export class WorkersService {
         },
       });
       worker.on('message', (msg) => {
-        if (msg.level !== undefined && msg.message !== undefined) {
+        if (msg instanceof ParentLoggerMessage) {
           switch (msg.level) {
             case 'warn': {
               this.logger.warn(msg.message);
@@ -66,7 +101,9 @@ export class WorkersService {
               break;
             }
           }
-        } else resolve(msg);
+          return;
+        }
+        resolve(msg);
       });
       worker.on('error', (error) => reject(new Error(`Worker error: ${error}`)));
       worker.on('exit', (code) => {

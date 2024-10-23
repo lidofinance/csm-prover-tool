@@ -6,7 +6,7 @@ import { VerifierContract } from '../../contracts/verifier-contract.service';
 import { Consensus } from '../../providers/consensus/consensus';
 import { BlockHeaderResponse, BlockInfoResponse } from '../../providers/consensus/response.interface';
 import { WorkersService } from '../../workers/workers.service';
-import { KeyInfo, KeyInfoFn, SlashingProofPayload } from '../types';
+import { KeyInfo, KeyInfoFn } from '../types';
 
 export type InvolvedKeys = { [valIndex: string]: KeyInfo };
 
@@ -46,7 +46,7 @@ export class SlashingsService {
     const nextHeader = (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data[0];
     const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
     this.logger.log(`Building slashing proof payloads`);
-    const payloads = await this.workers.run<SlashingProofPayload[]>('build-slashing-proof-payloads', {
+    const payloads = await this.workers.getSlashingProofPayloads({
       currentHeader: finalizedHeader,
       nextHeaderTimestamp: nextHeaderTs,
       state: finalizedState,

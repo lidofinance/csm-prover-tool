@@ -16,7 +16,6 @@ import { Consensus, State } from '../../common/providers/consensus/consensus';
 import { BlockHeaderResponse, RootHex, Slot } from '../../common/providers/consensus/response.interface';
 import { Keysapi } from '../../common/providers/keysapi/keysapi';
 import { Key, Module } from '../../common/providers/keysapi/response.interface';
-import { GetValidatorsResult } from '../../common/workers/items/get-validators';
 import { WorkersService } from '../../common/workers/workers.service';
 
 type KeysIndexerServiceInfo = {
@@ -215,9 +214,8 @@ export class KeysIndexer implements OnApplicationBootstrap {
     this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
     const keysMap = new Map<string, { operatorIndex: number; index: number }>();
     csmKeys.data.keys.forEach((k: Key) => keysMap.set(k.key, { ...k }));
-    const { totalValLength, valKeys } = await this.workers.run<GetValidatorsResult>('get-validators', {
-      stateBytes: state.bodyBytes,
-      stateForkName: state.forkName,
+    const { totalValLength, valKeys } = await this.workers.getValidators({
+      state,
       lastValidatorsCount: 0,
     });
     this.logger.log(`Total validators count: ${totalValLength}`);
@@ -237,9 +235,8 @@ export class KeysIndexer implements OnApplicationBootstrap {
   private async updateStorage(state: State, finalizedSlot: Slot): Promise<number> {
     // TODO: should we think about re-using validator indexes?
     // TODO: should we think about changing WC for existing old vaidators ?
-    const { totalValLength, valKeys: newValKeys } = await this.workers.run<GetValidatorsResult>('get-validators', {
-      stateBytes: state.bodyBytes,
-      stateForkName: state.forkName,
+    const { totalValLength, valKeys: newValKeys } = await this.workers.getValidators({
+      state,
       lastValidatorsCount: this.info.data.lastValidatorsCount,
     });
     this.logger.log(`Total validators count: ${totalValLength}`);
