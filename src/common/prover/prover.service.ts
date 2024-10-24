@@ -1,8 +1,8 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
-import { SlashingsService } from './duties/slashings';
-import { WithdrawalsService } from './duties/withdrawals';
+import { SlashingsService } from './duties/slashings.service';
+import { WithdrawalsService } from './duties/withdrawals.service';
 import { KeyInfoFn } from './types';
 import { Consensus } from '../providers/consensus/consensus';
 import { BlockHeaderResponse, BlockInfoResponse, RootHex } from '../providers/consensus/response.interface';

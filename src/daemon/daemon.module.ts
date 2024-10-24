@@ -11,9 +11,10 @@ import { LoggerModule } from '../common/logger/logger.module';
 import { PrometheusModule } from '../common/prometheus/prometheus.module';
 import { ProverModule } from '../common/prover/prover.module';
 import { ProvidersModule } from '../common/providers/providers.module';
+import { WorkersModule } from '../common/workers/workers.module';
 
 @Module({
-  imports: [LoggerModule, ConfigModule, HealthModule, PrometheusModule, ProvidersModule, ProverModule],
+  imports: [LoggerModule, ConfigModule, HealthModule, PrometheusModule, ProvidersModule, WorkersModule, ProverModule],
   providers: [DaemonService, KeysIndexer, RootsProvider, RootsProcessor, RootsStack],
   exports: [DaemonService],
 })
