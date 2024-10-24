@@ -1,4 +1,3 @@
-import { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService, OnModuleInit, Optional } from '@nestjs/common';
 import { promise as spinnerFor } from 'ora-classic';
@@ -20,9 +19,12 @@ import { DownloadProgress } from '../../utils/download-progress/download-progres
 import { BaseRestProvider } from '../base/rest-provider';
 import { RequestOptions } from '../base/utils/func';
 
-let ssz: typeof import('@lodestar/types').ssz;
-let anySsz: typeof ssz.phase0 | typeof ssz.altair | typeof ssz.bellatrix | typeof ssz.capella | typeof ssz.deneb;
 let ForkName: typeof import('@lodestar/params').ForkName;
+
+export interface State {
+  bodyBytes: Uint8Array;
+  forkName: keyof typeof ForkName;
+}
 
 @Injectable()
 export class Consensus extends BaseRestProvider implements OnModuleInit {
@@ -57,8 +59,6 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   }
 
   public async onModuleInit(): Promise<void> {
-    // ugly hack to import ESModule to CommonJS project
-    ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
     this.logger.log(`Getting genesis timestamp`);
     const genesis = await this.getGenesis();
     this.genesisTimestamp = Number(genesis.genesis_time);
@@ -110,10 +110,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     return (await body.json()) as { finalized: boolean; data: BlockHeaderResponse[] };
   }
 
-  public async getState(
-    stateId: StateId,
-    signal?: AbortSignal,
-  ): Promise<{ bodyBytes: Uint8Array; forkName: keyof typeof ForkName }> {
+  public async getState(stateId: StateId, signal?: AbortSignal): Promise<State> {
     const requestPromise = this.retryRequest(async (baseUrl) =>
       this.baseGet(baseUrl, this.endpoints.state(stateId), {
         signal,
@@ -139,23 +136,5 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     options?: RequestOptions,
   ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
     return super.baseGet(baseUrl, endpoint, options);
-  }
-
-  public stateToView(
-    bodyBytes: Uint8Array,
-    forkName: keyof typeof ForkName,
-  ): ContainerTreeViewType<typeof anySsz.BeaconState.fields> {
-    return ssz[forkName].BeaconState.deserializeToView(bodyBytes) as ContainerTreeViewType<
-      typeof anySsz.BeaconState.fields
-    >;
-  }
-
-  public blockToView(
-    body: BlockInfoResponse,
-    forkName: keyof typeof ForkName,
-  ): ContainerTreeViewType<typeof anySsz.BeaconBlock.fields> {
-    return ssz[forkName].BeaconBlock.toView(
-      ssz[forkName].BeaconBlock.fromJson(body.message) as any,
-    ) as ContainerTreeViewType<typeof anySsz.BeaconBlock.fields>;
   }
 }

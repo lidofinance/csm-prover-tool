@@ -28,7 +28,6 @@ export class RootsProcessor {
       slotNumber: Number(blockInfoToProcess.message.slot),
     };
     await this.rootsStack.push(rootSlot); // in case of revert we should reprocess the root
-    // TODO: need some protection from run out of account's balance when tx reverting for the same root
     await this.prover.handleBlock(blockRootToProcess, blockInfoToProcess, finalizedHeader, this.keysIndexer.getKey);
     const indexerIsTrusted = this.keysIndexer.isTrustedForEveryDuty(rootSlot.slotNumber);
     if (indexerIsTrusted) await this.rootsStack.purge(rootSlot);
