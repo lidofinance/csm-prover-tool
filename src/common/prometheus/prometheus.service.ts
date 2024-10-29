@@ -241,3 +241,41 @@ export function TrackTask(name: string) {
     };
   };
 }
+
+// Only for Workers service. The first argument in tracked runner should be the name of the worker
+export function TrackWorker() {
+  return (target: any, propertyKey: string, descriptor: PropertyDescriptor) => {
+    const originalValue = descriptor.value;
+
+    descriptor.value = function (...args: any[]) {
+      // "this" here will refer to the class instance
+      if (!this.prometheus) throw Error(`'${this.constructor.name}' class object must contain 'prometheus' property`);
+      const name = `run-worker-${args[0]}`;
+      const stop = this.prometheus.taskDuration.startTimer({
+        name: name,
+      });
+      this.logger.debug(`Worker '${name}' in progress`);
+      return originalValue
+        .apply(this, args)
+        .then((r: any) => {
+          this.prometheus.taskCount.inc({
+            name: name,
+            status: TaskStatus.COMPLETE,
+          });
+          return r;
+        })
+        .catch((e: Error) => {
+          this.logger.error(`Worker '${name}' ended with an error`, e.stack);
+          this.prometheus.taskCount.inc({
+            name: name,
+            status: TaskStatus.ERROR,
+          });
+          throw e;
+        })
+        .finally(() => {
+          const duration = stop();
+          this.logger.debug(`Worker '${name}' is complete. Duration: ${duration}`);
+        });
+    };
+  };
+}
