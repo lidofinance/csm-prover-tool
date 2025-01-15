@@ -6,10 +6,9 @@ import { ConfigService } from '@nestjs/config';
 
 import { WorkingMode } from '../config/env.validation';
 import { PrometheusService, TrackWorker } from '../prometheus';
-import { HistoricalWithdrawalsProofPayload, SlashingProofPayload, WithdrawalsProofPayload } from '../prover/types';
+import { HistoricalWithdrawalsProofPayload, WithdrawalsProofPayload } from '../prover/types';
 import { BuildGeneralWithdrawalProofArgs } from './items/build-general-wd-proof-payloads';
 import { BuildHistoricalWithdrawalProofArgs } from './items/build-historical-wd-proof-payloads';
-import { BuildSlashingProofArgs } from './items/build-slashing-proof-payloads';
 import { GetValidatorsArgs, GetValidatorsResult } from './items/get-validators';
 
 class ParentLoggerMessage {
@@ -51,10 +50,6 @@ export class WorkersService {
 
   public async getValidators(args: GetValidatorsArgs): Promise<GetValidatorsResult> {
     return await this._run('get-validators', args);
-  }
-
-  public async getSlashingProofPayloads(args: BuildSlashingProofArgs): Promise<SlashingProofPayload[]> {
-    return await this._run('build-slashing-proof-payloads', args);
   }
 
   public async getGeneralWithdrawalProofPayloads(

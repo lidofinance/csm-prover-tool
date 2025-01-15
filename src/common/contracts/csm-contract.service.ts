@@ -16,10 +16,6 @@ export class CsmContract {
     this.impl = Csm__factory.connect(this.config.get('CSM_ADDRESS'), this.execution.provider);
   }
 
-  public async isSlashingProved(keyInfo: KeyInfo): Promise<boolean> {
-    return await this.impl.isValidatorSlashed(keyInfo.operatorId, keyInfo.keyIndex);
-  }
-
   public async isWithdrawalProved(keyInfo: KeyInfo): Promise<boolean> {
     return await this.impl.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex);
   }
