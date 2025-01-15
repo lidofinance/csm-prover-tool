@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
+import type { ssz as sszType } from '@lodestar/types';
 
 import { generateValidatorProof, toHex, verifyProof } from '../../helpers/proofs';
 import { InvolvedKeys } from '../../prover/duties/slashings.service';
@@ -9,9 +9,7 @@ import { State } from '../../providers/consensus/consensus';
 import { BlockHeaderResponse } from '../../providers/consensus/response.interface';
 import { WorkerLogger } from '../workers.service';
 
-let ssz: typeof import('@lodestar/types').ssz;
-let anySsz: typeof ssz.phase0 | typeof ssz.altair | typeof ssz.bellatrix | typeof ssz.capella | typeof ssz.deneb;
-let ForkName: typeof import('@lodestar/params').ForkName;
+let ssz: typeof sszType;
 
 export type BuildSlashingProofArgs = {
   currentHeader: BlockHeaderResponse;
@@ -26,9 +24,7 @@ async function buildSlashingProofPayloads(): Promise<SlashingProofPayload[]> {
   //
   // Get views
   //
-  const stateView = ssz[state.forkName as keyof typeof ForkName].BeaconState.deserializeToView(
-    state.bodyBytes,
-  ) as ContainerTreeViewType<typeof anySsz.BeaconState.fields>;
+  const stateView = ssz[state.forkName].BeaconState.deserializeToView(state.bodyBytes);
   //
   //
   //

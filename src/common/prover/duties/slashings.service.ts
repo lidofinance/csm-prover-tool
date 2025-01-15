@@ -3,8 +3,8 @@ import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
 import { CsmContract } from '../../contracts/csm-contract.service';
 import { VerifierContract } from '../../contracts/verifier-contract.service';
-import { Consensus } from '../../providers/consensus/consensus';
-import { BlockHeaderResponse, BlockInfoResponse } from '../../providers/consensus/response.interface';
+import { Consensus, SupportedBlock } from '../../providers/consensus/consensus';
+import { BlockHeaderResponse } from '../../providers/consensus/response.interface';
 import { WorkersService } from '../../workers/workers.service';
 import { KeyInfo, KeyInfoFn } from '../types';
 
@@ -20,7 +20,7 @@ export class SlashingsService {
     protected readonly verifier: VerifierContract,
   ) {}
 
-  public async getUnprovenSlashings(blockInfo: BlockInfoResponse, keyInfoFn: KeyInfoFn): Promise<InvolvedKeys> {
+  public async getUnprovenSlashings(blockInfo: SupportedBlock, keyInfoFn: KeyInfoFn): Promise<InvolvedKeys> {
     const slashings = {
       ...this.getSlashedProposers(blockInfo, keyInfoFn),
       ...this.getSlashedAttesters(blockInfo, keyInfoFn),
@@ -59,14 +59,12 @@ export class SlashingsService {
   }
 
   private getSlashedAttesters(
-    blockInfo: BlockInfoResponse,
+    blockInfo: SupportedBlock,
     keyInfoFn: (valIndex: number) => KeyInfo | undefined,
   ): InvolvedKeys {
     const slashed: InvolvedKeys = {};
-    for (const att of blockInfo.message.body.attester_slashings) {
-      const accused = att.attestation_1.attesting_indices.filter((x) =>
-        att.attestation_2.attesting_indices.includes(x),
-      );
+    for (const att of blockInfo.body.attesterSlashings) {
+      const accused = att.attestation1.attestingIndices.filter((x) => att.attestation2.attestingIndices.includes(x));
       for (const valIndex of accused) {
         const keyInfo = keyInfoFn(Number(valIndex));
         if (!keyInfo) continue;
@@ -77,14 +75,14 @@ export class SlashingsService {
   }
 
   private getSlashedProposers(
-    blockInfo: BlockInfoResponse,
+    blockInfo: SupportedBlock,
     keyInfoFn: (valIndex: number) => KeyInfo | undefined,
   ): InvolvedKeys {
     const slashed: InvolvedKeys = {};
-    for (const prop of blockInfo.message.body.proposer_slashings) {
-      const keyInfo = keyInfoFn(Number(prop.signed_header_1.proposer_index));
+    for (const prop of blockInfo.body.proposerSlashings) {
+      const keyInfo = keyInfoFn(Number(prop.signedHeader1.message.proposerIndex));
       if (!keyInfo) continue;
-      slashed[prop.signed_header_1.proposer_index] = keyInfo;
+      slashed[prop.signedHeader1.message.proposerIndex] = keyInfo;
     }
     return slashed;
   }

@@ -2,21 +2,8 @@ export type BLSSignature = string;
 export type ValidatorIndex = string;
 export type RootHex = string;
 export type Slot = number;
-export type Epoch = number;
 export type BlockId = RootHex | Slot | 'head' | 'genesis' | 'finalized';
 export type StateId = RootHex | Slot | 'head' | 'genesis' | 'finalized' | 'justified';
-
-export enum ValStatus {
-  ActiveOngoing = 'active_ongoing',
-  ActiveExiting = 'active_exiting',
-  PendingQueued = 'pending_queued',
-  PendingInitialized = 'pending_initialized',
-  ActiveSlashed = 'active_slashed',
-  ExitedSlashed = 'exited_slashed',
-  ExitedUnslashed = 'exited_unslashed',
-  WithdrawalPossible = 'withdrawal_possible',
-  WithdrawalDone = 'withdrawal_done',
-}
 
 export interface BlockHeaderResponse {
   root: RootHex;
@@ -31,42 +18,6 @@ export interface BlockHeaderResponse {
     };
     signature: BLSSignature;
   };
-}
-
-export interface BlockInfoResponse {
-  message: {
-    slot: string;
-    proposer_index: ValidatorIndex;
-    body: {
-      attestations: BeaconBlockAttestation[];
-      proposer_slashings: {
-        signed_header_1: {
-          proposer_index: string;
-        };
-        signed_header_2: {
-          proposer_index: string;
-        };
-      }[];
-      attester_slashings: {
-        attestation_1: {
-          attesting_indices: string[];
-        };
-        attestation_2: {
-          attesting_indices: string[];
-        };
-      }[];
-      execution_payload: {
-        withdrawals: Withdrawal[];
-      };
-    };
-  };
-}
-
-export interface Withdrawal {
-  index: string;
-  validator_index: ValidatorIndex;
-  address: string;
-  amount: string;
 }
 
 export interface GenesisResponse {
@@ -98,37 +49,4 @@ export interface BeaconConfig {
   EPOCHS_PER_ETH1_VOTING_PERIOD: string;
   SLOTS_PER_HISTORICAL_ROOT: string;
   MIN_VALIDATOR_WITHDRAWABILITY_DELAY: string;
-}
-
-export interface BeaconBlockAttestation {
-  aggregation_bits: string;
-  data: {
-    slot: string;
-    index: string;
-    beacon_block_root: RootHex;
-    source: {
-      epoch: string;
-      root: RootHex;
-    };
-    target: {
-      epoch: string;
-      root: RootHex;
-    };
-  };
-}
-
-export interface StateValidatorResponse {
-  index: string;
-  balance: string;
-  status: (typeof ValStatus)[keyof typeof ValStatus];
-  validator: {
-    pubkey: string;
-    withdrawal_credentials: string;
-    effective_balance: string;
-    slashed: boolean;
-    activation_eligibility_epoch: string;
-    activation_epoch: string;
-    exit_epoch: string;
-    withdrawable_epoch: string;
-  };
 }

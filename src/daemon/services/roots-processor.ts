@@ -25,7 +25,7 @@ export class RootsProcessor {
     const blockInfoToProcess = await this.consensus.getBlockInfo(blockRootToProcess);
     const rootSlot: RootSlot = {
       blockRoot: blockRootToProcess,
-      slotNumber: Number(blockInfoToProcess.message.slot),
+      slotNumber: blockInfoToProcess.slot,
     };
     await this.rootsStack.push(rootSlot); // in case of revert we should reprocess the root
     await this.prover.handleBlock(blockRootToProcess, blockInfoToProcess, finalizedHeader, this.keysIndexer.getKey);

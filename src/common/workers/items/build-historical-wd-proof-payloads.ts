@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
+import type { ssz as sszType } from '@lodestar/types';
 
 import {
   generateHistoricalStateProof,
@@ -11,13 +11,11 @@ import {
 } from '../../helpers/proofs';
 import { InvolvedKeysWithWithdrawal } from '../../prover/duties/withdrawals.service';
 import { HistoricalWithdrawalsProofPayload } from '../../prover/types';
-import { State } from '../../providers/consensus/consensus';
-import { BlockHeaderResponse, BlockInfoResponse } from '../../providers/consensus/response.interface';
+import { State, SupportedBlock } from '../../providers/consensus/consensus';
+import { BlockHeaderResponse } from '../../providers/consensus/response.interface';
 import { WorkerLogger } from '../workers.service';
 
-let ssz: typeof import('@lodestar/types').ssz;
-let anySsz: typeof ssz.phase0 | typeof ssz.altair | typeof ssz.bellatrix | typeof ssz.capella | typeof ssz.deneb;
-let ForkName: typeof import('@lodestar/params').ForkName;
+let ssz: typeof sszType;
 
 export type BuildHistoricalWithdrawalProofArgs = {
   headerWithWds: BlockHeaderResponse;
@@ -26,7 +24,7 @@ export type BuildHistoricalWithdrawalProofArgs = {
   finalizedState: State;
   summaryState: State;
   stateWithWds: State;
-  blockWithWds: BlockInfoResponse;
+  blockWithWds: SupportedBlock;
   summaryIndex: number;
   rootIndexInSummary: number;
   withdrawals: InvolvedKeysWithWithdrawal;
@@ -51,18 +49,11 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
   //
   // Get views
   //
-  const finalizedStateView = ssz[finalizedState.forkName as keyof typeof ForkName].BeaconState.deserializeToView(
-    finalizedState.bodyBytes,
-  ) as ContainerTreeViewType<typeof anySsz.BeaconState.fields>;
-  const summaryStateView = ssz[summaryState.forkName as keyof typeof ForkName].BeaconState.deserializeToView(
-    summaryState.bodyBytes,
-  ) as ContainerTreeViewType<typeof anySsz.BeaconState.fields>;
-  const stateWithWdsView = ssz[stateWithWds.forkName as keyof typeof ForkName].BeaconState.deserializeToView(
-    stateWithWds.bodyBytes,
-  ) as ContainerTreeViewType<typeof anySsz.BeaconState.fields>;
-  const blockWithWdsView = ssz[stateWithWds.forkName as keyof typeof ForkName].BeaconBlock.toView(
-    ssz[stateWithWds.forkName as keyof typeof ForkName].BeaconBlock.fromJson(blockWithWds.message) as any,
-  ) as ContainerTreeViewType<typeof anySsz.BeaconBlock.fields>;
+  const finalizedStateView = ssz[finalizedState.forkName].BeaconState.deserializeToView(finalizedState.bodyBytes);
+  const summaryStateView = ssz[summaryState.forkName].BeaconState.deserializeToView(summaryState.bodyBytes);
+  const stateWithWdsView = ssz[stateWithWds.forkName].BeaconState.deserializeToView(stateWithWds.bodyBytes);
+  // @ts-expect-error: thinks state can have different fork with currentBlock, but it's not possible
+  const blockWithWdsView = ssz[stateWithWds.forkName].BeaconBlock.toView(blockWithWds);
   //
   //
   //
@@ -100,9 +91,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
       stateWithWdsView.hashTreeRoot(),
       withdrawalProof.gindex,
       withdrawalProof.witnesses,
-      (
-        blockWithWdsView as ContainerTreeViewType<typeof ssz.capella.BeaconBlock.fields>
-      ).body.executionPayload.withdrawals
+      blockWithWdsView.body.executionPayload.withdrawals
         .getReadonly(keyWithWithdrawalInfo.withdrawal.offset)
         .hashTreeRoot(),
     );
@@ -111,9 +100,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
       finalizedStateView.hashTreeRoot(),
       historicalStateProof.gindex,
       historicalStateProof.witnesses,
-      (summaryStateView as ContainerTreeViewType<typeof ssz.capella.BeaconState.fields>).blockRoots.getReadonly(
-        rootIndexInSummary,
-      ),
+      summaryStateView.blockRoots.getReadonly(rootIndexInSummary),
     );
     payloads.push({
       keyIndex: keyWithWithdrawalInfo.keyIndex,
@@ -143,7 +130,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
       witness: {
         withdrawalOffset: Number(keyWithWithdrawalInfo.withdrawal.offset),
         withdrawalIndex: Number(keyWithWithdrawalInfo.withdrawal.index),
-        validatorIndex: Number(keyWithWithdrawalInfo.withdrawal.validator_index),
+        validatorIndex: Number(keyWithWithdrawalInfo.withdrawal.validatorIndex),
         amount: Number(keyWithWithdrawalInfo.withdrawal.amount),
         withdrawalCredentials: toHex(validator.withdrawalCredentials),
         effectiveBalance: validator.effectiveBalance,

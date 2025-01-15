@@ -2,13 +2,13 @@ import { parentPort, workerData } from 'node:worker_threads';
 
 import { iterateNodesAtDepth } from '@chainsafe/persistent-merkle-tree';
 import { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
+import { ForkName } from '@lodestar/params';
 
 import { toHex } from '../../helpers/proofs';
 import { State } from '../../providers/consensus/consensus';
 
 let ssz: typeof import('@lodestar/types').ssz;
-let anySsz: typeof ssz.phase0 | typeof ssz.altair | typeof ssz.bellatrix | typeof ssz.capella | typeof ssz.deneb;
-let ForkName: typeof import('@lodestar/params').ForkName;
+let anySsz: (typeof ssz)[ForkName];
 
 export type GetValidatorsArgs = {
   state: State;

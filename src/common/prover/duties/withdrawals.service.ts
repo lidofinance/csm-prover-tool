@@ -1,23 +1,17 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { ForkName } from '@lodestar/params';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
 import { CsmContract } from '../../contracts/csm-contract.service';
 import { VerifierContract } from '../../contracts/verifier-contract.service';
-import { Consensus } from '../../providers/consensus/consensus';
-import {
-  BlockHeaderResponse,
-  BlockInfoResponse,
-  RootHex,
-  Withdrawal,
-} from '../../providers/consensus/response.interface';
+import { Consensus, State, SupportedBlock, SupportedWithdrawal } from '../../providers/consensus/consensus';
+import { BlockHeaderResponse, RootHex } from '../../providers/consensus/response.interface';
 import { WorkersService } from '../../workers/workers.service';
 import { KeyInfo, KeyInfoFn } from '../types';
 
 // according to the research https://hackmd.io/1wM8vqeNTjqt4pC3XoCUKQ?view#Proposed-solution
 const FULL_WITHDRAWAL_MIN_AMOUNT = 8 * 10 ** 9; // 8 ETH in Gwei
 
-type WithdrawalWithOffset = Withdrawal & { offset: number };
+type WithdrawalWithOffset = SupportedWithdrawal & { offset: number };
 export type InvolvedKeysWithWithdrawal = { [valIndex: string]: KeyInfo & { withdrawal: WithdrawalWithOffset } };
 
 @Injectable()
@@ -31,7 +25,7 @@ export class WithdrawalsService {
   ) {}
 
   public async getUnprovenWithdrawals(
-    blockInfo: BlockInfoResponse,
+    blockInfo: SupportedBlock,
     keyInfoFn: KeyInfoFn,
   ): Promise<InvolvedKeysWithWithdrawal> {
     const withdrawals = this.getFullWithdrawals(blockInfo, keyInfoFn);
@@ -39,7 +33,7 @@ export class WithdrawalsService {
     const unproven: InvolvedKeysWithWithdrawal = {};
     for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
       const proved = await this.csm.isWithdrawalProved(keyWithWithdrawalInfo);
-      if (!proved) unproven[valIndex] = keyWithWithdrawalInfo;
+      if (!proved) unproven[Number(valIndex)] = keyWithWithdrawalInfo;
     }
     const unprovenCount = Object.keys(unproven).length;
     if (!unprovenCount) {
@@ -52,7 +46,7 @@ export class WithdrawalsService {
 
   public async sendWithdrawalProofs(
     blockRoot: RootHex,
-    blockInfo: BlockInfoResponse,
+    blockInfo: SupportedBlock,
     finalizedHeader: BlockHeaderResponse,
     withdrawals: InvolvedKeysWithWithdrawal,
   ): Promise<void> {
@@ -72,8 +66,8 @@ export class WithdrawalsService {
 
   private async sendGeneralWithdrawalProofs(
     blockHeader: BlockHeaderResponse,
-    blockInfo: BlockInfoResponse,
-    state: { bodyBytes: Uint8Array; forkName: keyof typeof ForkName },
+    blockInfo: SupportedBlock,
+    state: State,
     withdrawals: InvolvedKeysWithWithdrawal,
   ): Promise<void> {
     // create proof against the state with withdrawals
@@ -96,8 +90,8 @@ export class WithdrawalsService {
 
   private async sendHistoricalWithdrawalProofs(
     blockHeader: BlockHeaderResponse,
-    blockInfo: BlockInfoResponse,
-    state: { bodyBytes: Uint8Array; forkName: keyof typeof ForkName },
+    blockInfo: SupportedBlock,
+    state: State,
     finalizedHeader: BlockHeaderResponse,
     withdrawals: InvolvedKeysWithWithdrawal,
   ): Promise<void> {
@@ -131,33 +125,33 @@ export class WithdrawalsService {
   }
 
   private getFullWithdrawals(
-    blockInfo: BlockInfoResponse,
+    blockInfo: SupportedBlock,
     keyInfoFn: (valIndex: number) => KeyInfo | undefined,
   ): InvolvedKeysWithWithdrawal {
     const fullWithdrawals: InvolvedKeysWithWithdrawal = {};
-    const withdrawals = blockInfo.message.body.execution_payload?.withdrawals ?? [];
+    const withdrawals = blockInfo.body.executionPayload.withdrawals ?? [];
     for (let i = 0; i < withdrawals.length; i++) {
-      const keyInfo = keyInfoFn(Number(withdrawals[i].validator_index));
+      const keyInfo = keyInfoFn(withdrawals[i].validatorIndex);
       if (!keyInfo) continue;
       if (Number(withdrawals[i].amount) < FULL_WITHDRAWAL_MIN_AMOUNT) continue;
-      fullWithdrawals[withdrawals[i].validator_index] = { ...keyInfo, withdrawal: { ...withdrawals[i], offset: i } };
+      fullWithdrawals[withdrawals[i].validatorIndex] = { ...keyInfo, withdrawal: { ...withdrawals[i], offset: i } };
     }
     return fullWithdrawals;
   }
 
-  private isHistoricalBlock(blockInfo: BlockInfoResponse, finalizedHeader: BlockHeaderResponse): boolean {
+  private isHistoricalBlock(blockInfo: SupportedBlock, finalizedHeader: BlockHeaderResponse): boolean {
     const finalizationBufferEpochs = 2;
     const finalizationBufferSlots = this.consensus.epochToSlot(finalizationBufferEpochs);
     return (
-      Number(finalizedHeader.header.message.slot) - Number(blockInfo.message.slot) >=
+      Number(finalizedHeader.header.message.slot) - Number(blockInfo.slot) >=
       Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT) - finalizationBufferSlots
     );
   }
 
-  private calcSummaryIndex(blockInfo: BlockInfoResponse): number {
+  private calcSummaryIndex(blockInfo: SupportedBlock): number {
     const capellaForkSlot = this.consensus.epochToSlot(Number(this.consensus.beaconConfig.CAPELLA_FORK_EPOCH));
     const slotsPerHistoricalRoot = Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT);
-    return Math.floor((Number(blockInfo.message.slot) - capellaForkSlot) / slotsPerHistoricalRoot);
+    return Math.floor((blockInfo.slot - capellaForkSlot) / slotsPerHistoricalRoot);
   }
 
   private calcSlotOfSummary(summaryIndex: number): number {
@@ -166,8 +160,8 @@ export class WithdrawalsService {
     return capellaForkSlot + (summaryIndex + 1) * slotsPerHistoricalRoot;
   }
 
-  private calcRootIndexInSummary(blockInfo: BlockInfoResponse): number {
+  private calcRootIndexInSummary(blockInfo: SupportedBlock): number {
     const slotsPerHistoricalRoot = Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT);
-    return Number(blockInfo.message.slot) % slotsPerHistoricalRoot;
+    return blockInfo.slot % slotsPerHistoricalRoot;
   }
 }
