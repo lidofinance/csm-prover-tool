@@ -1,7 +1,7 @@
 FROM node:20.12.1-bookworm-slim AS building
 
 RUN apt-get update && apt-get install -y --no-install-recommends -qq \
-    curl=7.88.1-10+deb12u7 \
+    curl=7.88.1-10+deb12u8 \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
