@@ -101,7 +101,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
       this.baseGet(baseUrl, this.endpoints.blockInfo(blockId)),
     );
     const forkName = headers['eth-consensus-version'] as string;
-    if (!Object.keys(SupportedFork).includes(forkName)) {
+    if (!(forkName in SupportedFork)) {
       throw new Error(`Fork name [${forkName}] is not supported`);
     }
     const jsonBody = (await body.json()) as { data: { message: JSON } };
@@ -140,7 +140,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     const { body, headers } = await requestPromise;
     this.progress?.show('State downloading', { body, headers });
     const forkName = headers['eth-consensus-version'] as string;
-    if (!Object.keys(SupportedFork).includes(forkName)) {
+    if (!(forkName in SupportedFork)) {
       throw new Error(`Fork name [${forkName}] is not supported`);
     }
     const bodyBytes = await body.bytes();

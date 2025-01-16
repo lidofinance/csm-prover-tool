@@ -12,7 +12,7 @@ import { KeyInfo, KeyInfoFn } from '../types';
 const FULL_WITHDRAWAL_MIN_AMOUNT = 8 * 10 ** 9; // 8 ETH in Gwei
 
 type WithdrawalWithOffset = SupportedWithdrawal & { offset: number };
-export type InvolvedKeysWithWithdrawal = { [valIndex: string]: KeyInfo & { withdrawal: WithdrawalWithOffset } };
+export type InvolvedKeysWithWithdrawal = { [valIndex: number]: KeyInfo & { withdrawal: WithdrawalWithOffset } };
 
 @Injectable()
 export class WithdrawalsService {
@@ -129,7 +129,7 @@ export class WithdrawalsService {
     keyInfoFn: (valIndex: number) => KeyInfo | undefined,
   ): InvolvedKeysWithWithdrawal {
     const fullWithdrawals: InvolvedKeysWithWithdrawal = {};
-    const withdrawals = blockInfo.body.executionPayload.withdrawals ?? [];
+    const withdrawals = blockInfo.body.executionPayload.withdrawals;
     for (let i = 0; i < withdrawals.length; i++) {
       const keyInfo = keyInfoFn(withdrawals[i].validatorIndex);
       if (!keyInfo) continue;
