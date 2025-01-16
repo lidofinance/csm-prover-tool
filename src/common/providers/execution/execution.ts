@@ -140,10 +140,10 @@ export class Execution {
       gasLimit: this.config.get('TX_GAS_LIMIT'),
     });
     context = { ...context, tx: populated };
+    const isFeePerGasAcceptable = await this.isFeePerGasAcceptable();
     if (this.config.get('DRY_RUN')) {
       throw new DryRunError('Dry run mode is enabled. Transaction is prepared, but not sent', context);
     }
-    const isFeePerGasAcceptable = await this.isFeePerGasAcceptable();
     if (this.isCLI()) {
       const opts = await this.inquirerService.ask('tx-execution', {} as { sendingConfirmed: boolean });
       if (!opts.sendingConfirmed) {
