@@ -1,29 +1,36 @@
+import type { ValueOfFields } from '@chainsafe/ssz/lib/view/container';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
+import type { ssz as sszType } from '@lodestar/types';
 import { Inject, Injectable, LoggerService, OnModuleInit, Optional } from '@nestjs/common';
 import { promise as spinnerFor } from 'ora-classic';
 import { IncomingHttpHeaders } from 'undici/types/header';
 import BodyReadable from 'undici/types/readable';
 
-import {
-  BeaconConfig,
-  BlockHeaderResponse,
-  BlockId,
-  BlockInfoResponse,
-  GenesisResponse,
-  RootHex,
-  StateId,
-} from './response.interface';
+import { BeaconConfig, BlockHeaderResponse, BlockId, GenesisResponse, RootHex, StateId } from './response.interface';
 import { ConfigService } from '../../config/config.service';
 import { PrometheusService, TrackCLRequest } from '../../prometheus';
 import { DownloadProgress } from '../../utils/download-progress/download-progress';
 import { BaseRestProvider } from '../base/rest-provider';
 import { RequestOptions } from '../base/utils/func';
 
-let ForkName: typeof import('@lodestar/params').ForkName;
+let ssz: typeof sszType;
+
+export const SupportedFork = {
+  capella: 'capella',
+  deneb: 'deneb',
+  electra: 'electra',
+};
+
+export type SupportedBlock =
+  | ValueOfFields<typeof ssz.capella.BeaconBlock.fields>
+  | ValueOfFields<typeof ssz.deneb.BeaconBlock.fields>
+  | ValueOfFields<typeof ssz.electra.BeaconBlock.fields>;
+
+export type SupportedWithdrawal = ValueOfFields<typeof ssz.capella.Withdrawal.fields>;
 
 export interface State {
   bodyBytes: Uint8Array;
-  forkName: keyof typeof ForkName;
+  forkName: keyof typeof SupportedFork;
 }
 
 @Injectable()
@@ -35,7 +42,6 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     blockInfo: (blockId: BlockId): string => `eth/v2/beacon/blocks/${blockId}`,
     beaconHeader: (blockId: BlockId): string => `eth/v1/beacon/headers/${blockId}`,
     beaconHeadersByParentRoot: (parentRoot: RootHex): string => `eth/v1/beacon/headers?parent_root=${parentRoot}`,
-    validators: (stateId: StateId): string => `eth/v1/beacon/states/${stateId}/validators`,
     state: (stateId: StateId): string => `eth/v2/debug/beacon/states/${stateId}`,
   };
 
@@ -63,6 +69,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     const genesis = await this.getGenesis();
     this.genesisTimestamp = Number(genesis.genesis_time);
     this.beaconConfig = await this.getConfig();
+    ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
   }
 
   public slotToTimestamp(slot: number): number {
@@ -89,13 +96,20 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     return jsonBody.data;
   }
 
-  public async getBlockInfo(blockId: BlockId): Promise<BlockInfoResponse> {
-    const { body } = await this.retryRequest((baseUrl) => this.baseGet(baseUrl, this.endpoints.blockInfo(blockId)));
-    const jsonBody = (await body.json()) as { data: BlockInfoResponse };
-    return jsonBody.data;
+  public async getBlockInfo(blockId: BlockId): Promise<SupportedBlock> {
+    const { body, headers } = await this.retryRequest((baseUrl) =>
+      this.baseGet(baseUrl, this.endpoints.blockInfo(blockId)),
+    );
+    const forkName = headers['eth-consensus-version'] as string;
+    if (!(forkName in SupportedFork)) {
+      throw new Error(`Fork name [${forkName}] is not supported`);
+    }
+    const jsonBody = (await body.json()) as { data: { message: JSON } };
+    return ssz[forkName as keyof typeof SupportedFork].BeaconBlock.fromJson(jsonBody.data.message);
   }
 
   public async getBeaconHeader(blockId: BlockId): Promise<BlockHeaderResponse> {
+    // TODO: change to ssz type in case of header struct update
     const { body } = await this.retryRequest((baseUrl) => this.baseGet(baseUrl, this.endpoints.beaconHeader(blockId)));
     const jsonBody = (await body.json()) as { data: BlockHeaderResponse };
     return jsonBody.data;
@@ -104,6 +118,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   public async getBeaconHeadersByParentRoot(
     parentRoot: RootHex,
   ): Promise<{ finalized: boolean; data: BlockHeaderResponse[] }> {
+    // TODO: change to ssz type in case of header struct update
     const { body } = await this.retryRequest((baseUrl) =>
       this.baseGet(baseUrl, this.endpoints.beaconHeadersByParentRoot(parentRoot)),
     );
@@ -124,9 +139,12 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     }
     const { body, headers } = await requestPromise;
     this.progress?.show('State downloading', { body, headers });
-    const forkName = headers['eth-consensus-version'] as keyof typeof ForkName;
+    const forkName = headers['eth-consensus-version'] as string;
+    if (!(forkName in SupportedFork)) {
+      throw new Error(`Fork name [${forkName}] is not supported`);
+    }
     const bodyBytes = await body.bytes();
-    return { bodyBytes, forkName };
+    return { bodyBytes, forkName: forkName as keyof typeof SupportedFork };
   }
 
   @TrackCLRequest

@@ -4,8 +4,8 @@ import { Inject, Injectable, LoggerService } from '@nestjs/common';
 import { SlashingsService } from './duties/slashings.service';
 import { WithdrawalsService } from './duties/withdrawals.service';
 import { KeyInfoFn } from './types';
-import { Consensus } from '../providers/consensus/consensus';
-import { BlockHeaderResponse, BlockInfoResponse, RootHex } from '../providers/consensus/response.interface';
+import { Consensus, SupportedBlock } from '../providers/consensus/consensus';
+import { BlockHeaderResponse, RootHex } from '../providers/consensus/response.interface';
 
 @Injectable()
 export class ProverService {
@@ -18,7 +18,7 @@ export class ProverService {
 
   public async handleBlock(
     blockRoot: RootHex,
-    blockInfo: BlockInfoResponse,
+    blockInfo: SupportedBlock,
     finalizedHeader: BlockHeaderResponse,
     keyInfoFn: KeyInfoFn,
   ): Promise<void> {
@@ -28,7 +28,7 @@ export class ProverService {
 
   public async handleWithdrawalsInBlock(
     blockRoot: RootHex,
-    blockInfo: BlockInfoResponse,
+    blockInfo: SupportedBlock,
     finalizedHeader: BlockHeaderResponse,
     keyInfoFn: KeyInfoFn,
   ): Promise<void> {
@@ -42,7 +42,7 @@ export class ProverService {
   }
 
   public async handleSlashingsInBlock(
-    blockInfo: BlockInfoResponse,
+    blockInfo: SupportedBlock,
     finalizedHeader: BlockHeaderResponse,
     keyInfoFn: KeyInfoFn,
   ): Promise<void> {

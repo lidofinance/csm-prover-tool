@@ -1,23 +1,21 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
+import type { ssz as sszType } from '@lodestar/types';
 
 import { generateValidatorProof, generateWithdrawalProof, toHex, verifyProof } from '../../helpers/proofs';
 import { InvolvedKeysWithWithdrawal } from '../../prover/duties/withdrawals.service';
 import { WithdrawalsProofPayload } from '../../prover/types';
-import { State } from '../../providers/consensus/consensus';
-import { BlockHeaderResponse, BlockInfoResponse } from '../../providers/consensus/response.interface';
+import { State, SupportedBlock } from '../../providers/consensus/consensus';
+import { BlockHeaderResponse } from '../../providers/consensus/response.interface';
 import { WorkerLogger } from '../workers.service';
 
-let ssz: typeof import('@lodestar/types').ssz;
-let anySsz: typeof ssz.phase0 | typeof ssz.altair | typeof ssz.bellatrix | typeof ssz.capella | typeof ssz.deneb;
-let ForkName: typeof import('@lodestar/params').ForkName;
+let ssz: typeof sszType;
 
 export type BuildGeneralWithdrawalProofArgs = {
   currentHeader: BlockHeaderResponse;
   nextHeaderTimestamp: number;
   state: State;
-  currentBlock: BlockInfoResponse;
+  currentBlock: SupportedBlock;
   withdrawals: InvolvedKeysWithWithdrawal;
   epoch: number;
 };
@@ -29,12 +27,9 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<WithdrawalsProofP
   //
   // Get views
   //
-  const stateView = ssz[state.forkName as keyof typeof ForkName].BeaconState.deserializeToView(
-    state.bodyBytes,
-  ) as ContainerTreeViewType<typeof anySsz.BeaconState.fields>;
-  const currentBlockView = ssz[state.forkName as keyof typeof ForkName].BeaconBlock.toView(
-    ssz[state.forkName as keyof typeof ForkName].BeaconBlock.fromJson(currentBlock.message) as any,
-  ) as ContainerTreeViewType<typeof anySsz.BeaconBlock.fields>;
+  const stateView = ssz[state.forkName].BeaconState.deserializeToView(state.bodyBytes);
+  // @ts-expect-error: thinks state can have different fork with currentBlock, but it's not possible
+  const currentBlockView = ssz[state.forkName].BeaconBlock.toView(currentBlock);
   //
   //
   //
@@ -60,9 +55,7 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<WithdrawalsProofP
       stateView.hashTreeRoot(),
       withdrawalProof.gindex,
       withdrawalProof.witnesses,
-      (
-        currentBlockView as ContainerTreeViewType<typeof ssz.capella.BeaconBlock.fields>
-      ).body.executionPayload.withdrawals
+      currentBlockView.body.executionPayload.withdrawals
         .getReadonly(keyWithWithdrawalInfo.withdrawal.offset)
         .hashTreeRoot(),
     );
@@ -82,7 +75,7 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<WithdrawalsProofP
       witness: {
         withdrawalOffset: Number(keyWithWithdrawalInfo.withdrawal.offset),
         withdrawalIndex: Number(keyWithWithdrawalInfo.withdrawal.index),
-        validatorIndex: Number(keyWithWithdrawalInfo.withdrawal.validator_index),
+        validatorIndex: Number(keyWithWithdrawalInfo.withdrawal.validatorIndex),
         amount: Number(keyWithWithdrawalInfo.withdrawal.amount),
         withdrawalCredentials: toHex(validator.withdrawalCredentials),
         effectiveBalance: validator.effectiveBalance,

@@ -2,33 +2,35 @@ import { createHash } from 'node:crypto';
 
 import { ProofType, SingleProof, Tree, concatGindices, createProof } from '@chainsafe/persistent-merkle-tree';
 import { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
+import type { ssz as sszType } from '@lodestar/types';
 
-let ssz: typeof import('@lodestar/types').ssz;
-let anySsz: typeof ssz.phase0 | typeof ssz.altair | typeof ssz.bellatrix | typeof ssz.capella | typeof ssz.deneb;
+let ssz: typeof sszType;
 
-export function generateValidatorProof(
-  stateView: ContainerTreeViewType<typeof anySsz.BeaconState.fields>,
-  valIndex: number,
-): SingleProof {
+export type SupportedStateView =
+  | ContainerTreeViewType<typeof ssz.capella.BeaconState.fields>
+  | ContainerTreeViewType<typeof ssz.deneb.BeaconState.fields>
+  | ContainerTreeViewType<typeof ssz.electra.BeaconState.fields>;
+
+export type SupportedBlockView =
+  | ContainerTreeViewType<typeof ssz.capella.BeaconBlock.fields>
+  | ContainerTreeViewType<typeof ssz.deneb.BeaconBlock.fields>
+  | ContainerTreeViewType<typeof ssz.electra.BeaconBlock.fields>;
+
+export function generateValidatorProof(stateView: SupportedStateView, valIndex: number): SingleProof {
   const gI = stateView.type.getPathInfo(['validators', Number(valIndex)]).gindex;
   return createProof(stateView.node, { type: ProofType.single, gindex: gI }) as SingleProof;
 }
 
 export function generateWithdrawalProof(
-  stateView: ContainerTreeViewType<typeof anySsz.BeaconState.fields>,
-  blockView: ContainerTreeViewType<typeof anySsz.BeaconBlock.fields>,
+  stateView: SupportedStateView,
+  blockView: SupportedBlockView,
   withdrawalOffset: number,
 ): SingleProof {
   // NOTE: ugly hack to replace root with the value to make a proof
   const patchedTree = new Tree(stateView.node);
   const stateWdGindex = stateView.type.getPathInfo(['latestExecutionPayloadHeader', 'withdrawalsRoot']).gindex;
-  patchedTree.setNode(
-    stateWdGindex,
-    (blockView as ContainerTreeViewType<typeof ssz.capella.BeaconBlock.fields>).body.executionPayload.withdrawals.node,
-  );
-  const withdrawalGI = (
-    blockView as ContainerTreeViewType<typeof ssz.capella.BeaconBlock.fields>
-  ).body.executionPayload.withdrawals.type.getPropertyGindex(withdrawalOffset) as bigint;
+  patchedTree.setNode(stateWdGindex, blockView.body.executionPayload.withdrawals.node);
+  const withdrawalGI = blockView.body.executionPayload.withdrawals.type.getPropertyGindex(withdrawalOffset) as bigint;
   const gI = concatGindices([stateWdGindex, withdrawalGI]);
   return createProof(patchedTree.rootNode, {
     type: ProofType.single,
@@ -37,8 +39,8 @@ export function generateWithdrawalProof(
 }
 
 export function generateHistoricalStateProof(
-  finalizedStateView: ContainerTreeViewType<typeof anySsz.BeaconState.fields>,
-  summaryStateView: ContainerTreeViewType<typeof anySsz.BeaconState.fields>,
+  finalizedStateView: SupportedStateView,
+  summaryStateView: SupportedStateView,
   summaryIndex: number,
   rootIndex: number,
 ): SingleProof {
