@@ -72,6 +72,7 @@ export class WithdrawalsService {
   ): Promise<void> {
     // create proof against the state with withdrawals
     const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data[0];
+    if (!nextBlockHeader) throw new Error(`Next block header after ${blockHeader.root} not found`);
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
     this.logger.log(`Building withdrawal proof payloads`);
     const payloads = await this.workers.getGeneralWithdrawalProofPayloads({
@@ -97,6 +98,7 @@ export class WithdrawalsService {
   ): Promise<void> {
     // create proof against the historical state with withdrawals
     const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data[0];
+    if (!nextBlockHeader) throw new Error(`Next block header after ${finalizedHeader.root} not found`);
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
     const finalizedState = await this.consensus.getState(finalizedHeader.header.message.state_root);
     const summaryIndex = this.calcSummaryIndex(blockInfo);
