@@ -107,7 +107,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
       nodeOperatorId: keyWithWithdrawalInfo.operatorId,
       beaconBlock: {
         header: {
-          slot: finalHeader.header.message.slot,
+          slot: Number(finalHeader.header.message.slot),
           proposerIndex: Number(finalHeader.header.message.proposer_index),
           parentRoot: finalHeader.header.message.parent_root,
           stateRoot: finalHeader.header.message.state_root,
@@ -117,7 +117,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
       },
       oldBlock: {
         header: {
-          slot: headerWithWds.header.message.slot,
+          slot: Number(headerWithWds.header.message.slot),
           proposerIndex: Number(headerWithWds.header.message.proposer_index),
           parentRoot: headerWithWds.header.message.parent_root,
           stateRoot: headerWithWds.header.message.state_root,

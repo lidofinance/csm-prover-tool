@@ -64,7 +64,7 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<WithdrawalsProofP
       nodeOperatorId: keyWithWithdrawalInfo.operatorId,
       beaconBlock: {
         header: {
-          slot: currentHeader.header.message.slot,
+          slot: Number(currentHeader.header.message.slot),
           proposerIndex: Number(currentHeader.header.message.proposer_index),
           parentRoot: currentHeader.header.message.parent_root,
           stateRoot: currentHeader.header.message.state_root,
