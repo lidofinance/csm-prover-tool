@@ -21,7 +21,6 @@ export class CsmContract {
   }
 
   public async getNodeOperatorKey(nodeOperatorId: string | number, keyIndex: string | number): Promise<string> {
-    const [key] = await this.impl.getSigningKeys(nodeOperatorId, keyIndex, 1);
-    return key;
+    return await this.impl.getSigningKeys(nodeOperatorId, keyIndex, 1);
   }
 }
