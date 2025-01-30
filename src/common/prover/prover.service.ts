@@ -29,12 +29,12 @@ export class ProverService {
     finalizedHeader: BlockHeaderResponse,
     keyInfoFn: KeyInfoFn,
   ): Promise<void> {
-    const withdrawals = await this.withdrawals.getUnprovenWithdrawals(blockInfo, keyInfoFn);
-    if (!Object.keys(withdrawals).length) {
-      this.logger.log('No withdrawals to prove');
-      return;
+    const toProve = await this.withdrawals.getUnprovenWithdrawals(blockInfo, keyInfoFn);
+    const sentCount = await this.withdrawals.sendWithdrawalProofs(blockRoot, blockInfo, finalizedHeader, toProve);
+    if (sentCount > 0) {
+      this.logger.log(`🏁 ${sentCount} Withdrawal Proof(s) were sent`);
+    } else {
+      this.logger.log('No Withdrawal Proof(s) were sent');
     }
-    await this.withdrawals.sendWithdrawalProofs(blockRoot, blockInfo, finalizedHeader, withdrawals);
-    this.logger.log('🏁 Withdrawal proof(s) sent');
   }
 }

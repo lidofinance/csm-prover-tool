@@ -60,6 +60,14 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
   const payloads = [];
   for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
     const validator = stateWithWdsView.validators.getReadonly(Number(valIndex));
+    if (toHex(validator.pubkey) != keyWithWithdrawalInfo.pubKey) {
+      WorkerLogger.error(
+        `Validator ${valIndex} pubkey mismatch with key from the contract 
+        Key from the state ${toHex(validator.pubkey)}
+        Key from the contract ${keyWithWithdrawalInfo.pubKey}`,
+      );
+      throw new Error('Validator pubkey mismatch');
+    }
     if (epoch < validator.withdrawableEpoch) {
       WorkerLogger.warn(`Validator ${valIndex} is not full withdrawn. Just huge amount of ETH. Skipped`);
       continue;

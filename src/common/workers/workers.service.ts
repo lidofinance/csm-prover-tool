@@ -38,6 +38,10 @@ export class WorkerLogger {
   public static log(message: string): void {
     parentPort?.postMessage(new ParentLoggerMessage('log', message));
   }
+
+  public static error(message: string): void {
+    parentPort?.postMessage(new ParentLoggerMessage('error', message));
+  }
 }
 
 @Injectable()
@@ -93,6 +97,10 @@ export class WorkersService {
             }
             case 'log': {
               this.logger.log(msg.message);
+              break;
+            }
+            case 'error': {
+              this.logger.error(msg.message);
               break;
             }
           }
