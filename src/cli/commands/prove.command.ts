@@ -23,11 +23,10 @@ type ProofOptions = {
 
 @Command({
   name: 'prove',
-  description: 'Prove a withdrawal or slashing',
-  arguments: '<withdrawal|slashing>',
+  description: 'Prove a withdrawal',
+  arguments: '<withdrawal>',
   argsDescription: {
     withdrawal: 'Prove a withdrawal',
-    slashing: 'Prove a slashing',
   },
 })
 export class ProveCommand extends CommandRunner {
@@ -60,9 +59,6 @@ export class ProveCommand extends CommandRunner {
       switch (inputs[0]) {
         case 'withdrawal':
           await this.prover.handleWithdrawalsInBlock(blockRootToProcess, blockInfoToProcess, header, this.keyInfoFn);
-          break;
-        case 'slashing':
-          await this.prover.handleSlashingsInBlock(blockInfoToProcess, header, this.keyInfoFn);
           break;
       }
     } catch (e) {

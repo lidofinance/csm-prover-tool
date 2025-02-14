@@ -46,7 +46,10 @@ export class RootsProvider {
     const diff = Number(finalizedHeader.header.message.slot) - lastProcessed.slotNumber;
     this.logger.warn(`Diff between last processed and finalized is ${diff} slots`);
     const childHeaders = await this.consensus.getBeaconHeadersByParentRoot(lastProcessed.blockRoot);
-    if (!childHeaders || !childHeaders.finalized) return;
+    if (childHeaders.data.length == 0 || !childHeaders.finalized) {
+      this.logger.warn(`No finalized child header for [${lastProcessed.blockRoot}] yet`);
+      return;
+    }
     const child = childHeaders.data[0].root;
     this.logger.log(`⏭️ Next root to process [${child}]. Child of last processed`);
     return child;

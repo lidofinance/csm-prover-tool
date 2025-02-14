@@ -10,7 +10,7 @@ export interface BlockHeaderResponse {
   canonical: boolean;
   header: {
     message: {
-      slot: Slot;
+      slot: string;
       proposer_index: ValidatorIndex;
       parent_root: RootHex;
       state_root: RootHex;

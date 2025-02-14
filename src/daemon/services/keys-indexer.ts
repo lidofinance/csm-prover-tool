@@ -119,33 +119,17 @@ export class KeysIndexer implements OnApplicationBootstrap {
   }
 
   public isTrustedForAnyDuty(slotNumber: Slot): boolean {
-    return this.isTrustedForSlashings(slotNumber) || this.isTrustedForFullWithdrawals(slotNumber);
+    return this.isTrustedForFullWithdrawals(slotNumber);
   }
 
   public isTrustedForEveryDuty(slotNumber: Slot): boolean {
-    const trustedForSlashings = this.isTrustedForSlashings(slotNumber);
     const trustedForFullWithdrawals = this.isTrustedForFullWithdrawals(slotNumber);
-    if (!trustedForSlashings)
-      this.logger.warn(
-        '🚨 Current keys indexer data might not be ready to detect slashing. ' +
-          'The root will be processed later again',
-      );
     if (!trustedForFullWithdrawals)
       this.logger.warn(
         '⚠️ Current keys indexer data might not be ready to detect full withdrawal. ' +
           'The root will be processed later again',
       );
-    return trustedForSlashings && trustedForFullWithdrawals;
-  }
-
-  private isTrustedForSlashings(slotNumber: Slot): boolean {
-    // We are ok with outdated indexer for detection slashing
-    // because of a bunch of delays between deposit and validator appearing
-    const ETH1_FOLLOW_DISTANCE = Number(this.consensus.beaconConfig.ETH1_FOLLOW_DISTANCE); // ~8 hours
-    const EPOCHS_PER_ETH1_VOTING_PERIOD = Number(this.consensus.beaconConfig.EPOCHS_PER_ETH1_VOTING_PERIOD); // ~6.8 hours
-    const safeDelay = ETH1_FOLLOW_DISTANCE + this.consensus.epochToSlot(EPOCHS_PER_ETH1_VOTING_PERIOD);
-    if (this.info.data.storageStateSlot >= slotNumber) return true;
-    return slotNumber - this.info.data.storageStateSlot <= safeDelay; // ~14.8 hours
+    return trustedForFullWithdrawals;
   }
 
   private isTrustedForFullWithdrawals(slotNumber: Slot): boolean {

@@ -3,7 +3,7 @@ import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
 import { Verifier, Verifier__factory } from './types';
 import { ConfigService } from '../config/config.service';
-import { HistoricalWithdrawalsProofPayload, SlashingProofPayload, WithdrawalsProofPayload } from '../prover/types';
+import { HistoricalWithdrawalsProofPayload, WithdrawalsProofPayload } from '../prover/types';
 import { Execution } from '../providers/execution/execution';
 
 @Injectable()
@@ -16,14 +16,6 @@ export class VerifierContract {
     protected readonly execution: Execution,
   ) {
     this.impl = Verifier__factory.connect(this.config.get('VERIFIER_ADDRESS'), this.execution.provider);
-  }
-
-  public async sendSlashingProof(payload: SlashingProofPayload): Promise<void> {
-    await this.execution.execute(
-      this.impl.callStatic.processSlashingProof,
-      this.impl.populateTransaction.processSlashingProof,
-      [payload.beaconBlock, payload.witness, payload.nodeOperatorId, payload.keyIndex],
-    );
   }
 
   public async sendWithdrawalProof(payload: WithdrawalsProofPayload): Promise<void> {

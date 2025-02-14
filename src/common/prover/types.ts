@@ -21,13 +21,6 @@ export type HistoricalWithdrawalsProofPayload = {
   keyIndex: number;
 };
 
-export type SlashingProofPayload = {
-  beaconBlock: ProvableBeaconBlockHeader;
-  witness: SlashingWitness;
-  nodeOperatorId: number;
-  keyIndex: number;
-};
-
 export type ProvableBeaconBlockHeader = {
   header: BeaconBlockHeader;
   rootsTimestamp: number;
@@ -45,17 +38,6 @@ export type BeaconBlockHeader = {
   parentRoot: string; // bytes32
   stateRoot: string; // bytes32
   bodyRoot: string; // bytes32
-};
-
-export type SlashingWitness = {
-  validatorIndex: number;
-  withdrawalCredentials: string; // bytes32
-  effectiveBalance: number;
-  activationEligibilityEpoch: number;
-  activationEpoch: number;
-  exitEpoch: number;
-  withdrawableEpoch: number;
-  validatorProof: string[]; // bytes32[]
 };
 
 export type WithdrawalWitness = {
