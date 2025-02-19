@@ -28,15 +28,15 @@ The tool is a daemon that listens to the CL and reports any slashings and withdr
    > The processor does the following:
    > - Get the block info from CL by the root
    > - If the current state of keys indexer is outdated (~15-27h behind from the block) to be trusted completely, add the block root to roots stack
-   > - If the block has a slashing or withdrawal, report it to the CS Module
+   > - If the block has a withdrawal, report it to the CS Module
    > - If the current state of keys indexer is healthy enough to be trusted completely, remove the root from roots stack
-4. Build and send proofs to the CS Module contract if slashing or withdrawal was found.
+4. Build and send proofs to the CS Module contract if withdrawal was found.
 
 So, according to the algorithm, there are the following statements:
 1. We always go sequentially by the finalized roots of blocks, taking the next one by the root of the previous one. In this way, we avoid missing any blocks.
 2. If for some reason the daemon crashes, it will start from the last root running before the crash when it is launched
 3. If for some reason KeysAPI crashed or CL node stopped giving validators, we can use the previously successfully received data to guarantee that our slashings will report for another ~15h and withdrawals for ~27h (because of the new validators appearing time and `MIN_VALIDATOR_WITHDRAWABILITY_DELAY`)
-   If any of these time thresholds are breached, we can't be sure that if there was a slashing or a full withdrawal there was definitely not our validator there. That's why we put the root block in the stack just in case, to process it again later when KeysAPI and CL node are well.
+   If any of these time thresholds are breached, we cannot guarantee the correct key ownership determination. That's why we put the root block in the stack just in case, to process it again later when KeysAPI and CL node are well.
 
 </details>
 
@@ -79,8 +79,6 @@ So, according to the algorithm, there are the following statements:
    a. Using the docker compose
 
    ```bash
-   # Report slashing
-   $ docker compose run -it --rm slashing
    # Report withdrawal
    $ docker compose run -it --rm withdrawal
    ```
@@ -91,8 +89,6 @@ So, according to the algorithm, there are the following statements:
    $ yarn install
    $ yarn run typechain
    $ yarn build
-   # Report slashing
-   $ yarn slashing
    # Report withdrawal
    $ yarn withdrawal
    ```
@@ -105,7 +101,7 @@ So, according to the algorithm, there are the following statements:
 
 `--validator-index` - Validator index in the Consensus Layer
 
-`--block` - Block number (slot or root of block on the Consensus Layer which contains the validator withdrawal or evidence of slashing)
+`--block` - Block number (slot or root of block on the Consensus Layer which contains the validator withdrawal)
 
 `--help` - Show help
 

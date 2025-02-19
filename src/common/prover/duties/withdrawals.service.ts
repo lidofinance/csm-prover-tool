@@ -6,7 +6,7 @@ import { VerifierContract } from '../../contracts/verifier-contract.service';
 import { Consensus, State, SupportedBlock, SupportedWithdrawal } from '../../providers/consensus/consensus';
 import { BlockHeaderResponse, RootHex } from '../../providers/consensus/response.interface';
 import { WorkersService } from '../../workers/workers.service';
-import { KeyInfo, KeyInfoFn } from '../types';
+import { HistoricalWithdrawalsProofPayload, KeyInfo, KeyInfoFn, WithdrawalsProofPayload } from '../types';
 
 // according to the research https://hackmd.io/1wM8vqeNTjqt4pC3XoCUKQ?view#Proposed-solution
 const FULL_WITHDRAWAL_MIN_AMOUNT = 8 * 10 ** 9; // 8 ETH in Gwei
@@ -37,10 +37,10 @@ export class WithdrawalsService {
     }
     const unprovenCount = Object.keys(unproven).length;
     if (!unprovenCount) {
-      this.logger.log('No full withdrawals to prove');
+      this.logger.warn('All full withdrawals from this block are already proved');
       return {};
     }
-    this.logger.warn(`🔍 Unproven full withdrawals: ${unprovenCount}`);
+    this.logger.log(`🔍 Unproven full withdrawals: ${unprovenCount}`);
     return unproven;
   }
 
@@ -49,8 +49,8 @@ export class WithdrawalsService {
     blockInfo: SupportedBlock,
     finalizedHeader: BlockHeaderResponse,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Promise<void> {
-    if (!Object.keys(withdrawals).length) return;
+  ): Promise<number> {
+    if (!Object.keys(withdrawals).length) return 0;
     const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
     const state = await this.consensus.getState(blockHeader.header.message.state_root);
     // There is a case when the block is not historical regarding the finalized block, but it is historical
@@ -58,10 +58,17 @@ export class WithdrawalsService {
     // The transaction will be reverted and the application will try to handle that block again
     if (this.isHistoricalBlock(blockInfo, finalizedHeader)) {
       this.logger.warn('It is historical withdrawal. Processing will take longer than usual');
-      await this.sendHistoricalWithdrawalProofs(blockHeader, blockInfo, state, finalizedHeader, withdrawals);
-    } else {
-      await this.sendGeneralWithdrawalProofs(blockHeader, blockInfo, state, withdrawals);
+      const payloads = await this.sendHistoricalWithdrawalProofs(
+        blockHeader,
+        blockInfo,
+        state,
+        finalizedHeader,
+        withdrawals,
+      );
+      return payloads.length;
     }
+    const payloads = await this.sendGeneralWithdrawalProofs(blockHeader, blockInfo, state, withdrawals);
+    return payloads.length;
   }
 
   private async sendGeneralWithdrawalProofs(
@@ -69,9 +76,10 @@ export class WithdrawalsService {
     blockInfo: SupportedBlock,
     state: State,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Promise<void> {
+  ): Promise<WithdrawalsProofPayload[]> {
     // create proof against the state with withdrawals
     const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data[0];
+    if (!nextBlockHeader) throw new Error(`Next block header after ${blockHeader.root} not found`);
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
     this.logger.log(`Building withdrawal proof payloads`);
     const payloads = await this.workers.getGeneralWithdrawalProofPayloads({
@@ -86,6 +94,7 @@ export class WithdrawalsService {
       this.logger.log(`📡 Sending withdrawal proof payload for validator index: ${payload.witness.validatorIndex}`);
       await this.verifier.sendWithdrawalProof(payload);
     }
+    return payloads;
   }
 
   private async sendHistoricalWithdrawalProofs(
@@ -94,9 +103,10 @@ export class WithdrawalsService {
     state: State,
     finalizedHeader: BlockHeaderResponse,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Promise<void> {
+  ): Promise<HistoricalWithdrawalsProofPayload[]> {
     // create proof against the historical state with withdrawals
     const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data[0];
+    if (!nextBlockHeader) throw new Error(`Next block header after ${finalizedHeader.root} not found`);
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
     const finalizedState = await this.consensus.getState(finalizedHeader.header.message.state_root);
     const summaryIndex = this.calcSummaryIndex(blockInfo);
@@ -122,6 +132,7 @@ export class WithdrawalsService {
       );
       await this.verifier.sendHistoricalWithdrawalProof(payload);
     }
+    return payloads;
   }
 
   private getFullWithdrawals(

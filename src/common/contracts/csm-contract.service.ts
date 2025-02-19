@@ -16,16 +16,11 @@ export class CsmContract {
     this.impl = Csm__factory.connect(this.config.get('CSM_ADDRESS'), this.execution.provider);
   }
 
-  public async isSlashingProved(keyInfo: KeyInfo): Promise<boolean> {
-    return await this.impl.isValidatorSlashed(keyInfo.operatorId, keyInfo.keyIndex);
-  }
-
   public async isWithdrawalProved(keyInfo: KeyInfo): Promise<boolean> {
     return await this.impl.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex);
   }
 
   public async getNodeOperatorKey(nodeOperatorId: string | number, keyIndex: string | number): Promise<string> {
-    const [key] = await this.impl.getSigningKeys(nodeOperatorId, keyIndex, 1);
-    return key;
+    return await this.impl.getSigningKeys(nodeOperatorId, keyIndex, 1);
   }
 }
