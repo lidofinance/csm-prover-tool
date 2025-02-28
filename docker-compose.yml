@@ -89,23 +89,6 @@ services:
       - VERIFIER_ADDRESS=${VERIFIER_ADDRESS}
       - TX_SIGNER_PRIVATE_KEY=${TX_SIGNER_PRIVATE_KEY:-}
 
-  slashing:
-    build:
-      context: .
-      dockerfile: ./Dockerfile.cli
-    entrypoint:
-      - yarn
-      - slashing
-    container_name: prover-cli-slashing
-    restart: no
-    environment:
-      - DRY_RUN=${DRY_RUN:-false}
-      - CHAIN_ID=${CHAIN_ID}
-      - EL_RPC_URLS=${EL_RPC_URLS}
-      - CL_API_URLS=${CL_API_URLS}
-      - CSM_ADDRESS=${CSM_ADDRESS}
-      - VERIFIER_ADDRESS=${VERIFIER_ADDRESS}
-      - TX_SIGNER_PRIVATE_KEY=${TX_SIGNER_PRIVATE_KEY:-}
 
 volumes:
   daemon:
