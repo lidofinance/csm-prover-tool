@@ -1,9 +1,4 @@
-FROM node:20.12.1-bookworm-slim AS building
-
-RUN apt-get update && apt-get install -y --no-install-recommends -qq \
-    curl=7.88.1-10+deb12u8 \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+FROM node:20.12.1-alpine AS building
 
 WORKDIR /app
 
@@ -27,6 +22,6 @@ RUN mkdir -p ./storage/ && chown -R node:node ./storage/
 USER node
 
 HEALTHCHECK --interval=60s --timeout=10s --retries=3 \
-  CMD curl -f http://localhost:$HTTP_PORT/health || exit 1
+  CMD sh -c "wget -nv -t1 --spider http://localhost:$HTTP_PORT/health" || exit 1
 
 CMD ["yarn", "start:prod"]
