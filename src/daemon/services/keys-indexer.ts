@@ -11,7 +11,7 @@ import {
   PrometheusService,
   TrackTask,
 } from '../../common/prometheus';
-import { KeyInfo } from '../../common/prover/types';
+import { FullKeyInfo, KeyInfo } from '../../common/prover/types';
 import { Consensus, State } from '../../common/providers/consensus/consensus';
 import { BlockHeaderResponse, RootHex, Slot } from '../../common/providers/consensus/response.interface';
 import { Keysapi } from '../../common/providers/keysapi/keysapi';
@@ -69,6 +69,20 @@ export class KeysIndexer implements OnApplicationBootstrap {
 
   public getKey = (valIndex: number): KeyInfo | undefined => {
     return this.storage.data[valIndex];
+  };
+
+  public getFullKeyInfoByPubKey = (pubKey: string): FullKeyInfo | undefined => {
+    for (const [validatorIndex, keyInfo] of Object.entries(this.storage.data)) {
+      if (keyInfo.pubKey === pubKey) {
+        return {
+          operatorId: keyInfo.operatorId,
+          keyIndex: keyInfo.keyIndex,
+          pubKey,
+          validatorIndex: Number(validatorIndex),
+        };
+      }
+    }
+    return undefined;
   };
 
   @Single
@@ -198,7 +212,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
     this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
     const keysMap = new Map<string, { operatorIndex: number; index: number }>();
     csmKeys.data.keys.forEach((k: Key) => keysMap.set(k.key, { ...k }));
-    const { totalValLength, valKeys } = await this.workers.getValidators({
+    const { totalValLength, valKeys } = await this.workers.getNewValidatorKeys({
       state,
       lastValidatorsCount: 0,
     });
@@ -219,7 +233,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
   private async updateStorage(state: State, finalizedSlot: Slot): Promise<number> {
     // TODO: should we think about re-using validator indexes?
     // TODO: should we think about changing WC for existing old vaidators ?
-    const { totalValLength, valKeys: newValKeys } = await this.workers.getValidators({
+    const { totalValLength, valKeys: newValKeys } = await this.workers.getNewValidatorKeys({
       state,
       lastValidatorsCount: this.info.data.lastValidatorsCount,
     });

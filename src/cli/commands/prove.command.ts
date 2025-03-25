@@ -5,7 +5,7 @@ import { Command, CommandRunner, InjectCommander, InquirerService, Option } from
 
 import { CsmContract } from '../../common/contracts/csm-contract.service';
 import { ProverService } from '../../common/prover/prover.service';
-import { KeyInfoFn } from '../../common/prover/types';
+import { FullKeyInfoByPubKeyFn, KeyInfoFn } from '../../common/prover/types';
 import { Consensus } from '../../common/providers/consensus/consensus';
 import {
   validateBlock,
@@ -60,6 +60,9 @@ export class ProveCommand extends CommandRunner {
         case 'withdrawal':
           await this.prover.handleWithdrawalsInBlock(blockRootToProcess, blockInfoToProcess, header, this.keyInfoFn);
           break;
+        case 'bad_performer':
+          await this.prover.handleBadPerformersInOracleReport(blockInfoToProcess, this.fullKeyInfoFn);
+          break;
       }
     } catch (e) {
       this.commander.error(e);
@@ -101,6 +104,17 @@ export class ProveCommand extends CommandRunner {
   keyInfoFn: KeyInfoFn = (valIndex: number) => {
     if (valIndex === Number(this.options.validatorIndex)) {
       return {
+        operatorId: Number(this.options.nodeOperatorId),
+        keyIndex: Number(this.options.keyIndex),
+        pubKey: this.pubkey,
+      };
+    }
+  };
+
+  fullKeyInfoFn: FullKeyInfoByPubKeyFn = (pubKey: string) => {
+    if (pubKey === this.pubkey) {
+      return {
+        validatorIndex: Number(this.options.validatorIndex),
         operatorId: Number(this.options.nodeOperatorId),
         keyIndex: Number(this.options.keyIndex),
         pubKey: this.pubkey,

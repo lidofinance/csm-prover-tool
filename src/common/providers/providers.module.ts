@@ -9,6 +9,7 @@ import { ConfigService } from '../config/config.service';
 import { WorkingMode } from '../config/env.validation';
 import { PrometheusService, RequestStatus } from '../prometheus';
 import { UtilsModule } from '../utils/utils.module';
+import { Ipfs } from './ipfs/ipfs';
 
 const ExecutionDaemon = () =>
   FallbackProviderModule.forRootAsync({
@@ -72,7 +73,7 @@ const ExecutionCli = () =>
       return env['WORKING_MODE'] === WorkingMode.CLI;
     }),
   ],
-  providers: [Execution, Consensus, Keysapi],
-  exports: [Execution, Consensus, Keysapi],
+  providers: [Execution, Consensus, Keysapi, Ipfs],
+  exports: [Execution, Consensus, Keysapi, Ipfs],
 })
 export class ProvidersModule {}

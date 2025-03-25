@@ -28,8 +28,9 @@ export enum WorkingMode {
   CLI = 'cli',
 }
 
-const MINUTE = 60 * 1000;
-const HOUR = 60 * MINUTE;
+export const SECOND = 1000;
+export const MINUTE = 60 * SECOND;
+export const HOUR = 60 * MINUTE;
 
 export class EnvironmentVariables {
   @IsEnum(Environment)
@@ -46,9 +47,14 @@ export class EnvironmentVariables {
   @IsString()
   public CSM_ADDRESS: string;
 
-  @IsNotEmpty()
   @IsString()
-  public VERIFIER_ADDRESS: string;
+  public VERIFIER_ADDRESS: string = '';
+
+  @IsString()
+  public STRIKES_ADDRESS: string = '';
+
+  @IsString()
+  public EJECTOR_ADDRESS: string = '';
 
   @IsNotEmpty()
   @IsString()

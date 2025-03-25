@@ -9,7 +9,8 @@ import { PrometheusService, TrackWorker } from '../prometheus';
 import { HistoricalWithdrawalsProofPayload, WithdrawalsProofPayload } from '../prover/types';
 import { BuildGeneralWithdrawalProofArgs } from './items/build-general-wd-proof-payloads';
 import { BuildHistoricalWithdrawalProofArgs } from './items/build-historical-wd-proof-payloads';
-import { GetValidatorsArgs, GetValidatorsResult } from './items/get-validators';
+import { GetNewValidatorKeysArgs, GetNewValidatorKeysResult } from './items/get-new-validator-keys';
+import { GetValidatorExitEpochsArgs, GetValidatorExitEpochsResult } from './items/get-validator-exit-epochs';
 
 class ParentLoggerMessage {
   __class: string;
@@ -52,8 +53,13 @@ export class WorkersService {
     protected readonly config: ConfigService,
   ) {}
 
-  public async getValidators(args: GetValidatorsArgs): Promise<GetValidatorsResult> {
-    return await this._run('get-validators', args);
+  public async getNewValidatorKeys(args: GetNewValidatorKeysArgs): Promise<GetNewValidatorKeysResult> {
+    return await this._run('get-new-validator-keys', args);
+  }
+
+  public async getValidatorExitEpochs(args: GetValidatorExitEpochsArgs): Promise<number[]> {
+    const result: GetValidatorExitEpochsResult = await this._run('get-validator-exit-epochs', args);
+    return result.valExitEpochs;
   }
 
   public async getGeneralWithdrawalProofPayloads(
