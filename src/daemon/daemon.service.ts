@@ -8,11 +8,14 @@ import { RootsProcessor } from './services/roots-processor';
 import { RootsProvider } from './services/roots-provider';
 import sleep from './utils/sleep';
 import { ConfigService } from '../common/config/config.service';
+import { CsmContract } from '../common/contracts/csm-contract.service';
 import { APP_NAME, PrometheusService } from '../common/prometheus';
 import { Consensus } from '../common/providers/consensus/consensus';
 
 @Injectable()
 export class DaemonService implements OnModuleInit {
+  public CSM_ON_PAUSE_NEXT_TRY_MS = 60000;
+
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
     protected readonly config: ConfigService,
@@ -21,6 +24,7 @@ export class DaemonService implements OnModuleInit {
     protected readonly keysIndexer: KeysIndexer,
     protected readonly rootsProvider: RootsProvider,
     protected readonly rootsProcessor: RootsProcessor,
+    protected readonly csm: CsmContract,
   ) {}
 
   async onModuleInit() {
@@ -37,6 +41,12 @@ export class DaemonService implements OnModuleInit {
   public async loop() {
     while (true) {
       try {
+        const isOnPause = await this.csm.isPaused();
+        if (isOnPause) {
+          this.logger.log('🛑 CSModule is paused. Next try in 1 minute');
+          await sleep(this.CSM_ON_PAUSE_NEXT_TRY_MS);
+          continue;
+        }
         if (!this.keysIndexer.isInitialized()) await this.keysIndexer.initOrReadServiceData();
         await this.baseRun();
       } catch (e) {

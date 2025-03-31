@@ -23,4 +23,8 @@ export class CsmContract {
   public async getNodeOperatorKey(nodeOperatorId: string | number, keyIndex: string | number): Promise<string> {
     return await this.impl.getSigningKeys(nodeOperatorId, keyIndex, 1);
   }
+
+  public async isPaused(): Promise<boolean> {
+    return await this.impl.isPaused();
+  }
 }
