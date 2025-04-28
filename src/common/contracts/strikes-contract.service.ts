@@ -70,4 +70,8 @@ export class StrikesContract {
     this.logger.log(`🎳 ${strikesDataUpdatedEvent.name} event was found in the block`);
     return this.impl.interface.decodeEventLog(strikesDataUpdatedEvent, logs[0].data);
   }
+
+  public async getExitPenaltiesAddress(): Promise<string> {
+    return await this.impl.EXIT_PENALTIES();
+  }
 }

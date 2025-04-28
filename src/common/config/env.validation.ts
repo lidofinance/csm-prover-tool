@@ -54,7 +54,7 @@ export class EnvironmentVariables {
   public STRIKES_ADDRESS: string = '';
 
   @IsString()
-  public EJECTOR_ADDRESS: string = '';
+  public EXIT_PENALTIES_ADDRESS: string = '';
 
   @IsNotEmpty()
   @IsString()

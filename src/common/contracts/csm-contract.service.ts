@@ -58,15 +58,4 @@ export class CsmContract {
     }
     return members;
   }
-
-  public async getEjectorRoleMembers(): Promise<string[]> {
-    const members: string[] = [];
-    const role = await this.impl.EJECTOR_ROLE(); // FIXME: Should be actual role name
-    const membersCount = (await this.impl.getRoleMemberCount(role)).toNumber();
-    for (let i = 0; i < membersCount; i++) {
-      const address = await this.impl.getRoleMember(role, i);
-      members.push(address);
-    }
-    return members;
-  }
 }

@@ -4,7 +4,7 @@ import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 
 import { AccountingContract } from '../../contracts/accounting-contract.service';
 import { CsmContract } from '../../contracts/csm-contract.service';
-import { EjectorContract } from '../../contracts/ejector-contract.service';
+import { ExitPenaltiesContract } from '../../contracts/exit-penalties-contract.service';
 import { ParametersRegistryContract } from '../../contracts/parameters-registry-contract.service';
 import { StrikesContract } from '../../contracts/strikes-contract.service';
 import { toHex } from '../../helpers/proofs';
@@ -26,7 +26,7 @@ export class BadPerformersService {
     protected readonly ipfs: Ipfs,
     protected readonly csm: CsmContract,
     protected readonly strikes: StrikesContract,
-    protected readonly ejector: EjectorContract,
+    protected readonly exitPenalties: ExitPenaltiesContract,
     protected readonly accounting: AccountingContract,
     protected readonly params: ParametersRegistryContract,
   ) {}
@@ -47,7 +47,7 @@ export class BadPerformersService {
     if (Object.keys(ejectableKeys).length == 0) return [];
     const unproven: InvolvedKeysWithBadPerformance = [];
     for (const ejectableKey of ejectableKeys) {
-      const proved = await this.ejector.isEjectionProved(ejectableKey);
+      const proved = await this.exitPenalties.isEjectionProved(ejectableKey);
       if (proved) {
         this.logger.warn(`Validator ${ejectableKey.validatorIndex} already proved as a bad performer`);
         continue;
@@ -125,7 +125,9 @@ export class BadPerformersService {
 
   private async initV2() {
     this.logger.log('🆕 Initializing CSM v2');
-    await Promise.all([this.params.init(), this.ejector.init(), this.strikes.init()]);
+    await Promise.all([this.params.init(), this.strikes.init()]);
+    // ExitPenalties can be initialized only after Strikes
+    await this.exitPenalties.init();
     this.isV2Initialized = true;
   }
 }
