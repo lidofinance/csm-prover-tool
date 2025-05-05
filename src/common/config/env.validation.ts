@@ -124,7 +124,6 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   @IsInt()
   @Min(1)
-  @Max(5000000)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public CHAIN_ID!: Network;
 
