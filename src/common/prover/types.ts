@@ -4,7 +4,16 @@ export interface KeyInfo {
   pubKey: string;
 }
 
+export interface FullKeyInfo {
+  operatorId: number;
+  keyIndex: number;
+  pubKey: string;
+  validatorIndex: number;
+}
+
 export type KeyInfoFn = (valIndex: number) => KeyInfo | undefined;
+
+export type FullKeyInfoByPubKeyFn = (pubKey: string) => FullKeyInfo | undefined;
 
 export type WithdrawalsProofPayload = {
   beaconBlock: ProvableBeaconBlockHeader;
@@ -19,6 +28,13 @@ export type HistoricalWithdrawalsProofPayload = {
   witness: WithdrawalWitness;
   nodeOperatorId: number;
   keyIndex: number;
+};
+
+export type BadPerformerProofPayload = {
+  nodeOperatorId: number;
+  keyIndex: number;
+  strikesData: number[];
+  proof: string[]; // bytes32[]
 };
 
 export type ProvableBeaconBlockHeader = {

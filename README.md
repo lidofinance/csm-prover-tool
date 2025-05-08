@@ -5,11 +5,11 @@
 
 ## Description
 
-Tool for reporting Slashings and Withdrawals for Lido Community Staking Module
+Tool for reporting Bad Performers and Withdrawals for Lido Community Staking Module
 
 ### Daemon working mode
 
-The tool is a daemon that listens to the CL and reports any slashings and withdrawals to the Lido Community Staking Module.
+The tool is a daemon that listens to the CL and EL and reports any bad performers and withdrawals to the Lido Community Staking Module.
 
 <details>
   <summary>The algorithm is as follows</summary>
@@ -81,6 +81,8 @@ So, according to the algorithm, there are the following statements:
    ```bash
    # Report withdrawal
    $ docker compose run -it --rm withdrawal
+   # Report bad performer ejection
+   $ docker compose run -it --rm bad_performer
    ```
 
    b. Or using yarn
@@ -91,6 +93,8 @@ So, according to the algorithm, there are the following statements:
    $ yarn build
    # Report withdrawal
    $ yarn withdrawal
+   # Report bad performer ejection
+   $ yarn bad_performer
    ```
 
 #### Options to run CLI
@@ -101,7 +105,7 @@ So, according to the algorithm, there are the following statements:
 
 `--validator-index` - Validator index in the Consensus Layer
 
-`--block` - Block number (slot or root of block on the Consensus Layer which contains the validator withdrawal)
+`--block` - Block number (slot or root of block on the Consensus Layer which contains the validator withdrawal or strikes report (StrikesDataUpdated event))
 
 `--help` - Show help
 

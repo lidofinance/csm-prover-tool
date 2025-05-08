@@ -1,34 +1,29 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
 import { iterateNodesAtDepth } from '@chainsafe/persistent-merkle-tree';
-import { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
-import { ForkName } from '@lodestar/params';
 
 import { toHex } from '../../helpers/proofs';
 import { State } from '../../providers/consensus/consensus';
 
 let ssz: typeof import('@lodestar/types').ssz;
-let anySsz: (typeof ssz)[ForkName];
 
-export type GetValidatorsArgs = {
+export type GetNewValidatorKeysArgs = {
   state: State;
   lastValidatorsCount: number;
 };
 
-export type GetValidatorsResult = {
+export type GetNewValidatorKeysResult = {
   totalValLength: number;
   valKeys: string[];
 };
 
-async function getValidators(): Promise<GetValidatorsResult> {
+async function getNewValidatorKeys(): Promise<GetNewValidatorKeysResult> {
   ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
-  const { state, lastValidatorsCount } = workerData as GetValidatorsArgs;
+  const { state, lastValidatorsCount } = workerData as GetNewValidatorKeysArgs;
   //
   // Get views
   //
-  const stateView = ssz[state.forkName as keyof typeof ForkName].BeaconState.deserializeToView(
-    state.bodyBytes,
-  ) as ContainerTreeViewType<typeof anySsz.BeaconState.fields>;
+  const stateView = ssz[state.forkName].BeaconState.deserializeToView(state.bodyBytes);
   //
   //
   //
@@ -53,7 +48,7 @@ async function getValidators(): Promise<GetValidatorsResult> {
   return { totalValLength, valKeys };
 }
 
-getValidators()
+getNewValidatorKeys()
   .then((v) => parentPort?.postMessage(v))
   .catch((e) => {
     console.error(e);

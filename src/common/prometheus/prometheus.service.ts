@@ -12,6 +12,8 @@ import {
   METRIC_OUTGOING_CL_REQUESTS_DURATION_SECONDS,
   METRIC_OUTGOING_EL_REQUESTS_COUNT,
   METRIC_OUTGOING_EL_REQUESTS_DURATION_SECONDS,
+  METRIC_OUTGOING_IPFS_REQUESTS_COUNT,
+  METRIC_OUTGOING_IPFS_REQUESTS_DURATION_SECONDS,
   METRIC_OUTGOING_KEYSAPI_REQUESTS_COUNT,
   METRIC_OUTGOING_KEYSAPI_REQUESTS_DURATION_SECONDS,
   METRIC_TASK_DURATION_SECONDS,
@@ -109,6 +111,19 @@ export class PrometheusService {
     labelNames: ['name', 'target', 'status', 'code'] as const,
   });
 
+  public outgoingIPFSRequestsDuration = this.getOrCreateMetric('Histogram', {
+    name: METRIC_OUTGOING_IPFS_REQUESTS_DURATION_SECONDS,
+    help: 'Duration of outgoing IPFS requests',
+    buckets: [0.01, 0.1, 0.5, 1, 2, 5, 15, 30, 60],
+    labelNames: ['name', 'target'] as const,
+  });
+
+  public outgoingIPFSRequestsCount = this.getOrCreateMetric('Gauge', {
+    name: METRIC_OUTGOING_IPFS_REQUESTS_COUNT,
+    help: 'Count of outgoing IPFS requests',
+    labelNames: ['name', 'target', 'status', 'code'] as const,
+  });
+
   public taskDuration = this.getOrCreateMetric('Histogram', {
     name: METRIC_TASK_DURATION_SECONDS,
     help: 'Duration of task execution',
@@ -194,6 +209,40 @@ export function TrackKeysAPIRequest(target: any, propertyKey: string, descriptor
       })
       .catch((e: any) => {
         this.prometheus.outgoingKeysAPIRequestsCount.inc({
+          name: reqName,
+          target: targetName,
+          status: RequestStatus.ERROR,
+          code: e.statusCode,
+        });
+        throw e;
+      })
+      .finally(() => stop());
+  };
+}
+
+export function TrackIPFSRequest(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+  const originalValue = descriptor.value;
+  descriptor.value = function (...args: any[]) {
+    if (!this.prometheus) throw Error(`'${this.constructor.name}' class object must contain 'prometheus' property`);
+    const [apiUrl, subUrl] = args;
+    const [targetName, reqName] = requestLabels(apiUrl, subUrl);
+    const stop = this.prometheus.outgoingIPFSRequestsDuration.startTimer({
+      name: reqName,
+      target: targetName,
+    });
+    return originalValue
+      .apply(this, args)
+      .then((r: any) => {
+        this.prometheus.outgoingIPFSRequestsCount.inc({
+          name: reqName,
+          target: targetName,
+          status: RequestStatus.COMPLETE,
+          code: 200,
+        });
+        return r;
+      })
+      .catch((e: any) => {
+        this.prometheus.outgoingIPFSRequestsCount.inc({
           name: reqName,
           target: targetName,
           status: RequestStatus.ERROR,

@@ -28,7 +28,13 @@ export class RootsProcessor {
       slotNumber: blockInfoToProcess.slot,
     };
     await this.rootsStack.push(rootSlot); // in case of revert we should reprocess the root
-    await this.prover.handleBlock(blockRootToProcess, blockInfoToProcess, finalizedHeader, this.keysIndexer.getKey);
+    await this.prover.handleBlock(
+      blockRootToProcess,
+      blockInfoToProcess,
+      finalizedHeader,
+      this.keysIndexer.getKey,
+      this.keysIndexer.getFullKeyInfoByPubKey,
+    );
     const indexerIsTrusted = this.keysIndexer.isTrustedForEveryDuty(rootSlot.slotNumber);
     if (indexerIsTrusted) await this.rootsStack.purge(rootSlot);
     await this.rootsStack.setLastProcessed(rootSlot);
