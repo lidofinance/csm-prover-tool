@@ -1,3 +1,5 @@
+import { ICSStrikes } from '../contracts/types/Strikes';
+
 export interface KeyInfo {
   operatorId: number;
   keyIndex: number;
@@ -31,10 +33,10 @@ export type HistoricalWithdrawalsProofPayload = {
 };
 
 export type BadPerformerProofPayload = {
-  nodeOperatorId: number;
-  keyIndex: number;
-  strikesData: number[];
+  keyStrikesList: ICSStrikes.KeyStrikesStruct[];
   proof: string[]; // bytes32[]
+  proofFlags: boolean[];
+  refundRecipient?: string; // Optional. Address to receive the refund from ejector contract
 };
 
 export type ProvableBeaconBlockHeader = {

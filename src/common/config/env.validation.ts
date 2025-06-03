@@ -181,6 +181,10 @@ export class EnvironmentVariables {
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public KEYSAPI_API_MAX_RETRIES = 3;
+
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_STRIKES_PAYLOAD_MAX_BATCH_SIZE = 10;
 }
 
 export function validate(config: Record<string, unknown>) {

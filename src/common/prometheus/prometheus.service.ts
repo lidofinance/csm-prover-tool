@@ -189,6 +189,9 @@ export function TrackCLRequest(target: any, propertyKey: string, descriptor: Pro
 export function TrackKeysAPIRequest(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
   const originalValue = descriptor.value;
   descriptor.value = function (...args: any[]) {
+    if (this.config.get('WORKING_MODE') == WorkingMode.CLI) {
+      return originalValue.apply(this, args);
+    }
     if (!this.prometheus) throw Error(`'${this.constructor.name}' class object must contain 'prometheus' property`);
     const [apiUrl, subUrl] = args;
     const [targetName, reqName] = requestLabels(apiUrl, subUrl);
@@ -223,6 +226,9 @@ export function TrackKeysAPIRequest(target: any, propertyKey: string, descriptor
 export function TrackIPFSRequest(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
   const originalValue = descriptor.value;
   descriptor.value = function (...args: any[]) {
+    if (this.config.get('WORKING_MODE') == WorkingMode.CLI) {
+      return originalValue.apply(this, args);
+    }
     if (!this.prometheus) throw Error(`'${this.constructor.name}' class object must contain 'prometheus' property`);
     const [apiUrl, subUrl] = args;
     const [targetName, reqName] = requestLabels(apiUrl, subUrl);

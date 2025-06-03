@@ -32,6 +32,6 @@ export class ExitPenaltiesContract {
   }
 
   public async isEjectionProved(keyInfo: KeyInfo): Promise<boolean> {
-    return (await this.impl.getDelayedExitPenaltyInfo(keyInfo.operatorId, keyInfo.pubKey)).strikesPenalty.isValue;
+    return (await this.impl.getExitPenaltyInfo(keyInfo.operatorId, keyInfo.pubKey)).strikesPenalty.isValue;
   }
 }
