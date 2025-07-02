@@ -75,6 +75,7 @@ export class BadPerformersService {
     );
 
     badPerformers.sort((a, b) => b.leafIndex - a.leafIndex);
+    // TODO: refactor. unreadable cycle
     for (let i = 0; i < badPerformers.length; i += keysMaxBatchSize) {
       const batch = badPerformers.slice(i, i + keysMaxBatchSize);
 
@@ -110,6 +111,7 @@ export class BadPerformersService {
     blockInfo: SupportedBlock,
   ): Promise<StandardMerkleTree<[number, string, number[]]> | undefined> {
     const blockHash = toHex(blockInfo.body.executionPayload.blockHash);
+    // TODO: mb just fetch treeRoot value from the block? and if updated then fetch the tree?
     const event = await this.strikes.findStrikesReportEventInBlock(blockHash);
     if (!event) {
       this.logger.log(`No Strikes Report event found in block ${blockHash}`);
