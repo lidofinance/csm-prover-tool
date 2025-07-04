@@ -8,7 +8,7 @@ import { Execution } from '../providers/execution/execution';
 
 @Injectable()
 export class AccountingContract implements OnModuleInit {
-  private impl: Accounting;
+  private contract: Accounting;
   private bondCurveIdCache = new LRUCache<string, number>({ max: 128 });
 
   constructor(
@@ -19,19 +19,19 @@ export class AccountingContract implements OnModuleInit {
 
   async onModuleInit() {
     const accounting = await this.csm.getAccountingAddress();
-    this.impl = Accounting__factory.connect(accounting, this.execution.provider);
+    this.contract = Accounting__factory.connect(accounting, this.execution.provider);
   }
 
   public async getBondCurveId(blockHash: string, nodeOperatorId: number): Promise<number> {
     let curveId = this.bondCurveIdCache.get(`${blockHash}_${nodeOperatorId}`);
     if (!curveId) {
-      curveId = (await this.impl.getBondCurveId(nodeOperatorId)).toNumber();
+      curveId = (await this.contract.getBondCurveId(nodeOperatorId)).toNumber();
       this.bondCurveIdCache.set(`${blockHash}_${nodeOperatorId}`, curveId);
     }
     return curveId;
   }
 
   public async getFeeDistributorAddress(): Promise<string> {
-    return await this.impl.feeDistributor();
+    return await this.contract.feeDistributor();
   }
 }

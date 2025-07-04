@@ -2,10 +2,10 @@ import { Result } from '@ethersproject/abi';
 import { AddressZero } from '@ethersproject/constants';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
-import { Contract, utils } from 'ethers';
+import { utils } from 'ethers';
 
 import { AccountingContract } from './accounting-contract.service';
-import { Strikes, Strikes__factory } from './types';
+import { FeeDistributor__factory, FeeOracle__factory, Strikes, Strikes__factory } from './types';
 import { ConfigService } from '../config/config.service';
 import { BadPerformerProofPayload } from '../prover/types';
 import { Execution } from '../providers/execution/execution';
@@ -14,7 +14,7 @@ const WITHDRAWAL_REQUEST_SYS_ADDRESS = '0x00000961Ef480Eb55e80D19ad83579A64c0070
 
 @Injectable()
 export class StrikesContract {
-  public impl: Strikes;
+  private contract: Strikes;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
@@ -31,22 +31,13 @@ export class StrikesContract {
         'STRIKES_ADDRESS env variable is not specified. Trying to get address from CSFeeOracle contract...',
       );
       const feeDistributor = await this.accounting.getFeeDistributorAddress();
-      // Bypass useless type-chaining here and get it using pure ethers
-      const feeDistributorContract = new Contract(
-        feeDistributor,
-        ['function ORACLE() view returns (address)'],
-        this.execution.provider,
-      );
+      const feeDistributorContract = FeeDistributor__factory.connect(feeDistributor, this.execution.provider);
       const feeOracle = await feeDistributorContract.ORACLE();
-      const feeOracleContract = new Contract(
-        feeOracle,
-        ['function STRIKES() view returns (address)'],
-        this.execution.provider,
-      );
+      const feeOracleContract = FeeOracle__factory.connect(feeOracle, this.execution.provider);
       address = await feeOracleContract.STRIKES();
     }
     this.logger.log(`CSStrikes address: ${address}`);
-    this.impl = Strikes__factory.connect(address, this.execution.provider);
+    this.contract = Strikes__factory.connect(address, this.execution.provider);
   }
 
   private async getRequestFee(requestedContract: string): Promise<bigint> {
@@ -78,8 +69,8 @@ export class StrikesContract {
       `Sending bad performance proof for ${payload.keyStrikesList.length} keys with total fee: ${utils.formatUnits(withdrawalFee, 'gwei')} Gwei`,
     );
     await this.execution.execute(
-      this.impl.callStatic.processBadPerformanceProof,
-      this.impl.populateTransaction.processBadPerformanceProof,
+      this.contract.callStatic.processBadPerformanceProof,
+      this.contract.populateTransaction.processBadPerformanceProof,
       [
         payload.keyStrikesList,
         payload.proof,
@@ -93,11 +84,11 @@ export class StrikesContract {
   }
 
   public async findStrikesReportEventInBlock(blockHash: string): Promise<Result | undefined> {
-    const strikesDataUpdatedEvent = this.impl.interface.getEvent('StrikesDataUpdated');
+    const strikesDataUpdatedEvent = this.contract.interface.getEvent('StrikesDataUpdated');
     const logs = await this.execution.provider.getLogs({
       blockHash,
-      address: this.impl.address,
-      topics: [this.impl.interface.getEventTopic(strikesDataUpdatedEvent)],
+      address: this.contract.address,
+      topics: [this.contract.interface.getEventTopic(strikesDataUpdatedEvent)],
     });
     if (logs.length == 0) return undefined;
     if (logs.length > 1) {
@@ -106,10 +97,10 @@ export class StrikesContract {
       );
     }
     this.logger.log(`🎳 ${strikesDataUpdatedEvent.name} event was found in the block`);
-    return this.impl.interface.decodeEventLog(strikesDataUpdatedEvent, logs[0].data);
+    return this.contract.interface.decodeEventLog(strikesDataUpdatedEvent, logs[0].data);
   }
 
   public async getExitPenaltiesAddress(): Promise<string> {
-    return await this.impl.EXIT_PENALTIES();
+    return await this.contract.EXIT_PENALTIES();
   }
 }

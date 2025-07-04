@@ -4,7 +4,7 @@ import { IncomingHttpHeaders } from 'undici/types/header';
 import BodyReadable from 'undici/types/readable';
 
 import { ConfigService } from '../../config/config.service';
-import { MINUTE, SECOND } from '../../config/env.validation';
+import { MINUTE_MS, SECOND_MS } from '../../config/env.validation';
 import { PrometheusService, TrackIPFSRequest } from '../../prometheus';
 import { BaseRestProvider } from '../base/rest-provider';
 import { RequestOptions } from '../base/utils/func';
@@ -20,9 +20,9 @@ export class Ipfs extends BaseRestProvider {
     @Optional() protected readonly prometheus: PrometheusService,
     protected readonly config: ConfigService,
   ) {
-    const responseTimeout = MINUTE;
+    const responseTimeout = MINUTE_MS;
     const maxRetries = 3;
-    const retryDelay = SECOND / 2;
+    const retryDelay = SECOND_MS / 2;
     super(
       ['https://ipfs.io', 'https://gateway.pinata.cloud'],
       responseTimeout,

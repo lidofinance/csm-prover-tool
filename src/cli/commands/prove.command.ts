@@ -8,7 +8,7 @@ import { ProverService } from '../../common/prover/prover.service';
 import { FullKeyInfoByPubKeyFn, KeyInfoFn } from '../../common/prover/types';
 import { Consensus } from '../../common/providers/consensus/consensus';
 import {
-  validateBlock,
+  validateClBlock,
   validateKeyIndex,
   validateNodeOperatorId,
   validateValidatorIndex,
@@ -23,10 +23,11 @@ type ProofOptions = {
 
 @Command({
   name: 'prove',
-  description: 'Prove a withdrawal',
-  arguments: '<withdrawal>',
+  description: 'Prove a withdrawal or bad performer',
+  arguments: '<withdrawal|bad_performer>',
   argsDescription: {
     withdrawal: 'Prove a withdrawal',
+    bad_performer: 'Prove a bad performer',
   },
 })
 export class ProveCommand extends CommandRunner {
@@ -94,11 +95,12 @@ export class ProveCommand extends CommandRunner {
   }
 
   @Option({
-    flags: '--block <block>',
-    description: 'Block from the Consensus Layer with validator withdrawal. Might be a block root or a slot number',
+    flags: '--cl-block <clBlock>',
+    description:
+      'Block from the Consensus Layer with validator withdrawal or strikes report (StrikesDataUpdated event). Might be a block root or a slot number',
   })
-  parseBlock(val: string) {
-    return validateBlock(val);
+  parseClBlock(val: string) {
+    return validateClBlock(val);
   }
 
   keyInfoFn: KeyInfoFn = (valIndex: number) => {

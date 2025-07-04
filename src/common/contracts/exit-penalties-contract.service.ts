@@ -9,7 +9,7 @@ import { Execution } from '../providers/execution/execution';
 
 @Injectable()
 export class ExitPenaltiesContract {
-  private impl: ExitPenalties;
+  private contract: ExitPenalties;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
@@ -28,10 +28,10 @@ export class ExitPenaltiesContract {
       address = await this.strikes.getExitPenaltiesAddress();
     }
     this.logger.log(`CSExitPenalties address: ${address}`);
-    this.impl = ExitPenalties__factory.connect(address, this.execution.provider);
+    this.contract = ExitPenalties__factory.connect(address, this.execution.provider);
   }
 
   public async isEjectionProved(keyInfo: KeyInfo): Promise<boolean> {
-    return (await this.impl.getExitPenaltyInfo(keyInfo.operatorId, keyInfo.pubKey)).strikesPenalty.isValue;
+    return (await this.contract.getExitPenaltyInfo(keyInfo.operatorId, keyInfo.pubKey)).strikesPenalty.isValue;
   }
 }

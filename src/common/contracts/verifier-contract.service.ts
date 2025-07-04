@@ -9,7 +9,7 @@ import { Execution } from '../providers/execution/execution';
 
 @Injectable()
 export class VerifierContract implements OnModuleInit {
-  private impl: Verifier;
+  private contract: Verifier;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
@@ -29,13 +29,16 @@ export class VerifierContract implements OnModuleInit {
         throw new Error('No one member for VERIFIER_ROLE were found');
       }
       if (verifierRoleMembers.length > 1) {
-        this.logger.warn('More than one VERIFIER_ROLE role member were found. The first one will be used');
+        throw new Error(
+          'You must specify `VERIFIER_ADDRESS` env. More than one `VERIFIER_ROLE` role member were found: ' +
+            verifierRoleMembers,
+        );
       }
       address = verifierRoleMembers[0];
     }
     this.logger.log(`CSVerifier address: ${address}`);
-    this.impl = Verifier__factory.connect(address, this.execution.provider);
-    const isPaused = await this.impl.isPaused();
+    this.contract = Verifier__factory.connect(address, this.execution.provider);
+    const isPaused = await this.contract.isPaused();
     if (isPaused) {
       throw new Error(`CSVerifier ${address} is paused`);
     }
@@ -43,21 +46,21 @@ export class VerifierContract implements OnModuleInit {
 
   public async sendWithdrawalProof(payload: WithdrawalsProofPayload): Promise<void> {
     await this.execution.execute(
-      this.impl.callStatic.processWithdrawalProof,
-      this.impl.populateTransaction.processWithdrawalProof,
+      this.contract.callStatic.processWithdrawalProof,
+      this.contract.populateTransaction.processWithdrawalProof,
       [payload.beaconBlock, payload.witness, payload.nodeOperatorId, payload.keyIndex],
     );
   }
 
   public async sendHistoricalWithdrawalProof(payload: HistoricalWithdrawalsProofPayload): Promise<void> {
     await this.execution.execute(
-      this.impl.callStatic.processHistoricalWithdrawalProof,
-      this.impl.populateTransaction.processHistoricalWithdrawalProof,
+      this.contract.callStatic.processHistoricalWithdrawalProof,
+      this.contract.populateTransaction.processHistoricalWithdrawalProof,
       [payload.beaconBlock, payload.oldBlock, payload.witness, payload.nodeOperatorId, payload.keyIndex],
     );
   }
 
   public async isPaused(): Promise<boolean> {
-    return await this.impl.isPaused();
+    return await this.contract.isPaused();
   }
 }

@@ -9,7 +9,7 @@ import { Execution } from '../providers/execution/execution';
 
 @Injectable()
 export class CsmContract {
-  private impl: Csm;
+  private contract: Csm;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
@@ -18,12 +18,12 @@ export class CsmContract {
   ) {
     const address = this.config.get('CSM_ADDRESS');
     this.logger.log(`CSModule address: ${address}`);
-    this.impl = Csm__factory.connect(address, this.execution.provider);
+    this.contract = Csm__factory.connect(address, this.execution.provider);
   }
 
   public async getInitializedVersion(): Promise<number> {
     try {
-      return (await this.impl.getInitializedVersion()).toNumber();
+      return (await this.contract.getInitializedVersion()).toNumber();
     } catch (e) {
       if (e.error instanceof FetchError) {
         return 1;
@@ -33,27 +33,27 @@ export class CsmContract {
   }
 
   public async isWithdrawalProved(keyInfo: KeyInfo): Promise<boolean> {
-    return await this.impl.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex);
+    return await this.contract.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex);
   }
 
   public async getNodeOperatorKey(nodeOperatorId: string | number, keyIndex: string | number): Promise<string> {
-    return await this.impl.getSigningKeys(nodeOperatorId, keyIndex, 1);
+    return await this.contract.getSigningKeys(nodeOperatorId, keyIndex, 1);
   }
 
   public async getAccountingAddress(): Promise<string> {
-    return await this.impl.accounting();
+    return await this.contract.accounting();
   }
 
   public async getParamsAddress(): Promise<string> {
-    return await this.impl.PARAMETERS_REGISTRY();
+    return await this.contract.PARAMETERS_REGISTRY();
   }
 
   public async getVerifierRoleMembers(): Promise<string[]> {
     const members: string[] = [];
-    const role = await this.impl.VERIFIER_ROLE();
-    const membersCount = (await this.impl.getRoleMemberCount(role)).toNumber();
+    const role = await this.contract.VERIFIER_ROLE();
+    const membersCount = (await this.contract.getRoleMemberCount(role)).toNumber();
     for (let i = 0; i < membersCount; i++) {
-      const address = await this.impl.getRoleMember(role, i);
+      const address = await this.contract.getRoleMember(role, i);
       members.push(address);
     }
     return members;

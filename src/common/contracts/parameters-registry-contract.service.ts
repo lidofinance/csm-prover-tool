@@ -9,7 +9,7 @@ import { Execution } from '../providers/execution/execution';
 
 @Injectable()
 export class ParametersRegistryContract {
-  private impl: ParametersRegistry;
+  private contract: ParametersRegistry;
   private strikeParamsCache = new LRUCache<string, { lifetime: number; threshold: number }>({ max: 128 });
 
   constructor(
@@ -23,13 +23,13 @@ export class ParametersRegistryContract {
   public async init() {
     const address = await this.csm.getParamsAddress();
     this.logger.log(`CSParametersRegistry address: ${address}`);
-    this.impl = ParametersRegistry__factory.connect(address, this.execution.provider);
+    this.contract = ParametersRegistry__factory.connect(address, this.execution.provider);
   }
 
   public async getStrikeParams(blockHash: string, curveId: number): Promise<{ lifetime: number; threshold: number }> {
     let params = this.strikeParamsCache.get(`${blockHash}_${curveId}`);
     if (!params) {
-      const result = await this.impl.getStrikesParams(curveId);
+      const result = await this.contract.getStrikesParams(curveId);
       params = { lifetime: result.lifetime.toNumber(), threshold: result.threshold.toNumber() };
       this.strikeParamsCache.set(`${blockHash}_${curveId}`, params);
     }
