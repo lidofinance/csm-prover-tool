@@ -32,7 +32,7 @@ export class WithdrawalsService {
     if (!Object.keys(withdrawals).length) return {};
     const unproven: InvolvedKeysWithWithdrawal = {};
     for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
-      const proved = await this.csm.isWithdrawalProved(keyWithWithdrawalInfo);
+      const proved = await this.csm.isWithdrawalProved('latest', keyWithWithdrawalInfo);
       if (!proved) unproven[Number(valIndex)] = keyWithWithdrawalInfo;
     }
     const unprovenCount = Object.keys(unproven).length;

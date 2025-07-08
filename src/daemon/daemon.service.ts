@@ -1,18 +1,24 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService, OnModuleInit } from '@nestjs/common';
-
 import * as buildInfo from 'build-info';
 
-import { KeysIndexer, ModuleNotFoundError } from './services/keys-indexer';
+import { KeysIndexer } from './services/keys-indexer';
 import { RootsProcessor } from './services/roots-processor';
 import { RootsProvider } from './services/roots-provider';
 import sleep from './utils/sleep';
 import { ConfigService } from '../common/config/config.service';
-import { APP_NAME, PrometheusService } from '../common/prometheus';
+import { SECOND_MS } from '../common/config/env.validation';
+import { APP_NAME, PrometheusService, TrackTask } from '../common/prometheus';
+import { ProverService } from '../common/prover/prover.service';
 import { Consensus } from '../common/providers/consensus/consensus';
+import { BlockHeaderResponse } from '../common/providers/consensus/response.interface';
+import { SingletonTask } from '../common/utils/singleton-task.decorator';
 
 @Injectable()
 export class DaemonService implements OnModuleInit {
+
+  private lastFinalizedHeader: BlockHeaderResponse | null = null;
+
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
     protected readonly config: ConfigService,
@@ -21,6 +27,7 @@ export class DaemonService implements OnModuleInit {
     protected readonly keysIndexer: KeysIndexer,
     protected readonly rootsProvider: RootsProvider,
     protected readonly rootsProcessor: RootsProcessor,
+    protected readonly prover: ProverService,
   ) {}
 
   async onModuleInit() {
@@ -41,24 +48,66 @@ export class DaemonService implements OnModuleInit {
         await this.baseRun();
       } catch (e) {
         this.logger.error(e);
-        e instanceof ModuleNotFoundError
-          ? await sleep(this.keysIndexer.MODULE_NOT_FOUND_NEXT_TRY_MS)
-          : await sleep(1000);
+      } finally {
+        await sleep(SECOND_MS);
       }
     }
   }
 
   private async baseRun() {
-    this.logger.log('🗿 Get finalized header');
-    const header = await this.consensus.getBeaconHeader('finalized');
-    this.logger.log(`💎 Finalized slot [${header.header.message.slot}]. Root [${header.root}]`);
-    this.keysIndexer.update(header);
-    const nextRoot = await this.rootsProvider.getNext(header);
-    if (nextRoot) {
-      await this.rootsProcessor.process(nextRoot, header);
-      return;
+    const finalizedHeader = await this.consensus.getBeaconHeader('finalized');
+    this.logger.log(`💎 Finalized slot [${finalizedHeader.header.message.slot}]. Root [${finalizedHeader.root}]`);
+
+    if (this.isTimeToUpdateKeysIndexer(finalizedHeader)) {
+      this.updateKeysIndexer(finalizedHeader).catch((e) => this.logger.error(e));
     }
-    this.logger.log(`💤 Wait for the next finalized root`);
-    await sleep(12000);
+
+    if (this.isTimeToProcessCurrentHead(finalizedHeader)) {
+      this.processAnyHeadRoot().catch((e) => this.logger.error(e));
+    }
+
+    const nextRoot = await this.rootsProvider.getNext(finalizedHeader);
+    if (nextRoot) {
+      this.processNextRoot(finalizedHeader, nextRoot).catch((e) => this.logger.error(e));
+    }
+
+    if (!nextRoot && !this.isFinalizedHeaderChanged(finalizedHeader)) {
+      this.logger.log('💤 Wait 12s for the next finalized root');
+      await sleep(12 * SECOND_MS);
+    }
+
+    this.lastFinalizedHeader = finalizedHeader;
+  }
+
+  private isTimeToUpdateKeysIndexer(finalizedHeader: BlockHeaderResponse): boolean {
+    return this.isFinalizedHeaderChanged(finalizedHeader) && this.keysIndexer.isTimeToUpdate(finalizedHeader);
+  }
+
+  private isTimeToProcessCurrentHead(finalizedHeader: BlockHeaderResponse): boolean {
+    return this.isFinalizedHeaderChanged(finalizedHeader);
+  }
+
+  private isFinalizedHeaderChanged(finalizedHeader: BlockHeaderResponse): boolean {
+    return !this.lastFinalizedHeader || this.lastFinalizedHeader.root !== finalizedHeader.root;
+  }
+
+  @SingletonTask()
+  @TrackTask('update-keys-indexer')
+  private async updateKeysIndexer(finalizedHeader: BlockHeaderResponse) {
+    await this.keysIndexer.update(finalizedHeader);
+  }
+
+  @SingletonTask()
+  @TrackTask('process-next-root')
+  private async processNextRoot(finalizedHeader: BlockHeaderResponse, nextRoot: string) {
+    await this.rootsProcessor.processNext(nextRoot, finalizedHeader);
+  }
+
+  @SingletonTask()
+  @TrackTask('process-any-head-root')
+  private async processAnyHeadRoot() {
+    const headHeader = await this.consensus.getBeaconHeader('head');
+    this.logger.log(`🪨 Head slot [${headHeader.header.message.slot}]. Root [${headHeader.root}]`);
+    await this.prover.handleBadPerformers(headHeader, this.keysIndexer.getFullKeyInfoByPubKey);
   }
 }

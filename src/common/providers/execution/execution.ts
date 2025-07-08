@@ -120,7 +120,13 @@ export class Execution {
     payload: any[],
   ): Promise<void> {
     this.logger.debug!(payload);
-    const tx = await populateTxCallback(...payload);
+    const priorityFeeParams = await this.calcPriorityFee();
+    const tx = {
+      ...(await populateTxCallback(...payload)),
+      maxFeePerGas: priorityFeeParams.maxFeePerGas,
+      maxPriorityFeePerGas: priorityFeeParams.maxPriorityFeePerGas,
+      gasLimit: this.config.get('TX_GAS_LIMIT'),
+    };
     let context: { payload: any[]; tx?: any } = { payload, tx };
     this.logger.log('Emulating call');
     try {
@@ -134,13 +140,7 @@ export class Execution {
     if (!this.signer) {
       throw new NoSignerError('No specified signer. Only emulated calls are available', context);
     }
-    const priorityFeeParams = await this.calcPriorityFee();
-    const populated = await this.signer.populateTransaction({
-      ...tx,
-      maxFeePerGas: priorityFeeParams.maxFeePerGas,
-      maxPriorityFeePerGas: priorityFeeParams.maxPriorityFeePerGas,
-      gasLimit: this.config.get('TX_GAS_LIMIT'),
-    });
+    const populated = await this.signer.populateTransaction(tx);
     context = { ...context, tx: populated };
     const isFeePerGasAcceptable = await this.isFeePerGasAcceptable();
     if (this.config.get('DRY_RUN')) {

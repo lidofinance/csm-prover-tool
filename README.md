@@ -105,7 +105,7 @@ So, according to the algorithm, there are the following statements:
 
 `--validator-index` - Validator index in the Consensus Layer
 
-`--cl-block` - Consensus Layer Block number (slot or root of block which contains the validator withdrawal or strikes report (StrikesDataUpdated event))
+`--cl-block` - Consensus Layer Block number (slot or root of block which contains the validator withdrawal or actual strikes tree)
 
 `--help` - Show help
 

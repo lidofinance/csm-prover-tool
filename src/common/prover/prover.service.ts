@@ -16,17 +16,6 @@ export class ProverService {
     protected readonly strikes: BadPerformersService,
   ) {}
 
-  public async handleBlock(
-    blockRoot: RootHex,
-    blockInfo: SupportedBlock,
-    finalizedHeader: BlockHeaderResponse,
-    keyInfoFn: KeyInfoFn,
-    fullKeyInfoFn: FullKeyInfoByPubKeyFn,
-  ): Promise<void> {
-    await this.handleWithdrawalsInBlock(blockRoot, blockInfo, finalizedHeader, keyInfoFn);
-    await this.handleBadPerformersInOracleReport(blockInfo, fullKeyInfoFn);
-  }
-
   public async handleWithdrawalsInBlock(
     blockRoot: RootHex,
     blockInfo: SupportedBlock,
@@ -42,11 +31,12 @@ export class ProverService {
     }
   }
 
-  public async handleBadPerformersInOracleReport(
-    blockInfo: SupportedBlock,
+  public async handleBadPerformers(
+    headHeader: BlockHeaderResponse,
     fullKeyInfoFn: FullKeyInfoByPubKeyFn,
   ): Promise<void> {
-    const toProve = await this.strikes.getUnprovenNonExitedBadPerformers(blockInfo, fullKeyInfoFn);
+    const headBlockInfo = await this.consensus.getBlockInfo(headHeader.root);
+    const toProve = await this.strikes.getUnprovenNonWithdrawnBadPerformers(headBlockInfo, fullKeyInfoFn);
     const sentCount = await this.strikes.sendBadPerformanceProofs(toProve);
     if (sentCount > 0) {
       this.logger.log(`🏁 ${sentCount} Bad performer Proof(s) were sent`);

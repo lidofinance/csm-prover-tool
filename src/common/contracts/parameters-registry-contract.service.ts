@@ -6,6 +6,7 @@ import { CsmContract } from './csm-contract.service';
 import { ParametersRegistry, ParametersRegistry__factory } from './types';
 import { ConfigService } from '../config/config.service';
 import { Execution } from '../providers/execution/execution';
+import { BlockTag } from '@ethersproject/abstract-provider';
 
 @Injectable()
 export class ParametersRegistryContract {
@@ -26,12 +27,12 @@ export class ParametersRegistryContract {
     this.contract = ParametersRegistry__factory.connect(address, this.execution.provider);
   }
 
-  public async getStrikeParams(blockHash: string, curveId: number): Promise<{ lifetime: number; threshold: number }> {
-    let params = this.strikeParamsCache.get(`${blockHash}_${curveId}`);
+  public async getStrikeParams(blockTag: BlockTag, curveId: number): Promise<{ lifetime: number; threshold: number }> {
+    let params = this.strikeParamsCache.get(`${blockTag}_${curveId}`);
     if (!params) {
-      const result = await this.contract.getStrikesParams(curveId);
+      const result = await this.contract.getStrikesParams(curveId, { blockTag });
       params = { lifetime: result.lifetime.toNumber(), threshold: result.threshold.toNumber() };
-      this.strikeParamsCache.set(`${blockHash}_${curveId}`, params);
+      this.strikeParamsCache.set(`${blockTag}_${curveId}`, params);
     }
     return params;
   }

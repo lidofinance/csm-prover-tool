@@ -85,7 +85,7 @@ export class EnvironmentVariables {
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public TX_GAS_LIMIT = 1_000_000;
+  public TX_GAS_LIMIT = 2_000_000;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })

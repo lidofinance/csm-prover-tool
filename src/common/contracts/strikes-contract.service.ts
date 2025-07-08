@@ -1,4 +1,4 @@
-import { Result } from '@ethersproject/abi';
+import { BlockTag } from '@ethersproject/abstract-provider';
 import { AddressZero } from '@ethersproject/constants';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
@@ -61,8 +61,6 @@ export class StrikesContract {
   }
 
   public async sendBadPerformanceProof(payload: BadPerformerProofPayload): Promise<void> {
-    // TODO: getWithdrawalRequestFee from WITHDRAWALS_VAULT
-    // TODO: getMaxWithdrawalRequestFee from params ?
     const singleWithdrawalFee = await this.getRequestFee(WITHDRAWAL_REQUEST_SYS_ADDRESS);
     const withdrawalFee = BigInt(payload.keyStrikesList.length) * singleWithdrawalFee;
     this.logger.log(
@@ -83,24 +81,15 @@ export class StrikesContract {
     );
   }
 
-  public async findStrikesReportEventInBlock(blockHash: string): Promise<Result | undefined> {
-    const strikesDataUpdatedEvent = this.contract.interface.getEvent('StrikesDataUpdated');
-    const logs = await this.execution.provider.getLogs({
-      blockHash,
-      address: this.contract.address,
-      topics: [this.contract.interface.getEventTopic(strikesDataUpdatedEvent)],
-    });
-    if (logs.length == 0) return undefined;
-    if (logs.length > 1) {
-      throw new Error(
-        `Unexpected count (${logs.length}) of ${strikesDataUpdatedEvent.name} event in the block. Should be only 1`,
-      );
-    }
-    this.logger.log(`🎳 ${strikesDataUpdatedEvent.name} event was found in the block`);
-    return this.contract.interface.decodeEventLog(strikesDataUpdatedEvent, logs[0].data);
-  }
-
   public async getExitPenaltiesAddress(): Promise<string> {
     return await this.contract.EXIT_PENALTIES();
+  }
+
+  public async getTreeCid(blockTag: BlockTag): Promise<string> {
+    return await this.contract.treeCid({ blockTag });
+  }
+
+  public async getTreeRoot(blockTag: BlockTag): Promise<string> {
+    return await this.contract.treeRoot({ blockTag });
   }
 }

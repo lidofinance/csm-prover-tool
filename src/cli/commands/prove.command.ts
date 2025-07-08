@@ -18,7 +18,7 @@ type ProofOptions = {
   nodeOperatorId: string;
   keyIndex: string;
   validatorIndex: string;
-  block: string;
+  clBlock: string;
 };
 
 @Command({
@@ -53,16 +53,17 @@ export class ProveCommand extends CommandRunner {
       this.logger.debug!(`Validator public key: ${this.pubkey}`);
       const header = await this.consensus.getBeaconHeader('finalized');
       this.logger.debug!(`Finalized slot [${header.header.message.slot}]. Root [${header.root}]`);
-      const { root: blockRootToProcess } = await this.consensus.getBeaconHeader(this.options.block);
-      const blockInfoToProcess = await this.consensus.getBlockInfo(this.options.block);
-      this.logger.debug!(`Block to process [${this.options.block}]`);
+      const { root: blockRootToProcess } = await this.consensus.getBeaconHeader(this.options.clBlock);
+      const blockInfoToProcess = await this.consensus.getBlockInfo(this.options.clBlock);
+      this.logger.debug!(`Block to process [${this.options.clBlock}]`);
 
       switch (inputs[0]) {
         case 'withdrawal':
           await this.prover.handleWithdrawalsInBlock(blockRootToProcess, blockInfoToProcess, header, this.keyInfoFn);
           break;
         case 'bad_performer':
-          await this.prover.handleBadPerformersInOracleReport(blockInfoToProcess, this.fullKeyInfoFn);
+          const headHeader = await this.consensus.getBeaconHeader('head');
+          await this.prover.handleBadPerformers(headHeader, this.fullKeyInfoFn);
           break;
       }
     } catch (e) {
@@ -96,8 +97,7 @@ export class ProveCommand extends CommandRunner {
 
   @Option({
     flags: '--cl-block <clBlock>',
-    description:
-      'Block from the Consensus Layer with validator withdrawal or strikes report (StrikesDataUpdated event). Might be a block root or a slot number',
+    description: 'Block from the Consensus Layer with validator withdrawal. Might be a block root or a slot number',
   })
   parseClBlock(val: string) {
     return validateClBlock(val);

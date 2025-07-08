@@ -6,6 +6,7 @@ import { Csm, Csm__factory } from './types';
 import { ConfigService } from '../config/config.service';
 import { KeyInfo } from '../prover/types';
 import { Execution } from '../providers/execution/execution';
+import { BlockTag } from '@ethersproject/abstract-provider';
 
 @Injectable()
 export class CsmContract {
@@ -32,8 +33,8 @@ export class CsmContract {
     }
   }
 
-  public async isWithdrawalProved(keyInfo: KeyInfo): Promise<boolean> {
-    return await this.contract.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex);
+  public async isWithdrawalProved(blockTag: BlockTag, keyInfo: KeyInfo): Promise<boolean> {
+    return await this.contract.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex, { blockTag });
   }
 
   public async getNodeOperatorKey(nodeOperatorId: string | number, keyIndex: string | number): Promise<string> {

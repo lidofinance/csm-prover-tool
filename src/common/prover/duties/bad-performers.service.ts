@@ -14,7 +14,6 @@ import { toHex } from '../../helpers/proofs';
 import { Consensus, SupportedBlock } from '../../providers/consensus/consensus';
 import { Execution } from '../../providers/execution/execution';
 import { Ipfs } from '../../providers/ipfs/ipfs';
-import { WorkersService } from '../../workers/workers.service';
 import { FullKeyInfo, FullKeyInfoByPubKeyFn } from '../types';
 
 export type InvolvedKeysWithBadPerformance = (FullKeyInfo & { leafIndex: number; strikesData: number[] })[];
@@ -24,7 +23,6 @@ export class BadPerformersService {
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
     protected readonly config: ConfigService,
-    protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
     protected readonly execution: Execution,
     protected readonly ipfs: Ipfs,
@@ -36,10 +34,11 @@ export class BadPerformersService {
   ) {}
 
   private isV2Initialized = false;
-  private strikesTree: StandardMerkleTree<[number, string, number[]]> | undefined;
+  private currentStrikesTree: StandardMerkleTree<[number, string, number[]]> | undefined;
+  private lastProcessedStrikesTreeRoot: string | undefined;
 
-  public async getUnprovenNonExitedBadPerformers(
-    blockInfo: SupportedBlock,
+  public async getUnprovenNonWithdrawnBadPerformers(
+    headBlockInfo: SupportedBlock,
     fullKeyInfoFn: FullKeyInfoByPubKeyFn,
   ): Promise<InvolvedKeysWithBadPerformance> {
     //
@@ -48,31 +47,31 @@ export class BadPerformersService {
     if (csmVersion == 1) return [];
     if (!this.isV2Initialized) await this.initV2();
     //
-    //
-    this.strikesTree = await this.getStrikesTree(blockInfo);
-    if (!this.strikesTree) return [];
-    const badPerfKeys = await this.getBadPerformersKeys(fullKeyInfoFn);
+    this.currentStrikesTree = await this.getStrikesTree(headBlockInfo);
+    if (!this.currentStrikesTree) return [];
+    const badPerfKeys = await this.getBadPerformersKeys(headBlockInfo, fullKeyInfoFn);
     if (!badPerfKeys) return [];
-    const unproven = await this.getUnprovenKeys(badPerfKeys);
+    const unproven = await this.getUnprovenKeys(headBlockInfo, badPerfKeys);
     if (!unproven) return [];
-    const unprovenNonExited = await this.getNonExitedKeys(unproven);
-    if (!unprovenNonExited) return [];
-    return unprovenNonExited;
+    const unprovenNonWithdrawn = await this.getNonWithdrawnKeys(headBlockInfo, unproven);
+    if (!unprovenNonWithdrawn) return [];
+    return unprovenNonWithdrawn;
   }
 
   public async sendBadPerformanceProofs(badPerformers: InvolvedKeysWithBadPerformance): Promise<number> {
-    if (badPerformers.length == 0) return 0;
-
-    if (!this.strikesTree) {
+    if (!this.currentStrikesTree) {
       throw new Error('Strikes Tree should be initialized before sending bad performance proofs');
     }
 
     const keysMaxBatchSize = this.config.get('TX_STRIKES_PAYLOAD_MAX_BATCH_SIZE');
 
     const batchCount = Math.ceil(badPerformers.length / keysMaxBatchSize);
-    this.logger.log(
-      `Preparing payloads for ${badPerformers.length} validators in ${batchCount} batches by ${keysMaxBatchSize} max keys each`,
-    );
+
+    if (batchCount > 0) {
+      this.logger.log(
+        `Preparing payloads for ${badPerformers.length} validators in ${batchCount} batches by ${keysMaxBatchSize} max keys each`,
+      );
+    }
 
     badPerformers.sort((a, b) => b.leafIndex - a.leafIndex);
     // TODO: refactor. unreadable cycle
@@ -80,7 +79,7 @@ export class BadPerformersService {
       const batch = badPerformers.slice(i, i + keysMaxBatchSize);
 
       const leavesIndices = batch.map((key) => key.leafIndex);
-      const multiProof = this.strikesTree.getMultiProof(leavesIndices);
+      const multiProof = this.currentStrikesTree.getMultiProof(leavesIndices);
 
       // Build payloads by `multiProof.leaves` sorting
       const keyStrikesList: ICSStrikes.KeyStrikesStruct[] = multiProof.leaves.map((leaf) => {
@@ -104,42 +103,59 @@ export class BadPerformersService {
         proofFlags: multiProof.proofFlags,
       });
     }
+
+    this.lastProcessedStrikesTreeRoot = this.currentStrikesTree.root;
     return badPerformers.length;
   }
 
   private async getStrikesTree(
-    blockInfo: SupportedBlock,
+    headBlockInfo: SupportedBlock,
   ): Promise<StandardMerkleTree<[number, string, number[]]> | undefined> {
-    const blockHash = toHex(blockInfo.body.executionPayload.blockHash);
-    // TODO: mb just fetch treeRoot value from the block? and if updated then fetch the tree?
-    const event = await this.strikes.findStrikesReportEventInBlock(blockHash);
-    if (!event) {
-      this.logger.log(`No Strikes Report event found in block ${blockHash}`);
+    const latestBlockHash = toHex(headBlockInfo.body.executionPayload.blockHash);
+    const treeRoot = await this.strikes.getTreeRoot(latestBlockHash);
+    const treeCid = await this.strikes.getTreeCid(latestBlockHash);
+    if (!treeCid || treeCid == '0x') {
+      this.logger.log('No Strikes Tree CID found in latest block');
       return undefined;
     }
 
-    const treeData = await this.ipfs.get(event.treeCid);
-    const tree = StandardMerkleTree.load<[number, string, number[]]>(treeData);
-    if (tree.root != event.treeRoot) {
-      throw new Error(`Unexpected Tree root from Tree CID ${event.treeCid}`);
+    if (this.currentStrikesTree && this.currentStrikesTree.root == treeRoot) {
+      this.logger.log(`Strikes Tree already loaded with root ${this.currentStrikesTree.root}`);
+      if (this.lastProcessedStrikesTreeRoot == treeRoot) {
+        this.logger.log('Strikes Tree already processed. No need to process again');
+        return undefined;
+      }
+      return this.currentStrikesTree;
     }
-    this.logger.log(`Strikes Tree loaded from IPFS: ${event.treeCid} with root ${tree.root}`);
+
+    const treeData = await this.ipfs.get(treeCid);
+    const tree = StandardMerkleTree.load<[number, string, number[]]>(treeData);
+    if (tree.root != treeRoot) {
+      throw new Error(`Unexpected Tree root from Tree CID ${treeCid}`);
+    }
+    this.logger.log(`🌲 Strikes Tree loaded from IPFS: ${treeCid} with root ${tree.root}`);
     return tree;
   }
 
   private async getBadPerformersKeys(
+    headBlockInfo: SupportedBlock,
     fullKeyInfoFn: FullKeyInfoByPubKeyFn,
   ): Promise<InvolvedKeysWithBadPerformance | undefined> {
-    if (!this.strikesTree) {
+    if (!this.currentStrikesTree) {
       throw new Error('Strikes Tree should be initialized');
     }
+    const latestBlockHash = toHex(headBlockInfo.body.executionPayload.blockHash);
     const badPerfKeys: InvolvedKeysWithBadPerformance = [];
 
-    for (const [i, leaf] of this.strikesTree.entries()) {
+    this.logger.log(`All keys in the Strikes Tree: ${this.currentStrikesTree.length}`);
+
+    this.logger.log('🔍 Searching for keys above the strikes threshold in the Strikes Tree');
+
+    for (const [i, leaf] of this.currentStrikesTree.entries()) {
       const [nodeOperatorId, pubKey, strikesData] = leaf;
 
       const strikesSum = strikesData.reduce((acc, val) => acc + val, 0);
-      const threshold = await this.getStrikesThreshold(nodeOperatorId);
+      const threshold = await this.getStrikesThreshold(latestBlockHash, nodeOperatorId);
       if (strikesSum < threshold) continue;
 
       const fullKeyInfo = fullKeyInfoFn(pubKey);
@@ -163,58 +179,68 @@ export class BadPerformersService {
       });
     }
     if (Object.keys(badPerfKeys).length == 0) {
-      this.logger.log('No bad performers in the Strikes Tree yet');
+      this.logger.log('No keys found with strikes above the threshold');
       return undefined;
     }
-    this.logger.log(`🔍 Bad performers keys: ${badPerfKeys.length}`);
+    this.logger.log(`🔍 Keys with strikes above the threshold: ${badPerfKeys.length}`);
     return badPerfKeys;
   }
 
   private async getUnprovenKeys(
-    ejectableKeys: InvolvedKeysWithBadPerformance,
+    headBlockInfo: SupportedBlock,
+    keys: InvolvedKeysWithBadPerformance,
   ): Promise<InvolvedKeysWithBadPerformance | undefined> {
+    const latestBlockHash = toHex(headBlockInfo.body.executionPayload.blockHash);
     const unproven: InvolvedKeysWithBadPerformance = [];
-    for (const ejectableKey of ejectableKeys) {
-      const proved = await this.exitPenalties.isEjectionProved(ejectableKey);
+
+    this.logger.log('🔍 Searching for unproven bad performers');
+
+    for (const key of keys) {
+      const proved = await this.exitPenalties.isEjectionProved(latestBlockHash, key);
       if (proved) {
-        this.logger.warn(`Validator ${ejectableKey.validatorIndex} already proved as a bad performer`);
+        this.logger.warn(`Validator ${key.validatorIndex} already proven as a bad performer`);
         continue;
       }
-      unproven.push(ejectableKey);
+      unproven.push(key);
     }
     if (unproven.length == 0) {
-      this.logger.log('All eligible to ejection keys are already proved as bad performers');
+      this.logger.log('All keys are already proven as bad performers');
       return undefined;
     }
     this.logger.log(`🔍 Unproven bad performers: ${unproven.length}`);
     return unproven;
   }
 
-  private async getNonExitedKeys(
-    unproven: InvolvedKeysWithBadPerformance,
+  private async getNonWithdrawnKeys(
+    headBlockInfo: SupportedBlock,
+    keys: InvolvedKeysWithBadPerformance,
   ): Promise<InvolvedKeysWithBadPerformance | undefined> {
-    const unprovenNonExited: InvolvedKeysWithBadPerformance = [];
-    const state = await this.consensus.getState('finalized');
-    const valExitEpochs: number[] = await this.workers.getValidatorExitEpochs({ state });
-    for (const unprovenKey of unproven) {
-      const valExitEpoch = valExitEpochs[unprovenKey.validatorIndex];
-      if (valExitEpoch != Infinity) {
-        this.logger.warn(`Validator ${unprovenKey.validatorIndex} already exited. No need to prove as a bad performer`);
+    const latestBlockHash = toHex(headBlockInfo.body.executionPayload.blockHash);
+    const nonWithdrawn: InvolvedKeysWithBadPerformance = [];
+
+    this.logger.log('🔍 Searching for non-withdrawn bad performers');
+
+    for (const key of keys) {
+      const withdrawalProved = await this.csm.isWithdrawalProved(latestBlockHash, key);
+      if (withdrawalProved) {
+        this.logger.warn(
+          `Validator ${key.validatorIndex} already reported as withdrawn. No need to prove as a bad performer`,
+        );
         continue;
       }
-      unprovenNonExited.push(unprovenKey);
+      nonWithdrawn.push(key);
     }
-    if (unprovenNonExited.length == 0) {
-      this.logger.log('All unproven bad performers are already exited');
+    if (nonWithdrawn.length == 0) {
+      this.logger.log('All bad performers are already reported as withdrawn');
       return undefined;
     }
-    this.logger.log(`🔍 Unproven non-exited bad performers: ${unprovenNonExited.length}`);
-    return unprovenNonExited;
+    this.logger.log(`🔍 Non-withdrawn bad performers: ${nonWithdrawn.length}`);
+    return nonWithdrawn;
   }
 
-  private async getStrikesThreshold(nodeOperatorId: number): Promise<number> {
-    const curveId = await this.accounting.getBondCurveId('latest', nodeOperatorId);
-    const strikeParams = await this.params.getStrikeParams('latest', curveId);
+  private async getStrikesThreshold(blockHash: string, nodeOperatorId: number): Promise<number> {
+    const curveId = await this.accounting.getBondCurveId(blockHash, nodeOperatorId);
+    const strikeParams = await this.params.getStrikeParams(blockHash, curveId);
     return strikeParams.threshold;
   }
 
