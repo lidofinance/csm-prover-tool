@@ -35,6 +35,7 @@ export class BadPerformersService {
 
   private isV2Initialized = false;
   private currentStrikesTree: StandardMerkleTree<[number, string, number[]]> | undefined;
+  private currentStrikesThresholdsByCurveId: Map<number, number> = new Map();
   private lastProcessedStrikesTreeRoot: string | undefined;
 
   public async getUnprovenNonWithdrawnBadPerformers(
@@ -47,8 +48,14 @@ export class BadPerformersService {
     if (csmVersion == 1) return [];
     if (!this.isV2Initialized) await this.initV2();
     //
-    this.currentStrikesTree = await this.getStrikesTree(headBlockInfo);
-    if (!this.currentStrikesTree) return [];
+    const strikesTree = await this.getStrikesTree(headBlockInfo);
+    if (!strikesTree) return [];
+    const thresholds = await this.getStrikesThresholds(headBlockInfo);
+    if (this.isStrikesTreeAlreadyProcessed(strikesTree.root)) {
+      if (!this.isAnyStrikesThresholdChanged(thresholds)) return [];
+    }
+    this.currentStrikesTree = strikesTree;
+    this.currentStrikesThresholdsByCurveId = thresholds;
     const badPerfKeys = await this.getBadPerformersKeys(headBlockInfo, fullKeyInfoFn);
     if (!badPerfKeys) return [];
     const unproven = await this.getUnprovenKeys(headBlockInfo, badPerfKeys);
@@ -74,38 +81,60 @@ export class BadPerformersService {
     }
 
     badPerformers.sort((a, b) => b.leafIndex - a.leafIndex);
-    // TODO: refactor. unreadable cycle
-    for (let i = 0; i < badPerformers.length; i += keysMaxBatchSize) {
-      const batch = badPerformers.slice(i, i + keysMaxBatchSize);
 
-      const leavesIndices = batch.map((key) => key.leafIndex);
-      const multiProof = this.currentStrikesTree.getMultiProof(leavesIndices);
-
-      // Build payloads by `multiProof.leaves` sorting
-      const keyStrikesList: ICSStrikes.KeyStrikesStruct[] = multiProof.leaves.map((leaf) => {
-        const [nodeOperatorId, pubKey, data] = leaf;
-        const keyInfo = batch.find((key) => key.pubKey === pubKey);
-        if (!keyInfo) {
-          throw new Error(`Key info not found for pubkey ${pubKey} in the batch but it should be there`);
-        }
-        return {
-          nodeOperatorId,
-          keyIndex: keyInfo.keyIndex,
-          data,
-        };
-      });
-
-      const validatorIndices = batch.map((key) => key.validatorIndex).join(', ');
-      this.logger.log(`📡 Sending bad performer multi-proof payload for batch of validators: ${validatorIndices}`);
-      await this.strikes.sendBadPerformanceProof({
-        keyStrikesList,
-        proof: multiProof.proof,
-        proofFlags: multiProof.proofFlags,
-      });
-    }
+    await this.processBadPerformerBatches(badPerformers, keysMaxBatchSize);
 
     this.lastProcessedStrikesTreeRoot = this.currentStrikesTree.root;
     return badPerformers.length;
+  }
+
+  private async processBadPerformerBatches(
+    badPerformers: InvolvedKeysWithBadPerformance,
+    keysMaxBatchSize: number,
+  ): Promise<void> {
+    for (let i = 0; i < badPerformers.length; i += keysMaxBatchSize) {
+      const batch = badPerformers.slice(i, i + keysMaxBatchSize);
+      await this.processBatch(batch);
+    }
+  }
+
+  private async processBatch(batch: InvolvedKeysWithBadPerformance): Promise<void> {
+    if (!this.currentStrikesTree) {
+      throw new Error('Strikes Tree should be initialized before processing batches');
+    }
+
+    const leavesIndices = batch.map((key) => key.leafIndex);
+    const multiProof = this.currentStrikesTree.getMultiProof(leavesIndices);
+    const keyStrikesList = this.buildKeyStrikesPayload(multiProof.leaves, batch);
+
+    const validatorIndices = batch.map((key) => key.validatorIndex).join(', ');
+    this.logger.log(`📡 Sending bad performer multi-proof payload for batch of validators: ${validatorIndices}`);
+
+    await this.strikes.sendBadPerformanceProof({
+      keyStrikesList,
+      proof: multiProof.proof,
+      proofFlags: multiProof.proofFlags,
+    });
+  }
+
+  private buildKeyStrikesPayload(
+    leaves: [number, string, number[]][],
+    batch: InvolvedKeysWithBadPerformance,
+  ): ICSStrikes.KeyStrikesStruct[] {
+    return leaves.map((leaf) => {
+      const [nodeOperatorId, pubKey, data] = leaf;
+      const keyInfo = batch.find((key) => key.pubKey === pubKey);
+
+      if (!keyInfo) {
+        throw new Error(`Key info not found for pubkey ${pubKey} in the batch but it should be there`);
+      }
+
+      return {
+        nodeOperatorId,
+        keyIndex: keyInfo.keyIndex,
+        data,
+      };
+    });
   }
 
   private async getStrikesTree(
@@ -121,10 +150,6 @@ export class BadPerformersService {
 
     if (this.currentStrikesTree && this.currentStrikesTree.root == treeRoot) {
       this.logger.log(`Strikes Tree already loaded with root ${this.currentStrikesTree.root}`);
-      if (this.lastProcessedStrikesTreeRoot == treeRoot) {
-        this.logger.log('Strikes Tree already processed. No need to process again');
-        return undefined;
-      }
       return this.currentStrikesTree;
     }
 
@@ -135,6 +160,27 @@ export class BadPerformersService {
     }
     this.logger.log(`🌲 Strikes Tree loaded from IPFS: ${treeCid} with root ${tree.root}`);
     return tree;
+  }
+
+  private isStrikesTreeAlreadyProcessed(strikesTreeRoot: string): boolean {
+    const isRootAlreadyProcessed = this.lastProcessedStrikesTreeRoot == strikesTreeRoot;
+    if (isRootAlreadyProcessed) {
+      this.logger.log('Strikes Tree already processed. No need to process again');
+      return true;
+    }
+    return false;
+  }
+
+  private isAnyStrikesThresholdChanged(thresholds: Map<number, number>): boolean {
+    for (const [curveId, threshold] of thresholds.entries()) {
+      const currentThreshold = this.currentStrikesThresholdsByCurveId.get(curveId);
+      if (currentThreshold !== threshold) {
+        this.logger.log(`Strikes threshold for curve ID ${curveId} changed from ${currentThreshold} to ${threshold}`);
+        return true;
+      }
+    }
+    this.logger.log('No strikes thresholds changed since last processing');
+    return false;
   }
 
   private async getBadPerformersKeys(
@@ -155,7 +201,7 @@ export class BadPerformersService {
       const [nodeOperatorId, pubKey, strikesData] = leaf;
 
       const strikesSum = strikesData.reduce((acc, val) => acc + val, 0);
-      const threshold = await this.getStrikesThreshold(latestBlockHash, nodeOperatorId);
+      const threshold = await this.getStrikesThresholdByNodeOperatorId(latestBlockHash, nodeOperatorId);
       if (strikesSum < threshold) continue;
 
       const fullKeyInfo = fullKeyInfoFn(pubKey);
@@ -238,10 +284,27 @@ export class BadPerformersService {
     return nonWithdrawn;
   }
 
-  private async getStrikesThreshold(blockHash: string, nodeOperatorId: number): Promise<number> {
+  private async getStrikesThresholds(headBlockInfo: SupportedBlock): Promise<Map<number, number>> {
+    const latestBlockHash = toHex(headBlockInfo.body.executionPayload.blockHash);
+    const thresholds = new Map<number, number>();
+
+    const curvesCount = await this.accounting.getCurvesCount(latestBlockHash);
+    for (let curveId = 0; curveId < curvesCount; curveId++) {
+      const params = await this.params.getStrikeParams(latestBlockHash, curveId);
+      thresholds.set(curveId, params.threshold);
+    }
+    return thresholds;
+  }
+
+  private async getStrikesThresholdByNodeOperatorId(blockHash: string, nodeOperatorId: number): Promise<number> {
     const curveId = await this.accounting.getBondCurveId(blockHash, nodeOperatorId);
-    const strikeParams = await this.params.getStrikeParams(blockHash, curveId);
-    return strikeParams.threshold;
+    const threshold = this.currentStrikesThresholdsByCurveId.get(curveId);
+    if (threshold === undefined) {
+      throw new Error(
+        `Strikes threshold for Node Operator ID ${nodeOperatorId} (Curve ID ${curveId}) not found in the cache`,
+      );
+    }
+    return threshold;
   }
 
   private async initV2() {
