@@ -1,3 +1,4 @@
+import { BlockTag } from '@ethersproject/abstract-provider';
 import { FetchError } from '@lido-nestjs/execution';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
@@ -6,7 +7,6 @@ import { Csm, Csm__factory } from './types';
 import { ConfigService } from '../config/config.service';
 import { KeyInfo } from '../prover/types';
 import { Execution } from '../providers/execution/execution';
-import { BlockTag } from '@ethersproject/abstract-provider';
 
 @Injectable()
 export class CsmContract {

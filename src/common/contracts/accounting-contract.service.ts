@@ -1,3 +1,4 @@
+import { BlockTag } from '@ethersproject/abstract-provider';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { LRUCache } from 'lru-cache';
 
@@ -5,7 +6,6 @@ import { CsmContract } from './csm-contract.service';
 import { Accounting, Accounting__factory } from './types';
 import { ConfigService } from '../config/config.service';
 import { Execution } from '../providers/execution/execution';
-import { BlockTag } from '@ethersproject/abstract-provider';
 
 @Injectable()
 export class AccountingContract implements OnModuleInit {

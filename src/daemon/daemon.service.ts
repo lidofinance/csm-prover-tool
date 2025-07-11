@@ -1,5 +1,6 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService, OnModuleInit } from '@nestjs/common';
+
 import * as buildInfo from 'build-info';
 
 import { KeysIndexer } from './services/keys-indexer';
@@ -16,7 +17,6 @@ import { SingletonTask } from '../common/utils/singleton-task.decorator';
 
 @Injectable()
 export class DaemonService implements OnModuleInit {
-
   private lastFinalizedHeader: BlockHeaderResponse | null = null;
 
   constructor(

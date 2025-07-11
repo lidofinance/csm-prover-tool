@@ -1,3 +1,4 @@
+import { BlockTag } from '@ethersproject/abstract-provider';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 import { LRUCache } from 'lru-cache';
@@ -6,7 +7,6 @@ import { CsmContract } from './csm-contract.service';
 import { ParametersRegistry, ParametersRegistry__factory } from './types';
 import { ConfigService } from '../config/config.service';
 import { Execution } from '../providers/execution/execution';
-import { BlockTag } from '@ethersproject/abstract-provider';
 
 @Injectable()
 export class ParametersRegistryContract {
