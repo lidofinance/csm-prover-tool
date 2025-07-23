@@ -1,5 +1,4 @@
 import { BlockTag } from '@ethersproject/abstract-provider';
-import { FetchError } from '@lido-nestjs/execution';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
@@ -26,7 +25,7 @@ export class CsmContract {
     try {
       return (await this.contract.getInitializedVersion()).toNumber();
     } catch (e) {
-      if (e.error instanceof FetchError) {
+      if (e.code === 'CALL_EXCEPTION') {
         return 1;
       }
       throw e;
