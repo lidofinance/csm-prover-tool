@@ -51,8 +51,8 @@ export class BadPerformersService {
     const strikesTree = await this.getStrikesTree(headBlockInfo);
     if (!strikesTree) return [];
     const thresholds = await this.getStrikesThresholds(headBlockInfo);
-    if (this.isStrikesTreeAlreadyProcessed(strikesTree.root)) {
-      if (!this.isAnyStrikesThresholdChanged(thresholds)) return [];
+    if (this.isStrikesTreeAlreadyProcessed(strikesTree.root) && !this.isAnyStrikesThresholdChanged(thresholds)) {
+      return [];
     }
     this.currentStrikesTree = strikesTree;
     this.currentStrikesThresholdsByCurveId = thresholds;
@@ -66,6 +66,8 @@ export class BadPerformersService {
   }
 
   public async sendBadPerformanceProofs(badPerformers: InvolvedKeysWithBadPerformance): Promise<number> {
+    if (!Object.keys(badPerformers).length) return 0;
+
     if (!this.currentStrikesTree) {
       throw new Error('Strikes Tree should be initialized before sending bad performance proofs');
     }
@@ -74,11 +76,9 @@ export class BadPerformersService {
 
     const batchCount = Math.ceil(badPerformers.length / keysMaxBatchSize);
 
-    if (batchCount > 0) {
-      this.logger.log(
-        `Preparing payloads for ${badPerformers.length} validators in ${batchCount} batches by ${keysMaxBatchSize} max keys each`,
-      );
-    }
+    this.logger.log(
+      `Preparing payloads for ${badPerformers.length} validators in ${batchCount} batches by ${keysMaxBatchSize} max keys each`,
+    );
 
     badPerformers.sort((a, b) => b.leafIndex - a.leafIndex);
 

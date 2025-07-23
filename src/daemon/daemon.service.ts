@@ -58,11 +58,13 @@ export class DaemonService implements OnModuleInit {
     const finalizedHeader = await this.consensus.getBeaconHeader('finalized');
     this.logger.log(`💎 Finalized slot [${finalizedHeader.header.message.slot}]. Root [${finalizedHeader.root}]`);
 
-    if (this.isTimeToUpdateKeysIndexer(finalizedHeader)) {
+    const isFinalizedChanged = this.isFinalizedHeaderChanged(finalizedHeader);
+
+    if (isFinalizedChanged && this.keysIndexer.isTimeToUpdate(finalizedHeader)) {
       this.updateKeysIndexer(finalizedHeader).catch((e) => this.logger.error(e));
     }
 
-    if (this.isTimeToProcessCurrentHead(finalizedHeader)) {
+    if (isFinalizedChanged) {
       this.processAnyHeadRoot().catch((e) => this.logger.error(e));
     }
 
@@ -71,20 +73,12 @@ export class DaemonService implements OnModuleInit {
       this.processNextRoot(finalizedHeader, nextRoot).catch((e) => this.logger.error(e));
     }
 
-    if (!nextRoot && !this.isFinalizedHeaderChanged(finalizedHeader)) {
+    if (!nextRoot && !isFinalizedChanged) {
       this.logger.log('💤 Wait 12s for the next finalized root');
       await sleep(12 * SECOND_MS);
     }
 
     this.lastFinalizedHeader = finalizedHeader;
-  }
-
-  private isTimeToUpdateKeysIndexer(finalizedHeader: BlockHeaderResponse): boolean {
-    return this.isFinalizedHeaderChanged(finalizedHeader) && this.keysIndexer.isTimeToUpdate(finalizedHeader);
-  }
-
-  private isTimeToProcessCurrentHead(finalizedHeader: BlockHeaderResponse): boolean {
-    return this.isFinalizedHeaderChanged(finalizedHeader);
   }
 
   private isFinalizedHeaderChanged(finalizedHeader: BlockHeaderResponse): boolean {

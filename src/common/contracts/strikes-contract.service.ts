@@ -40,9 +40,9 @@ export class StrikesContract {
     this.contract = Strikes__factory.connect(address, this.execution.provider);
   }
 
-  private async getRequestFee(requestedContract: string): Promise<bigint> {
+  private async getRequestFee(): Promise<bigint> {
     const result = await this.execution.provider.call({
-      to: requestedContract,
+      to: WITHDRAWAL_REQUEST_SYS_ADDRESS,
       data: '0x',
     });
 
@@ -61,7 +61,7 @@ export class StrikesContract {
   }
 
   public async sendBadPerformanceProof(payload: BadPerformerProofPayload): Promise<void> {
-    const singleWithdrawalFee = await this.getRequestFee(WITHDRAWAL_REQUEST_SYS_ADDRESS);
+    const singleWithdrawalFee = await this.getRequestFee();
     const withdrawalFee = BigInt(payload.keyStrikesList.length) * singleWithdrawalFee;
     this.logger.log(
       `Sending bad performance proof for ${payload.keyStrikesList.length} keys with total fee: ${utils.formatUnits(withdrawalFee, 'gwei')} Gwei`,
