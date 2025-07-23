@@ -9,14 +9,14 @@ import {
   METRIC_KEYS_INDEXER_ALL_VALIDATORS_COUNT,
   METRIC_KEYS_INDEXER_STORAGE_STATE_SLOT,
   PrometheusService,
-  TrackTask,
 } from '../../common/prometheus';
-import { KeyInfo } from '../../common/prover/types';
+import { FullKeyInfo, KeyInfo } from '../../common/prover/types';
 import { Consensus, State } from '../../common/providers/consensus/consensus';
 import { BlockHeaderResponse, RootHex, Slot } from '../../common/providers/consensus/response.interface';
 import { Keysapi } from '../../common/providers/keysapi/keysapi';
 import { Key, Module } from '../../common/providers/keysapi/response.interface';
 import { WorkersService } from '../../common/workers/workers.service';
+import sleep from '../utils/sleep';
 
 type KeysIndexerServiceInfo = {
   moduleAddress: string;
@@ -29,27 +29,11 @@ type KeysIndexerServiceStorage = {
   [valIndex: number]: KeyInfo;
 };
 
-// At one time only one task should be running
-function Single(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
-  const originalMethod = descriptor.value;
-  descriptor.value = function (...args: any[]) {
-    if (this.startedAt > 0) {
-      this.logger.warn(`🔑 Keys indexer has been running for ${Date.now() - this.startedAt}ms`);
-      return;
-    }
-    originalMethod.apply(this, args);
-  };
-  return descriptor;
-}
-
 export class ModuleNotFoundError extends Error {}
 
 @Injectable()
 export class KeysIndexer implements OnApplicationBootstrap {
   public MODULE_NOT_FOUND_NEXT_TRY_MS = 60000;
-
-  // it actually used by `Single` decorator
-  private startedAt: number = 0;
 
   private info: Low<KeysIndexerServiceInfo>;
   private storage: Low<KeysIndexerServiceStorage>;
@@ -71,28 +55,42 @@ export class KeysIndexer implements OnApplicationBootstrap {
     return this.storage.data[valIndex];
   };
 
-  @Single
-  public update(finalizedHeader: BlockHeaderResponse): void {
-    // TODO: do we have to check integrity of data here? when `this.info` says one thing and `this.storage` another
-    const slot = Number(finalizedHeader.header.message.slot);
-    if (this.isNotTimeToRun(slot)) {
-      this.logger.log('No need to run keys indexer');
-      return;
+  public getFullKeyInfoByPubKey = (pubKey: string): FullKeyInfo | undefined => {
+    for (const [validatorIndex, keyInfo] of Object.entries(this.storage.data)) {
+      if (keyInfo.pubKey === pubKey) {
+        return {
+          operatorId: keyInfo.operatorId,
+          keyIndex: keyInfo.keyIndex,
+          pubKey,
+          validatorIndex: Number(validatorIndex),
+        };
+      }
     }
+    return undefined;
+  };
+
+  public isTimeToUpdate(finalizedHeader: BlockHeaderResponse): boolean {
+    const slot = Number(finalizedHeader.header.message.slot);
+    if (this.info.data.storageStateSlot == slot) {
+      return false;
+    }
+    // TODO: do we have to check integrity of data here? when `this.info` says one thing and `this.storage` another
+    const storageTimestamp = this.consensus.slotToTimestamp(this.info.data.storageStateSlot) * 1000;
+    return this.config.get('KEYS_INDEXER_RUNNING_PERIOD_MS') < Date.now() - storageTimestamp;
+  }
+
+  public async update(finalizedHeader: BlockHeaderResponse): Promise<void> {
+    const slot = Number(finalizedHeader.header.message.slot);
     const stateRoot = finalizedHeader.header.message.state_root;
     // We shouldn't wait for task to finish
     // to avoid block processing if indexing fails or stuck
-    this.startedAt = Date.now();
-    this.baseRun(
+    await this.baseRun(
       stateRoot,
       slot,
       async (validators, finalizedSlot) => await this.updateStorage(validators, finalizedSlot),
-    )
-      .catch((e) => this.logger.error(e))
-      .finally(() => (this.startedAt = 0));
+    );
   }
 
-  @TrackTask('update-keys-indexer')
   private async baseRun(
     stateRoot: RootHex,
     finalizedSlot: Slot,
@@ -108,14 +106,6 @@ export class KeysIndexer implements OnApplicationBootstrap {
     this.info.data.lastValidatorsCount = totalValLength;
     await this.info.write();
     await this.storage.write();
-  }
-
-  public isNotTimeToRun(finalizedSlot: Slot): boolean {
-    const storageTimestamp = this.consensus.slotToTimestamp(this.info.data.storageStateSlot) * 1000;
-    return (
-      this.info.data.storageStateSlot == finalizedSlot ||
-      this.config.get('KEYS_INDEXER_RUNNING_PERIOD_MS') >= Date.now() - storageTimestamp
-    );
   }
 
   public isTrustedForAnyDuty(slotNumber: Slot): boolean {
@@ -171,10 +161,13 @@ export class KeysIndexer implements OnApplicationBootstrap {
         (m: Module) => m.stakingModuleAddress.toLowerCase() === this.info.data.moduleAddress.toLowerCase(),
       );
       if (!module) {
-        throw new ModuleNotFoundError(
+        const error = new ModuleNotFoundError(
           `Module with address ${this.info.data.moduleAddress} not found! ` +
             'Update configs if this is the wrong address. Next automatic attempt to find it will be in 1m',
         );
+        this.logger.error(error.message);
+        await sleep(this.MODULE_NOT_FOUND_NEXT_TRY_MS);
+        throw error;
       }
       this.info.data.moduleId = module.id;
       await this.info.write();
@@ -198,7 +191,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
     this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
     const keysMap = new Map<string, { operatorIndex: number; index: number }>();
     csmKeys.data.keys.forEach((k: Key) => keysMap.set(k.key, { ...k }));
-    const { totalValLength, valKeys } = await this.workers.getValidators({
+    const { totalValLength, valKeys } = await this.workers.getNewValidatorKeys({
       state,
       lastValidatorsCount: 0,
     });
@@ -219,7 +212,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
   private async updateStorage(state: State, finalizedSlot: Slot): Promise<number> {
     // TODO: should we think about re-using validator indexes?
     // TODO: should we think about changing WC for existing old vaidators ?
-    const { totalValLength, valKeys: newValKeys } = await this.workers.getValidators({
+    const { totalValLength, valKeys: newValKeys } = await this.workers.getNewValidatorKeys({
       state,
       lastValidatorsCount: this.info.data.lastValidatorsCount,
     });

@@ -5,10 +5,10 @@ import { Command, CommandRunner, InjectCommander, InquirerService, Option } from
 
 import { CsmContract } from '../../common/contracts/csm-contract.service';
 import { ProverService } from '../../common/prover/prover.service';
-import { KeyInfoFn } from '../../common/prover/types';
+import { FullKeyInfoByPubKeyFn, KeyInfoFn } from '../../common/prover/types';
 import { Consensus } from '../../common/providers/consensus/consensus';
 import {
-  validateBlock,
+  validateClBlock,
   validateKeyIndex,
   validateNodeOperatorId,
   validateValidatorIndex,
@@ -18,15 +18,16 @@ type ProofOptions = {
   nodeOperatorId: string;
   keyIndex: string;
   validatorIndex: string;
-  block: string;
+  clBlock: string;
 };
 
 @Command({
   name: 'prove',
-  description: 'Prove a withdrawal',
-  arguments: '<withdrawal>',
+  description: 'Prove a withdrawal or bad performer',
+  arguments: '<withdrawal|bad_performer>',
   argsDescription: {
     withdrawal: 'Prove a withdrawal',
+    bad_performer: 'Prove a bad performer',
   },
 })
 export class ProveCommand extends CommandRunner {
@@ -52,13 +53,17 @@ export class ProveCommand extends CommandRunner {
       this.logger.debug!(`Validator public key: ${this.pubkey}`);
       const header = await this.consensus.getBeaconHeader('finalized');
       this.logger.debug!(`Finalized slot [${header.header.message.slot}]. Root [${header.root}]`);
-      const { root: blockRootToProcess } = await this.consensus.getBeaconHeader(this.options.block);
-      const blockInfoToProcess = await this.consensus.getBlockInfo(this.options.block);
-      this.logger.debug!(`Block to process [${this.options.block}]`);
+      const { root: blockRootToProcess } = await this.consensus.getBeaconHeader(this.options.clBlock);
+      const blockInfoToProcess = await this.consensus.getBlockInfo(this.options.clBlock);
+      this.logger.debug!(`Block to process [${this.options.clBlock}]`);
 
       switch (inputs[0]) {
         case 'withdrawal':
           await this.prover.handleWithdrawalsInBlock(blockRootToProcess, blockInfoToProcess, header, this.keyInfoFn);
+          break;
+        case 'bad_performer':
+          const headHeader = await this.consensus.getBeaconHeader('head');
+          await this.prover.handleBadPerformers(headHeader, this.fullKeyInfoFn);
           break;
       }
     } catch (e) {
@@ -91,16 +96,27 @@ export class ProveCommand extends CommandRunner {
   }
 
   @Option({
-    flags: '--block <block>',
+    flags: '--cl-block <clBlock>',
     description: 'Block from the Consensus Layer with validator withdrawal. Might be a block root or a slot number',
   })
-  parseBlock(val: string) {
-    return validateBlock(val);
+  parseClBlock(val: string) {
+    return validateClBlock(val);
   }
 
   keyInfoFn: KeyInfoFn = (valIndex: number) => {
     if (valIndex === Number(this.options.validatorIndex)) {
       return {
+        operatorId: Number(this.options.nodeOperatorId),
+        keyIndex: Number(this.options.keyIndex),
+        pubKey: this.pubkey,
+      };
+    }
+  };
+
+  fullKeyInfoFn: FullKeyInfoByPubKeyFn = (pubKey: string) => {
+    if (pubKey === this.pubkey) {
+      return {
+        validatorIndex: Number(this.options.validatorIndex),
         operatorId: Number(this.options.nodeOperatorId),
         keyIndex: Number(this.options.keyIndex),
         pubKey: this.pubkey,
