@@ -1,4 +1,3 @@
-import { FetchError } from '@lido-nestjs/execution';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService, OnModuleInit } from '@nestjs/common';
 
@@ -44,7 +43,7 @@ export class VerifierContract implements OnModuleInit {
     try {
       isPaused = await this.contract.isPaused();
     } catch (e) {
-      if (e.error instanceof FetchError) {
+      if (e.code === 'CALL_EXCEPTION') {
         this.logger.warn(`CSVerifier ${address} does not support isPaused() method yet, assuming it is not paused`);
       } else {
         throw e;
