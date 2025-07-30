@@ -109,9 +109,9 @@ export class BadPerformersService {
     if (!this.currentStrikesTree) {
       throw new Error('Strikes Tree should be initialized before processing batches');
     }
+    badPerformers.sort((a, b) => b.leafIndex - a.leafIndex);
     for (let i = 0; i < badPerformers.length; i += keysMaxBatchSize) {
       const batch = badPerformers.slice(i, i + keysMaxBatchSize);
-      batch.sort((a, b) => b.leafIndex - a.leafIndex);
       const leavesIndices = batch.map((key) => key.leafIndex);
       const multiProof = this.currentStrikesTree.getMultiProof(leavesIndices);
       const keyStrikesList = this.buildKeyStrikesPayload(multiProof.leaves, batch);
