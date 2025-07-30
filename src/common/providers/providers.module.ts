@@ -1,4 +1,5 @@
 import { FallbackProviderModule, NonEmptyArray } from '@lido-nestjs/execution';
+import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Module } from '@nestjs/common';
 import { ConditionalModule } from '@nestjs/config';
 
@@ -17,6 +18,9 @@ const ExecutionDaemon = () =>
       return {
         urls: configService.get('EL_RPC_URLS') as NonEmptyArray<string>,
         network: configService.get('CHAIN_ID'),
+        maxRetries: configService.get('EL_RPC_MAX_RETRIES'),
+        minBackoffMs: configService.get('EL_RPC_RETRY_DELAY_MS'),
+        logRetries: true,
         fetchMiddlewares: [
           async (next, ctx) => {
             const targetName = new URL(ctx.provider.connection.url).hostname;
@@ -47,7 +51,7 @@ const ExecutionDaemon = () =>
         ],
       };
     },
-    inject: [ConfigService, PrometheusService],
+    inject: [ConfigService, PrometheusService, LOGGER_PROVIDER],
   });
 
 const ExecutionCli = () =>
