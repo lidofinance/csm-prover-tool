@@ -41,7 +41,7 @@ export class VerifierContract implements OnModuleInit {
 
     let isPaused = false;
     try {
-      isPaused = await this.contract.isPaused();
+      isPaused = await this.isPaused();
     } catch (e) {
       if (e.code === 'CALL_EXCEPTION') {
         this.logger.warn(`CSVerifier ${address} does not support isPaused() method yet, assuming it is not paused`);
