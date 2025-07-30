@@ -81,9 +81,11 @@ export class BadPerformersService {
 
   private async prepareStrikesTreeForProcessing(headBlockInfo: SupportedBlock): Promise<boolean> {
     // TODO: Remove after Mainnet release. Needed only for v1 -> v2 smooth transition
-    const csmVersion = await this.csm.getInitializedVersion();
-    if (csmVersion == 1) return false;
-    if (!this.isV2Initialized) await this.initV2();
+    if (!this.isV2Initialized) {
+      const csmVersion = await this.csm.getInitializedVersion();
+      if (csmVersion == 1) return false;
+      await this.initV2();
+    }
     //
     const strikesTree = await this.getStrikesTree(headBlockInfo);
     if (!strikesTree) return false;
