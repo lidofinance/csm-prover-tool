@@ -47,14 +47,20 @@ export class EnvironmentVariables {
   @IsString()
   public CSM_ADDRESS: string;
 
+  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  public VERIFIER_ADDRESS: string = '';
+  public VERIFIER_ADDRESS?: string;
 
+  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  public STRIKES_ADDRESS: string = '';
+  public STRIKES_ADDRESS?: string;
 
+  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  public EXIT_PENALTIES_ADDRESS: string = '';
+  public EXIT_PENALTIES_ADDRESS?: string;
 
   @IsNotEmpty()
   @IsString()
