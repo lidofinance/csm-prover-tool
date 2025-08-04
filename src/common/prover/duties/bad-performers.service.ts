@@ -239,7 +239,11 @@ export class BadPerformersService {
       }
 
       if (fullKeyInfo.operatorId != nodeOperatorId) {
-        throw new Error(`Unexpected Node Operator ID (${fullKeyInfo.operatorId}) for ${pubKey} pubkey`);
+        this.logger.warn(
+          `Unexpected Node Operator ID (${fullKeyInfo.operatorId}) for ${pubKey} pubkey. Expected: ${nodeOperatorId}`,
+        );
+        // TODO: should be changed back to throwing an error after fixing https://github.com/lidofinance/lido-oracle/issues/740
+        continue;
       }
 
       badPerfKeys.push({
