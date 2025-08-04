@@ -177,7 +177,7 @@ export class BadPerformersService {
   private isStrikesTreeAlreadyProcessed(strikesTreeRoot: string): boolean {
     const isRootAlreadyProcessed = this.lastProcessedStrikesTreeRoot == strikesTreeRoot;
     if (isRootAlreadyProcessed) {
-      this.logger.log('Strikes Tree already processed. No need to process again');
+      this.logger.log('Strikes Tree already processed');
       return true;
     }
     return false;

@@ -143,11 +143,6 @@ export class EnvironmentVariables {
   public EL_RPC_RETRY_DELAY_MS = 500;
 
   @IsNumber()
-  @Min(1000)
-  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public EL_RPC_RESPONSE_TIMEOUT_MS = MINUTE_MS;
-
-  @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public EL_RPC_MAX_RETRIES = 3;
 

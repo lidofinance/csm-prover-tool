@@ -117,7 +117,6 @@ So, according to the algorithm, there are the following statements:
 | DRY_RUN                                 | Dry run mode                                      | no                     | false                    |
 | EL_PRC_URLS                             | Comma-separated list of EL RPC URLs               | yes                    |                          |
 | EL_RPC_RETRY_DELAY_MS                   | Delay between EL RPC retries in milliseconds      | no                     | 500                      |
-| EL_RPC_RESPONSE_TIMEOUT_MS              | EL RPC response timeout in milliseconds           | no                     | 60_000                   |
 | EL_RPC_MAX_RETRIES                      | Maximum number of EL RPC retries                  | no                     | 3                        |
 | CL_API_URLS                             | Comma-separated list of CL API URLs               | yes                    |                          |
 | CL_API_RETRY_DELAY_MS                   | Delay between CL API retries in milliseconds      | no                     | 500                      |
