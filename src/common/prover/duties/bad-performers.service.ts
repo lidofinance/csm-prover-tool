@@ -185,7 +185,7 @@ export class BadPerformersService {
 
   private isAnyNodeOperatorCurveIdChanged(curveIds: Map<number, number>): boolean {
     for (const [nodeOperatorId, curveId] of curveIds.entries()) {
-      const currentCurveId = this.currentNodeOperatorsCurveIds.get(curveId);
+      const currentCurveId = this.currentNodeOperatorsCurveIds.get(nodeOperatorId);
       if (currentCurveId !== curveId) {
         this.logger.log(
           `Node Operator ${nodeOperatorId} get changed from Curve ID from ${currentCurveId} to ${curveId}`,
