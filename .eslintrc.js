@@ -1,7 +1,7 @@
 module.exports = {
   parser: '@typescript-eslint/parser',
   parserOptions: {
-    project: 'tsconfig.json',
+    project: ['tsconfig.base.json', 'tsconfig.json'],
     tsconfigRootDir: __dirname,
     sourceType: 'module',
   },
@@ -21,9 +21,10 @@ module.exports = {
   settings: {
     'import/resolver': {
       typescript: {
-        project: './tsconfig.json',
+        project: ['tsconfig.base.json', 'tsconfig.json'],
       },
     },
+    'import/internal-regex': '^@common/|^@cli/|^@daemon/|^@app/|^@bootstrap/',
   },
   rules: {
     '@typescript-eslint/interface-name-prefix': 'off',
@@ -48,21 +49,32 @@ module.exports = {
       'error',
       {
         groups: [
-          'builtin', // Built-in imports (come from NodeJS native) go first
-          'external', // <- External imports
-          'internal', // <- Absolute imports
-          ['sibling', 'parent'], // <- Relative imports, the sibling and parent types they can be mingled together
-          'index', // <- index imports
-          'unknown', // <- unknown
+          'builtin',
+          'external',
+          'internal',
+          ['parent', 'sibling', 'index'],
+          'unknown'
         ],
+        pathGroups: [
+          { pattern: '@common/**', group: 'internal', position: 'after' },
+          { pattern: '@cli/**', group: 'internal', position: 'after' },
+          { pattern: '@daemon/**', group: 'internal', position: 'after' },
+          { pattern: '@app/**', group: 'internal', position: 'after' },
+          { pattern: '@bootstrap/**', group: 'internal', position: 'after' }
+        ],
+        pathGroupsExcludedImportTypes: ['builtin'],
         'newlines-between': 'always',
-        alphabetize: {
-          /* sort in ascending order. Options: ["ignore", "asc", "desc"] */
-          order: 'asc',
-          /* ignore case. Options: [true, false] */
-          caseInsensitive: true,
-        },
+        alphabetize: { order: 'asc', caseInsensitive: true },
       },
+    ],
+    'prettier/prettier': ['error'],
+    '@typescript-eslint/no-unused-vars': [
+      'warn',
+      {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_'
+      }
     ],
   },
 };

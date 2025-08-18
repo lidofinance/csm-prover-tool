@@ -8,23 +8,18 @@ import { StrikesContract } from './strikes-contract.service';
 import { VerifierContract } from './verifier-contract.service';
 import { ProvidersModule } from '../providers/providers.module';
 
+const contractServices = [
+  CsmContract,
+  VerifierContract,
+  StrikesContract,
+  ExitPenaltiesContract,
+  AccountingContract,
+  ParametersRegistryContract,
+];
+
 @Module({
   imports: [ProvidersModule],
-  providers: [
-    CsmContract,
-    VerifierContract,
-    StrikesContract,
-    ExitPenaltiesContract,
-    AccountingContract,
-    ParametersRegistryContract,
-  ],
-  exports: [
-    CsmContract,
-    VerifierContract,
-    StrikesContract,
-    ExitPenaltiesContract,
-    AccountingContract,
-    ParametersRegistryContract,
-  ],
+  providers: [...contractServices],
+  exports: [...contractServices],
 })
 export class ContractsModule {}

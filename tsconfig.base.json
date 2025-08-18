@@ -1,0 +1,43 @@
+{
+    "compilerOptions": {
+        "module": "commonjs",
+        "declaration": true,
+        "removeComments": true,
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+        "allowSyntheticDefaultImports": true,
+        "target": "ESNext",
+        "sourceMap": true,
+        "outDir": "./dist",
+        "baseUrl": "./src",
+        "paths": {
+            "build-info": [
+                "../build-info.json"
+            ],
+            "@common/*": [
+                "common/*"
+            ],
+            "@cli/*": [
+                "cli/*"
+            ],
+            "@daemon/*": [
+                "daemon/*"
+            ],
+            "@app/*": [
+                "app/*"
+            ],
+            "@bootstrap/*": [
+                "bootstrap/*"
+            ]
+        },
+        "incremental": true,
+        "skipLibCheck": true,
+        "strictNullChecks": true,
+        "noImplicitAny": true,
+        "strictBindCallApply": true,
+        "forceConsistentCasingInFileNames": true,
+        "noFallthroughCasesInSwitch": true,
+        "resolveJsonModule": true,
+        "noImplicitReturns": true
+    }
+}
