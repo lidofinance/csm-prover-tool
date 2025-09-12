@@ -228,7 +228,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
     const valKeysLength = newValKeys.length;
     for (const csmKey of csmKeys.data.keys) {
       for (let i = 0; i < valKeysLength; i++) {
-        if (newValKeys[i] != csmKey.key) continue;
+        if (newValKeys[i] != csmKey.key || !csmKey.used) continue;
         const index = i + this.info.data.lastValidatorsCount;
         this.storage.data[index] = {
           operatorId: csmKey.operatorIndex,
