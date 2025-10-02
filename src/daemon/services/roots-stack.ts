@@ -2,16 +2,17 @@ import { Low } from '@huanshiwushuang/lowdb';
 import { JSONFile } from '@huanshiwushuang/lowdb/node';
 import { Injectable, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
 
-import { KeysIndexer } from './keys-indexer';
 import {
   METRIC_DATA_ACTUALITY,
   METRIC_LAST_PROCESSED_SLOT_NUMBER,
   METRIC_ROOTS_STACK_OLDEST_SLOT,
   METRIC_ROOTS_STACK_SIZE,
   PrometheusService,
-} from '../../common/prometheus';
-import { Consensus } from '../../common/providers/consensus/consensus';
-import { RootHex } from '../../common/providers/consensus/response.interface';
+} from '@common/prometheus';
+import { Consensus } from '@common/providers/consensus/consensus';
+import { RootHex } from '@common/providers/consensus/response.interface';
+
+import { KeysIndexer } from './keys-indexer';
 
 export type RootSlot = { blockRoot: RootHex; slotNumber: number };
 
@@ -46,6 +47,7 @@ export class RootsStack implements OnModuleInit, OnApplicationBootstrap {
         return { blockRoot: this.storage.data[slot], slotNumber: slot };
       }
     }
+    return undefined;
   }
 
   public async push(rs: RootSlot): Promise<void> {

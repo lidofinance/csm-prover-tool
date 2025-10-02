@@ -7,8 +7,8 @@
   "private": true,
   "license": "GPL-3.0",
   "scripts": {
-    "prove": "WORKING_MODE=cli node dist/main prove",
-    "prove:debug": "WORKING_MODE=cli node --inspect dist/main prove",
+    "prove": "WORKING_MODE=cli node -r tsconfig-paths/register dist/main prove",
+    "prove:debug": "WORKING_MODE=cli node -r tsconfig-paths/register --inspect dist/main prove",
     "withdrawal": "yarn prove withdrawal",
     "withdrawal:debug": "yarn prove:debug withdrawal",
     "bad_performer": "yarn prove bad_performer",
@@ -16,10 +16,10 @@
     "typechain": "typechain --target=ethers-v5 --out-dir src/common/contracts/types src/common/contracts/abi/*.json",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
-    "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start": "NODE_OPTIONS=\"-r tsconfig-paths/register\" nest start",
+    "start:dev": "NODE_OPTIONS=\"-r tsconfig-paths/register\" nest start --watch",
+    "start:debug": "NODE_OPTIONS=\"-r tsconfig-paths/register\" nest start --debug --watch",
+    "start:prod": "node -r tsconfig-paths/register dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "lint:fix": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
@@ -97,6 +97,13 @@
       "ts"
     ],
     "rootDir": "src",
+    "moduleNameMapper": {
+      "^@common/(.*)$": "<rootDir>/common/$1",
+      "^@cli/(.*)$": "<rootDir>/cli/$1",
+      "^@daemon/(.*)$": "<rootDir>/daemon/$1",
+      "^@app/(.*)$": "<rootDir>/app/$1",
+      "^@bootstrap/(.*)$": "<rootDir>/bootstrap/$1"
+    },
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s?$": [

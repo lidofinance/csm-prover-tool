@@ -1,8 +1,7 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
-import { CsmContract } from '../../contracts/csm-contract.service';
-import { VerifierContract } from '../../contracts/verifier-contract.service';
+import { CsmContract, VerifierContract } from '../../contracts';
 import { Consensus, State, SupportedBlock, SupportedWithdrawal } from '../../providers/consensus/consensus';
 import { BlockHeaderResponse, RootHex } from '../../providers/consensus/response.interface';
 import { WorkersService } from '../../workers/workers.service';

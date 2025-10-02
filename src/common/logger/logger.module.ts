@@ -1,14 +1,13 @@
 import { LoggerModule as Logger, jsonTransport, simpleTransport } from '@lido-nestjs/logger';
 import { Module } from '@nestjs/common';
 
-import { ConfigModule } from '../config/config.module';
 import { ConfigService } from '../config/config.service';
 import { LogFormat } from '../config/interfaces';
 
 @Module({
   imports: [
     Logger.forRootAsync({
-      imports: [ConfigModule],
+      // ConfigModule is global, no need to import explicitly
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => {
         const { secrets } = configService;

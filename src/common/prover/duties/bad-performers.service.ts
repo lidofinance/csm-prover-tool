@@ -4,11 +4,13 @@ import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 
 import { ConfigService } from '../../config/config.service';
 import { WorkingMode } from '../../config/env.validation';
-import { AccountingContract } from '../../contracts/accounting-contract.service';
-import { CsmContract } from '../../contracts/csm-contract.service';
-import { ExitPenaltiesContract } from '../../contracts/exit-penalties-contract.service';
-import { ParametersRegistryContract } from '../../contracts/parameters-registry-contract.service';
-import { StrikesContract } from '../../contracts/strikes-contract.service';
+import {
+  AccountingContract,
+  CsmContract,
+  ExitPenaltiesContract,
+  ParametersRegistryContract,
+  StrikesContract,
+} from '../../contracts';
 import { ICSStrikes } from '../../contracts/types/Strikes';
 import { toHex } from '../../helpers/proofs';
 import { Consensus, SupportedBlock } from '../../providers/consensus/consensus';

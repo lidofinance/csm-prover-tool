@@ -3,10 +3,11 @@ import { Inject, LoggerService } from '@nestjs/common';
 import { Command as Commander } from 'commander';
 import { Command, CommandRunner, InjectCommander, InquirerService, Option } from 'nest-commander';
 
-import { CsmContract } from '../../common/contracts/csm-contract.service';
-import { ProverService } from '../../common/prover/prover.service';
-import { FullKeyInfoByPubKeyFn, KeyInfoFn } from '../../common/prover/types';
-import { Consensus } from '../../common/providers/consensus/consensus';
+import { CsmContract } from '@common/contracts';
+import { ProverService } from '@common/prover/prover.service';
+import { FullKeyInfoByPubKeyFn, KeyInfoFn } from '@common/prover/types';
+import { Consensus } from '@common/providers/consensus/consensus';
+
 import {
   validateClBlock,
   validateKeyIndex,
@@ -111,6 +112,7 @@ export class ProveCommand extends CommandRunner {
         pubKey: this.pubkey,
       };
     }
+    return undefined;
   };
 
   fullKeyInfoFn: FullKeyInfoByPubKeyFn = (pubKey: string) => {
@@ -122,5 +124,6 @@ export class ProveCommand extends CommandRunner {
         pubKey: this.pubkey,
       };
     }
+    return undefined;
   };
 }
