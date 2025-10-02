@@ -131,8 +131,6 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
           stateRoot: headerWithWds.header.message.state_root,
           bodyRoot: headerWithWds.header.message.body_root,
         },
-        // NOTE: the last byte can be changed due to `CSVerifier` implementation in the future
-        rootGIndex: '0x' + (historicalStateProof.gindex.toString(16) + '00').padStart(64, '0'),
         proof: historicalStateProof.witnesses.map(toHex),
       },
       witness: {

@@ -28,8 +28,9 @@ export enum WorkingMode {
   CLI = 'cli',
 }
 
-const MINUTE = 60 * 1000;
-const HOUR = 60 * MINUTE;
+export const SECOND_MS = 1000;
+export const MINUTE_MS = 60 * SECOND_MS;
+export const HOUR_MS = 60 * MINUTE_MS;
 
 export class EnvironmentVariables {
   @IsEnum(Environment)
@@ -46,9 +47,20 @@ export class EnvironmentVariables {
   @IsString()
   public CSM_ADDRESS: string;
 
+  @IsOptional()
   @IsNotEmpty()
   @IsString()
-  public VERIFIER_ADDRESS: string;
+  public VERIFIER_ADDRESS?: string;
+
+  @IsOptional()
+  @IsNotEmpty()
+  @IsString()
+  public STRIKES_ADDRESS?: string;
+
+  @IsOptional()
+  @IsNotEmpty()
+  @IsString()
+  public EXIT_PENALTIES_ADDRESS?: string;
 
   @IsNotEmpty()
   @IsString()
@@ -79,25 +91,25 @@ export class EnvironmentVariables {
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public TX_GAS_LIMIT = 1_000_000;
+  public TX_GAS_LIMIT = 2_000_000;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public TX_MINING_WAITING_TIMEOUT_MS = HOUR;
+  public TX_MINING_WAITING_TIMEOUT_MS = HOUR_MS;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public TX_CONFIRMATIONS = 1;
 
   @IsNumber()
-  @Min(30 * MINUTE)
+  @Min(30 * MINUTE_MS)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public KEYS_INDEXER_RUNNING_PERIOD_MS: number = 3 * HOUR;
+  public KEYS_INDEXER_RUNNING_PERIOD_MS: number = 3 * HOUR_MS;
 
   @IsNumber()
   @Min(384000) // epoch time in ms
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS: number = 8 * HOUR;
+  public KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS: number = 8 * HOUR_MS;
 
   @IsNumber()
   @Min(1025)
@@ -131,11 +143,6 @@ export class EnvironmentVariables {
   public EL_RPC_RETRY_DELAY_MS = 500;
 
   @IsNumber()
-  @Min(1000)
-  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public EL_RPC_RESPONSE_TIMEOUT_MS = MINUTE;
-
-  @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public EL_RPC_MAX_RETRIES = 3;
 
@@ -151,7 +158,7 @@ export class EnvironmentVariables {
   @IsNumber()
   @Min(1000)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public CL_API_RESPONSE_TIMEOUT_MS = MINUTE;
+  public CL_API_RESPONSE_TIMEOUT_MS = MINUTE_MS;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
@@ -170,11 +177,15 @@ export class EnvironmentVariables {
   @IsNumber()
   @Min(1000)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public KEYSAPI_API_RESPONSE_TIMEOUT_MS = MINUTE;
+  public KEYSAPI_API_RESPONSE_TIMEOUT_MS = MINUTE_MS;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public KEYSAPI_API_MAX_RETRIES = 3;
+
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_STRIKES_PAYLOAD_MAX_BATCH_SIZE = 10;
 }
 
 export function validate(config: Record<string, unknown>) {
