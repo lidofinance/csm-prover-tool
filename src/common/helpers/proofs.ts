@@ -4,19 +4,17 @@ import { ProofType, SingleProof, Tree, concatGindices, createProof } from '@chai
 import { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
 import type { ssz as sszType } from '@lodestar/types';
 
+import { SupportedFork } from '../providers/consensus/consensus';
+
 let ssz: typeof sszType;
 
-export type SupportedStateView =
-  | ContainerTreeViewType<typeof ssz.capella.BeaconState.fields>
-  | ContainerTreeViewType<typeof ssz.deneb.BeaconState.fields>
-  | ContainerTreeViewType<typeof ssz.electra.BeaconState.fields>
-  | ContainerTreeViewType<typeof ssz.fulu.BeaconState.fields>;
+export type SupportedStateView = {
+  [K in keyof typeof SupportedFork]: ContainerTreeViewType<(typeof ssz)[K]['BeaconState']['fields']>;
+}[keyof typeof SupportedFork];
 
-export type SupportedBlockView =
-  | ContainerTreeViewType<typeof ssz.capella.BeaconBlock.fields>
-  | ContainerTreeViewType<typeof ssz.deneb.BeaconBlock.fields>
-  | ContainerTreeViewType<typeof ssz.electra.BeaconBlock.fields>
-  | ContainerTreeViewType<typeof ssz.fulu.BeaconBlock.fields>;
+export type SupportedBlockView = {
+  [K in keyof typeof SupportedFork]: ContainerTreeViewType<(typeof ssz)[K]['BeaconBlock']['fields']>;
+}[keyof typeof SupportedFork];
 
 export function generateValidatorProof(stateView: SupportedStateView, valIndex: number): SingleProof {
   const gI = stateView.type.getPathInfo(['validators', Number(valIndex)]).gindex;
