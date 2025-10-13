@@ -1,9 +1,8 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import { iterateNodesAtDepth } from '@chainsafe/persistent-merkle-tree';
-
 import { toHex } from '../../helpers/proofs';
 import { State } from '../../providers/consensus/consensus';
+import { loadPMT } from '../../vendors/persistent-merkle-tree';
 
 let ssz: typeof import('@lodestar/types').ssz;
 
@@ -19,6 +18,7 @@ export type GetNewValidatorKeysResult = {
 
 async function getNewValidatorKeys(): Promise<GetNewValidatorKeysResult> {
   ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
+  const { iterateNodesAtDepth } = await loadPMT();
   const { state, lastValidatorsCount } = workerData as GetNewValidatorKeysArgs;
   //
   // Get views

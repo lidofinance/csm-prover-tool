@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 
-import { ProofType, SingleProof, Tree, concatGindices, createProof } from '@chainsafe/persistent-merkle-tree';
-import { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
+import type { SingleProof } from '@chainsafe/persistent-merkle-tree';
+import type { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
 import type { ssz as sszType } from '@lodestar/types';
 
 import { SupportedFork } from '../providers/consensus/consensus';
+import { loadPMT } from '../vendors/persistent-merkle-tree';
 
 let ssz: typeof sszType;
 
@@ -16,16 +17,18 @@ export type SupportedBlockView = {
   [K in keyof typeof SupportedFork]: ContainerTreeViewType<(typeof ssz)[K]['BeaconBlock']['fields']>;
 }[keyof typeof SupportedFork];
 
-export function generateValidatorProof(stateView: SupportedStateView, valIndex: number): SingleProof {
+export async function generateValidatorProof(stateView: SupportedStateView, valIndex: number): Promise<SingleProof> {
+  const { ProofType, createProof } = await loadPMT();
   const gI = stateView.type.getPathInfo(['validators', Number(valIndex)]).gindex;
   return createProof(stateView.node, { type: ProofType.single, gindex: gI }) as SingleProof;
 }
 
-export function generateWithdrawalProof(
+export async function generateWithdrawalProof(
   stateView: SupportedStateView,
   blockView: SupportedBlockView,
   withdrawalOffset: number,
-): SingleProof {
+): Promise<SingleProof> {
+  const { Tree, concatGindices, ProofType, createProof } = await loadPMT();
   // NOTE: ugly hack to replace root with the value to make a proof
   const patchedTree = new Tree(stateView.node);
   const stateWdGindex = stateView.type.getPathInfo(['latestExecutionPayloadHeader', 'withdrawalsRoot']).gindex;
@@ -38,12 +41,13 @@ export function generateWithdrawalProof(
   }) as SingleProof;
 }
 
-export function generateHistoricalStateProof(
+export async function generateHistoricalStateProof(
   finalizedStateView: SupportedStateView,
   summaryStateView: SupportedStateView,
   summaryIndex: number,
   rootIndex: number,
-): SingleProof {
+): Promise<SingleProof> {
+  const { Tree, concatGindices, ProofType, createProof } = await loadPMT();
   // NOTE: ugly hack to replace root with the value to make a proof
   const patchedTree = new Tree(finalizedStateView.node);
   const blockSummaryRootGI = finalizedStateView.type.getPathInfo([
