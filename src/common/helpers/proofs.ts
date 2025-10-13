@@ -9,12 +9,14 @@ let ssz: typeof sszType;
 export type SupportedStateView =
   | ContainerTreeViewType<typeof ssz.capella.BeaconState.fields>
   | ContainerTreeViewType<typeof ssz.deneb.BeaconState.fields>
-  | ContainerTreeViewType<typeof ssz.electra.BeaconState.fields>;
+  | ContainerTreeViewType<typeof ssz.electra.BeaconState.fields>
+  | ContainerTreeViewType<typeof ssz.fulu.BeaconState.fields>;
 
 export type SupportedBlockView =
   | ContainerTreeViewType<typeof ssz.capella.BeaconBlock.fields>
   | ContainerTreeViewType<typeof ssz.deneb.BeaconBlock.fields>
-  | ContainerTreeViewType<typeof ssz.electra.BeaconBlock.fields>;
+  | ContainerTreeViewType<typeof ssz.electra.BeaconBlock.fields>
+  | ContainerTreeViewType<typeof ssz.fulu.BeaconBlock.fields>;
 
 export function generateValidatorProof(stateView: SupportedStateView, valIndex: number): SingleProof {
   const gI = stateView.type.getPathInfo(['validators', Number(valIndex)]).gindex;

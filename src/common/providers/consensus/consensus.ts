@@ -19,12 +19,14 @@ export const SupportedFork = {
   capella: 'capella',
   deneb: 'deneb',
   electra: 'electra',
+  fulu: 'fulu',
 };
 
 export type SupportedBlock =
   | ValueOfFields<typeof ssz.capella.BeaconBlock.fields>
   | ValueOfFields<typeof ssz.deneb.BeaconBlock.fields>
-  | ValueOfFields<typeof ssz.electra.BeaconBlock.fields>;
+  | ValueOfFields<typeof ssz.electra.BeaconBlock.fields>
+  | ValueOfFields<typeof ssz.fulu.BeaconBlock.fields>;
 
 export type SupportedWithdrawal = ValueOfFields<typeof ssz.capella.Withdrawal.fields>;
 
