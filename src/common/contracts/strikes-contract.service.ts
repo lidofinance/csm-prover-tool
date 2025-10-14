@@ -23,7 +23,6 @@ export class StrikesContract {
     protected readonly accounting: AccountingContract,
   ) {}
 
-  // TODO: Move to onModuleInit after Mainnet release. Needed only for v1 -> v2 smooth transition
   public async init() {
     let address = this.config.get('STRIKES_ADDRESS');
     if (!address || address == '') {

@@ -1,5 +1,5 @@
 import { BlockTag } from '@ethersproject/abstract-provider';
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { LRUCache } from 'lru-cache';
 
 import { CsmContract } from './csm-contract.service';
@@ -8,7 +8,7 @@ import { ConfigService } from '../config/config.service';
 import { Execution } from '../providers/execution/execution';
 
 @Injectable()
-export class AccountingContract implements OnModuleInit {
+export class AccountingContract {
   private contract: Accounting;
   private bondCurveIdCache = new LRUCache<string, number>({ max: 128 });
 
@@ -18,7 +18,7 @@ export class AccountingContract implements OnModuleInit {
     protected readonly csm: CsmContract,
   ) {}
 
-  async onModuleInit() {
+  public async init() {
     const accounting = await this.csm.getAccountingAddress();
     this.contract = Accounting__factory.connect(accounting, this.execution.provider);
   }
