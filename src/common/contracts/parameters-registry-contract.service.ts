@@ -20,7 +20,6 @@ export class ParametersRegistryContract {
     protected readonly csm: CsmContract,
   ) {}
 
-  // TODO: Move to onModuleInit after Mainnet release. Needed only for v1 -> v2 smooth transition
   public async init() {
     const address = await this.csm.getParamsAddress();
     this.logger.log(`CSParametersRegistry address: ${address}`);
