@@ -35,7 +35,6 @@ export class BadPerformersService {
     protected readonly params: ParametersRegistryContract,
   ) {}
 
-  private isV2Initialized = false;
   private currentStrikesTree: StandardMerkleTree<StrikesTreeLeaf> | undefined;
   private currentStrikesThresholdsByCurveId: Map<number, number> = new Map();
   private currentNodeOperatorsCurveIds: Map<number, number> = new Map();
@@ -57,12 +56,14 @@ export class BadPerformersService {
   }
 
   public async sendBadPerformanceProofs(badPerformers: InvolvedKeysWithBadPerformance): Promise<number> {
+    if (badPerformers.length == 0) {
+      if (this.currentStrikesTree) {
+        this.lastProcessedStrikesTreeRoot = this.currentStrikesTree.root;
+      }
+      return 0;
+    }
     if (!this.currentStrikesTree) {
       throw new Error('Strikes Tree should be initialized before sending bad performance proofs');
-    }
-    if (badPerformers.length == 0) {
-      this.lastProcessedStrikesTreeRoot = this.currentStrikesTree.root;
-      return 0;
     }
 
     const keysMaxBatchSize = this.config.get('TX_STRIKES_PAYLOAD_MAX_BATCH_SIZE');
@@ -80,13 +81,6 @@ export class BadPerformersService {
   }
 
   private async prepareStrikesTreeForProcessing(headBlockInfo: SupportedBlock): Promise<boolean> {
-    // TODO: Remove after Mainnet release. Needed only for v1 -> v2 smooth transition
-    if (!this.isV2Initialized) {
-      const csmVersion = await this.csm.getInitializedVersion();
-      if (csmVersion == 1) return false;
-      await this.initV2();
-    }
-    //
     const strikesTree = await this.getStrikesTree(headBlockInfo);
     if (!strikesTree) return false;
     const thresholds = await this.getStrikesThresholds(headBlockInfo);
@@ -239,11 +233,7 @@ export class BadPerformersService {
       }
 
       if (fullKeyInfo.operatorId != nodeOperatorId) {
-        this.logger.warn(
-          `Unexpected Node Operator ID (${fullKeyInfo.operatorId}) for ${pubKey} pubkey. Expected: ${nodeOperatorId}`,
-        );
-        // TODO: should be changed back to throwing an error after fixing https://github.com/lidofinance/lido-oracle/issues/740
-        continue;
+        throw new Error(`Unexpected Node Operator ID (${fullKeyInfo.operatorId}) for ${pubKey} pubkey`);
       }
 
       badPerfKeys.push({
@@ -351,13 +341,5 @@ export class BadPerformersService {
       );
     }
     return threshold;
-  }
-
-  private async initV2() {
-    this.logger.log('🆕 Initializing CSM v2');
-    await Promise.all([this.params.init(), this.strikes.init()]);
-    // ExitPenalties can be initialized only after Strikes
-    await this.exitPenalties.init();
-    this.isV2Initialized = true;
   }
 }

@@ -19,7 +19,6 @@ export class ExitPenaltiesContract {
     protected readonly strikes: StrikesContract,
   ) {}
 
-  // TODO: Move to onModuleInit after Mainnet release. Needed only for v1 -> v2 smooth transition
   public async init() {
     let address = this.config.get('EXIT_PENALTIES_ADDRESS');
     if (!address || address == '') {

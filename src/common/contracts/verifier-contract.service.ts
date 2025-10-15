@@ -1,5 +1,5 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
 import { CsmContract } from './csm-contract.service';
 import { Verifier, Verifier__factory } from './types';
@@ -8,7 +8,7 @@ import { HistoricalWithdrawalsProofPayload, WithdrawalsProofPayload } from '../p
 import { Execution } from '../providers/execution/execution';
 
 @Injectable()
-export class VerifierContract implements OnModuleInit {
+export class VerifierContract {
   private contract: Verifier;
 
   constructor(
@@ -18,7 +18,7 @@ export class VerifierContract implements OnModuleInit {
     protected readonly csm: CsmContract,
   ) {}
 
-  async onModuleInit() {
+  public async init() {
     let address = this.config.get('VERIFIER_ADDRESS');
     if (!address || address == '') {
       this.logger.warn(

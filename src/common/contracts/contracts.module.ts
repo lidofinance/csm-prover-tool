@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { AccountingContract } from './accounting-contract.service';
+import { ContractsInitializer } from './contracts-initializer.service';
 import { CsmContract } from './csm-contract.service';
 import { ExitPenaltiesContract } from './exit-penalties-contract.service';
 import { ParametersRegistryContract } from './parameters-registry-contract.service';
@@ -17,6 +18,7 @@ import { ProvidersModule } from '../providers/providers.module';
     ExitPenaltiesContract,
     AccountingContract,
     ParametersRegistryContract,
+    ContractsInitializer,
   ],
   exports: [
     CsmContract,
