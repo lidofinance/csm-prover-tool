@@ -49,9 +49,9 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<WithdrawalsProofP
       continue;
     }
     WorkerLogger.log(`Generating validator [${valIndex}] proof`);
-    const validatorProof = generateValidatorProof(stateView, Number(valIndex));
+    const validatorProof = await generateValidatorProof(stateView, Number(valIndex));
     WorkerLogger.log('Generating withdrawal proof');
-    const withdrawalProof = generateWithdrawalProof(
+    const withdrawalProof = await generateWithdrawalProof(
       stateView,
       currentBlockView,
       keyWithWithdrawalInfo.withdrawal.offset,
