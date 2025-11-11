@@ -132,7 +132,7 @@ export class Execution {
     try {
       await emulateTxCallback(...payload);
       // NOTE: some emulated calls may not throw an error, so we need to estimate gas to ensure the transaction is valid
-      await this.provider.estimateGas(tx);
+      await this.provider.estimateGas({ ...tx, from: this.signer?.address });
     } catch (e) {
       throw new EmulatedCallError(e, context);
     }

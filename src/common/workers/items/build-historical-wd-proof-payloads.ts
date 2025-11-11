@@ -73,15 +73,15 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
       continue;
     }
     WorkerLogger.log(`Generating validator [${valIndex}] proof`);
-    const validatorProof = generateValidatorProof(stateWithWdsView, Number(valIndex));
+    const validatorProof = await generateValidatorProof(stateWithWdsView, Number(valIndex));
     WorkerLogger.log('Generating withdrawal proof');
-    const withdrawalProof = generateWithdrawalProof(
+    const withdrawalProof = await generateWithdrawalProof(
       stateWithWdsView,
       blockWithWdsView,
       keyWithWithdrawalInfo.withdrawal.offset,
     );
     WorkerLogger.log('Generating historical state proof');
-    const historicalStateProof = generateHistoricalStateProof(
+    const historicalStateProof = await generateHistoricalStateProof(
       finalizedStateView,
       summaryStateView,
       summaryIndex,
