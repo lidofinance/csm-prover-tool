@@ -17,8 +17,8 @@ export class Keysapi extends BaseRestProvider {
   private readonly endpoints = {
     status: 'v1/status',
     modules: 'v1/modules',
-    moduleKeys: (module_id: string | number): string => `v1/modules/${module_id}/keys`,
-    findModuleKeys: (module_id: string | number): string => `v1/modules/${module_id}/keys/find`,
+    moduleKeys: (module_id: string | number): string => `v1/modules/${module_id}/keys?used=true`,
+    findModuleKeys: (module_id: string | number): string => `v1/modules/${module_id}/keys/find?used=true`,
   };
 
   constructor(

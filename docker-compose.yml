@@ -56,7 +56,6 @@ services:
       - EL_RPC_URLS=${EL_RPC_URLS}
       - CL_API_URLS=${CL_API_URLS}
       - CSM_ADDRESS=${CSM_ADDRESS}
-      - VERIFIER_ADDRESS=${VERIFIER_ADDRESS}
       - TX_SIGNER_PRIVATE_KEY=${TX_SIGNER_PRIVATE_KEY:-}
       - START_ROOT=${START_ROOT:-}
     expose:
@@ -86,7 +85,23 @@ services:
       - EL_RPC_URLS=${EL_RPC_URLS}
       - CL_API_URLS=${CL_API_URLS}
       - CSM_ADDRESS=${CSM_ADDRESS}
-      - VERIFIER_ADDRESS=${VERIFIER_ADDRESS}
+      - TX_SIGNER_PRIVATE_KEY=${TX_SIGNER_PRIVATE_KEY:-}
+
+  bad_performer:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.cli
+    entrypoint:
+      - yarn
+      - bad_performer
+    container_name: prover-cli-bad_performer
+    restart: no
+    environment:
+      - DRY_RUN=${DRY_RUN:-false}
+      - CHAIN_ID=${CHAIN_ID}
+      - EL_RPC_URLS=${EL_RPC_URLS}
+      - CL_API_URLS=${CL_API_URLS}
+      - CSM_ADDRESS=${CSM_ADDRESS}
       - TX_SIGNER_PRIVATE_KEY=${TX_SIGNER_PRIVATE_KEY:-}
 
 

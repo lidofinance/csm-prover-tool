@@ -1,4 +1,5 @@
 import { FallbackProviderModule, NonEmptyArray } from '@lido-nestjs/execution';
+import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Module } from '@nestjs/common';
 import { ConditionalModule } from '@nestjs/config';
 
@@ -9,6 +10,7 @@ import { ConfigService } from '../config/config.service';
 import { WorkingMode } from '../config/env.validation';
 import { PrometheusService, RequestStatus } from '../prometheus';
 import { UtilsModule } from '../utils/utils.module';
+import { Ipfs } from './ipfs/ipfs';
 
 const ExecutionDaemon = () =>
   FallbackProviderModule.forRootAsync({
@@ -16,6 +18,9 @@ const ExecutionDaemon = () =>
       return {
         urls: configService.get('EL_RPC_URLS') as NonEmptyArray<string>,
         network: configService.get('CHAIN_ID'),
+        maxRetries: configService.get('EL_RPC_MAX_RETRIES'),
+        minBackoffMs: configService.get('EL_RPC_RETRY_DELAY_MS'),
+        logRetries: true,
         fetchMiddlewares: [
           async (next, ctx) => {
             const targetName = new URL(ctx.provider.connection.url).hostname;
@@ -46,7 +51,7 @@ const ExecutionDaemon = () =>
         ],
       };
     },
-    inject: [ConfigService, PrometheusService],
+    inject: [ConfigService, PrometheusService, LOGGER_PROVIDER],
   });
 
 const ExecutionCli = () =>
@@ -72,7 +77,7 @@ const ExecutionCli = () =>
       return env['WORKING_MODE'] === WorkingMode.CLI;
     }),
   ],
-  providers: [Execution, Consensus, Keysapi],
-  exports: [Execution, Consensus, Keysapi],
+  providers: [Execution, Consensus, Keysapi, Ipfs],
+  exports: [Execution, Consensus, Keysapi, Ipfs],
 })
 export class ProvidersModule {}

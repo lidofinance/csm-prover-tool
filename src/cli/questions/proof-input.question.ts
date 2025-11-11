@@ -21,7 +21,7 @@ export const validateValidatorIndex = (val: string) => {
   return val;
 };
 
-export const validateBlock = (val: string) => {
+export const validateClBlock = (val: string) => {
   if (!/^0x[a-fA-F0-9]{64}$|^\d+$/.test(val)) {
     throw new Error('Block must be a 32-byte hex string or a number');
   }
@@ -55,10 +55,10 @@ export class ProofInputQuestion {
   }
 
   @Question({
-    message: 'Block (root or slot number):',
-    name: 'block',
+    message: 'Consensus Layer Block (root or slot number):',
+    name: 'clBlock',
   })
-  parseBlock(val: string) {
-    return validateBlock(val);
+  parseCLBlock(val: string) {
+    return validateClBlock(val);
   }
 }

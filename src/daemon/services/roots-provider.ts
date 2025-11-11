@@ -20,7 +20,9 @@ export class RootsProvider {
     if (stacked) return stacked;
     const lastProcessed = this.rootsStack.getLastProcessed();
     if (!lastProcessed) return this.getKnown(finalizedHeader);
-    return await this.getChild(lastProcessed, finalizedHeader);
+    const child = await this.getChild(lastProcessed, finalizedHeader);
+    if (child) return child;
+    return undefined;
   }
 
   private getStacked(): RootHex | undefined {

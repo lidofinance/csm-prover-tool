@@ -12,6 +12,8 @@ export const METRIC_OUTGOING_CL_REQUESTS_DURATION_SECONDS = `outgoing_cl_request
 export const METRIC_OUTGOING_CL_REQUESTS_COUNT = `outgoing_cl_requests_count`;
 export const METRIC_OUTGOING_KEYSAPI_REQUESTS_DURATION_SECONDS = `outgoing_keysapi_requests_duration_seconds`;
 export const METRIC_OUTGOING_KEYSAPI_REQUESTS_COUNT = `outgoing_keysapi_requests_count`;
+export const METRIC_OUTGOING_IPFS_REQUESTS_DURATION_SECONDS = `outgoing_ipfs_requests_duration_seconds`;
+export const METRIC_OUTGOING_IPFS_REQUESTS_COUNT = `outgoing_ipfs_requests_count`;
 export const METRIC_TASK_DURATION_SECONDS = `task_duration_seconds`;
 export const METRIC_TASK_RESULT_COUNT = `task_result_count`;
 

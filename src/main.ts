@@ -23,12 +23,26 @@ async function bootstrapCLI() {
 }
 
 async function bootstrapDaemon() {
-  const daemonApp = await NestFactory.create(DaemonModule, {
-    bufferLogs: true,
-  });
-  daemonApp.useLogger(daemonApp.get(LOGGER_PROVIDER));
-  const configService: ConfigService = daemonApp.get(ConfigService);
-  await daemonApp.listen(configService.get('HTTP_PORT'), '0.0.0.0');
+  let daemonApp;
+  try {
+    daemonApp = await NestFactory.create(DaemonModule, {
+      bufferLogs: true,
+    });
+    daemonApp.useLogger(daemonApp.get(LOGGER_PROVIDER));
+    const configService: ConfigService = daemonApp.get(ConfigService);
+    await daemonApp.listen(configService.get('HTTP_PORT'), '0.0.0.0');
+  } catch (error) {
+    const logger = daemonApp?.get(LOGGER_PROVIDER);
+    const errorMsg = `Failed to initialize daemon application: ${error.message}`;
+    logger ? logger.error(errorMsg) : console.error(errorMsg);
+
+    if (daemonApp) {
+      await daemonApp.close();
+    }
+
+    process.exit();
+  }
+
   daemonApp.get(DaemonService).loop().then();
 }
 

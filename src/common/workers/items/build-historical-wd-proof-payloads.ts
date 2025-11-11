@@ -73,15 +73,15 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
       continue;
     }
     WorkerLogger.log(`Generating validator [${valIndex}] proof`);
-    const validatorProof = generateValidatorProof(stateWithWdsView, Number(valIndex));
+    const validatorProof = await generateValidatorProof(stateWithWdsView, Number(valIndex));
     WorkerLogger.log('Generating withdrawal proof');
-    const withdrawalProof = generateWithdrawalProof(
+    const withdrawalProof = await generateWithdrawalProof(
       stateWithWdsView,
       blockWithWdsView,
       keyWithWithdrawalInfo.withdrawal.offset,
     );
     WorkerLogger.log('Generating historical state proof');
-    const historicalStateProof = generateHistoricalStateProof(
+    const historicalStateProof = await generateHistoricalStateProof(
       finalizedStateView,
       summaryStateView,
       summaryIndex,
@@ -131,8 +131,6 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
           stateRoot: headerWithWds.header.message.state_root,
           bodyRoot: headerWithWds.header.message.body_root,
         },
-        // NOTE: the last byte can be changed due to `CSVerifier` implementation in the future
-        rootGIndex: '0x' + (historicalStateProof.gindex.toString(16) + '00').padStart(64, '0'),
         proof: historicalStateProof.witnesses.map(toHex),
       },
       witness: {
