@@ -181,6 +181,9 @@ export class Execution {
       }
       await waitingPromise;
     } catch (e) {
+      // Dirty hack for switching to the next provider in case of failure in sending transaction process
+      // @ts-expect-error 'accessing protected member'
+      this.provider.switchToNextProvider();
       throw new SendTransactionError(e, context);
     }
     this.logger.log(`✅ Transaction succeeded! Hash: ${submitted?.hash}`);
