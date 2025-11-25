@@ -1,8 +1,7 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import { iterateNodesAtDepth } from '@chainsafe/persistent-merkle-tree';
-
 import { State } from '../../providers/consensus/consensus';
+import { loadPMT } from '../../vendors/persistent-merkle-tree';
 
 let ssz: typeof import('@lodestar/types').ssz;
 
@@ -16,6 +15,7 @@ export type GetValidatorExitEpochsResult = {
 
 async function getValidatorExitEpochs(): Promise<GetValidatorExitEpochsResult> {
   ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
+  const { iterateNodesAtDepth } = await loadPMT();
   const { state } = workerData as GetValidatorExitEpochsArgs;
   //
   // Get views
