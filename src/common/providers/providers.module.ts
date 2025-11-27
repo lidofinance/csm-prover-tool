@@ -20,6 +20,7 @@ const ExecutionDaemon = () =>
         network: configService.get('CHAIN_ID'),
         maxRetries: configService.get('EL_RPC_MAX_RETRIES'),
         minBackoffMs: configService.get('EL_RPC_RETRY_DELAY_MS'),
+        resetIntervalMs: configService.get('EL_RPC_RESET_INTERVAL_MS'),
         logRetries: true,
         fetchMiddlewares: [
           async (next, ctx) => {
