@@ -2,6 +2,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 
 import type { ssz as sszType } from '@lodestar/types';
 
+import { IVerifier } from '../../contracts/types/Verifier';
 import {
   generateHistoricalStateProof,
   generateValidatorProof,
@@ -10,7 +11,6 @@ import {
   verifyProof,
 } from '../../helpers/proofs';
 import { InvolvedKeysWithWithdrawal } from '../../prover/duties/withdrawals.service';
-import { HistoricalWithdrawalsProofPayload } from '../../prover/types';
 import { State, SupportedBlock } from '../../providers/consensus/consensus';
 import { BlockHeaderResponse } from '../../providers/consensus/response.interface';
 import { WorkerLogger } from '../workers.service';
@@ -31,7 +31,7 @@ export type BuildHistoricalWithdrawalProofArgs = {
   epoch: number;
 };
 
-async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWithdrawalsProofPayload[]> {
+async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
   ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
   const {
     headerWithWds,
@@ -111,9 +111,33 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
       summaryStateView.blockRoots.getReadonly(rootIndexInSummary),
     );
     payloads.push({
-      keyIndex: keyWithWithdrawalInfo.keyIndex,
-      nodeOperatorId: keyWithWithdrawalInfo.operatorId,
-      beaconBlock: {
+      withdrawal: {
+        offset: Number(keyWithWithdrawalInfo.withdrawal.offset),
+        object: {
+          index: Number(keyWithWithdrawalInfo.withdrawal.index),
+          validatorIndex: Number(keyWithWithdrawalInfo.withdrawal.validatorIndex),
+          withdrawalAddress: ssz.ExecutionAddress.toJson(keyWithWithdrawalInfo.withdrawal.address) as string,
+          amount: BigInt(keyWithWithdrawalInfo.withdrawal.amount),
+        },
+        proof: withdrawalProof.witnesses.map(toHex),
+      },
+      validator: {
+        index: Number(valIndex),
+        nodeOperatorId: keyWithWithdrawalInfo.operatorId,
+        keyIndex: keyWithWithdrawalInfo.keyIndex,
+        object: {
+          pubkey: keyWithWithdrawalInfo.pubKey,
+          withdrawalCredentials: toHex(validator.withdrawalCredentials),
+          effectiveBalance: BigInt(validator.effectiveBalance),
+          slashed: Boolean(validator.slashed),
+          activationEligibilityEpoch: BigInt(validator.activationEligibilityEpoch),
+          activationEpoch: BigInt(validator.activationEpoch),
+          exitEpoch: BigInt(validator.exitEpoch),
+          withdrawableEpoch: BigInt(validator.withdrawableEpoch),
+        },
+        proof: validatorProof.witnesses.map(toHex),
+      },
+      recentBlock: {
         header: {
           slot: Number(finalHeader.header.message.slot),
           proposerIndex: Number(finalHeader.header.message.proposer_index),
@@ -123,7 +147,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
         },
         rootsTimestamp: nextToFinalizedHeaderTimestamp,
       },
-      oldBlock: {
+      withdrawalBlock: {
         header: {
           slot: Number(headerWithWds.header.message.slot),
           proposerIndex: Number(headerWithWds.header.message.proposer_index),
@@ -132,21 +156,6 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
           bodyRoot: headerWithWds.header.message.body_root,
         },
         proof: historicalStateProof.witnesses.map(toHex),
-      },
-      witness: {
-        withdrawalOffset: Number(keyWithWithdrawalInfo.withdrawal.offset),
-        withdrawalIndex: Number(keyWithWithdrawalInfo.withdrawal.index),
-        validatorIndex: Number(keyWithWithdrawalInfo.withdrawal.validatorIndex),
-        amount: Number(keyWithWithdrawalInfo.withdrawal.amount),
-        withdrawalCredentials: toHex(validator.withdrawalCredentials),
-        effectiveBalance: validator.effectiveBalance,
-        slashed: Boolean(validator.slashed),
-        activationEligibilityEpoch: validator.activationEligibilityEpoch,
-        activationEpoch: validator.activationEpoch,
-        exitEpoch: validator.exitEpoch,
-        withdrawableEpoch: validator.withdrawableEpoch,
-        withdrawalProof: withdrawalProof.witnesses.map(toHex),
-        validatorProof: validatorProof.witnesses.map(toHex),
       },
     });
   }
