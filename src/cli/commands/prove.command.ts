@@ -23,11 +23,12 @@ type ProofOptions = {
 
 @Command({
   name: 'prove',
-  description: 'Prove a withdrawal or bad performer',
-  arguments: '<withdrawal|bad_performer>',
+  description: 'Prove a slashing or withdrawal or bad performer',
+  arguments: '<slashing|withdrawal|bad_performer>',
   argsDescription: {
     withdrawal: 'Prove a withdrawal',
     bad_performer: 'Prove a bad performer',
+    slashing: 'Prove a slashing',
   },
 })
 export class ProveCommand extends CommandRunner {
@@ -64,6 +65,9 @@ export class ProveCommand extends CommandRunner {
         case 'bad_performer':
           const headHeader = await this.consensus.getBeaconHeader('head');
           await this.prover.handleBadPerformers(headHeader, this.fullKeyInfoFn);
+          break;
+        case 'slashing':
+          await this.prover.handleSlashingsInBlock(blockInfoToProcess, header, this.keyInfoFn);
           break;
       }
     } catch (e) {

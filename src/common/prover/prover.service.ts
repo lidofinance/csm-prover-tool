@@ -2,6 +2,7 @@ import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
 import { BadPerformersService } from './duties/bad-performers.service';
+import { SlashingsService } from './duties/slashings.service';
 import { WithdrawalsService } from './duties/withdrawals.service';
 import { FullKeyInfoByPubKeyFn, KeyInfoFn } from './types';
 import { Consensus, SupportedBlock } from '../providers/consensus/consensus';
@@ -14,6 +15,7 @@ export class ProverService {
     protected readonly consensus: Consensus,
     protected readonly withdrawals: WithdrawalsService,
     protected readonly strikes: BadPerformersService,
+    protected readonly slashings: SlashingsService,
   ) {}
 
   public async handleWithdrawalsInBlock(
@@ -43,5 +45,19 @@ export class ProverService {
     } else {
       this.logger.log('No Bad performer Proof(s) were sent');
     }
+  }
+
+  public async handleSlashingsInBlock(
+    blockInfo: SupportedBlock,
+    finalizedHeader: BlockHeaderResponse,
+    keyInfoFn: KeyInfoFn,
+  ): Promise<void> {
+    const slashings = await this.slashings.getUnprovenSlashings(blockInfo, keyInfoFn);
+    if (!Object.keys(slashings).length) {
+      this.logger.log('No slashings to prove');
+      return;
+    }
+    await this.slashings.sendSlashingProofs(finalizedHeader, slashings);
+    this.logger.log('🏁 Slashing proof(s) sent');
   }
 }

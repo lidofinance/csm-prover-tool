@@ -36,12 +36,16 @@ export class CsmContract {
     return await this.contract.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex, { blockTag });
   }
 
+  public async isSlashingProved(keyInfo: KeyInfo): Promise<boolean> {
+    return await this.contract.isValidatorSlashed(keyInfo.operatorId, keyInfo.keyIndex);
+  }
+
   public async getNodeOperatorKey(nodeOperatorId: string | number, keyIndex: string | number): Promise<string> {
     return await this.contract.getSigningKeys(nodeOperatorId, keyIndex, 1);
   }
 
   public async getAccountingAddress(): Promise<string> {
-    return await this.contract.accounting();
+    return await this.contract.ACCOUNTING();
   }
 
   public async getParamsAddress(): Promise<string> {

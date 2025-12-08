@@ -28,9 +28,9 @@ The tool is a daemon that listens to the CL and EL and reports any bad performer
    > The processor does the following:
    > - Get the block info from CL by the root
    > - If the current state of keys indexer is outdated (~15-27h behind from the block) to be trusted completely, add the block root to roots stack
-   > - If the block has a withdrawal, report it to the CS Module
+   > - If the block has a slashing or withdrawal, report it to the CS Module
    > - If the current state of keys indexer is healthy enough to be trusted completely, remove the root from roots stack
-4. Build and send proofs to the CS Module contract if withdrawal was found.
+4. Build and send proofs to the CS Module contract if slashing or withdrawal was found.
 
 So, according to the algorithm, there are the following statements:
 1. We always go sequentially by the finalized roots of blocks, taking the next one by the root of the previous one. In this way, we avoid missing any blocks.
@@ -79,6 +79,8 @@ So, according to the algorithm, there are the following statements:
    a. Using the docker compose
 
    ```bash
+   # Report slashing
+   $ docker compose run -it --rm slashing
    # Report withdrawal
    $ docker compose run -it --rm withdrawal
    # Report bad performer ejection
@@ -91,6 +93,8 @@ So, according to the algorithm, there are the following statements:
    $ yarn install
    $ yarn run typechain
    $ yarn build
+   # Report slashing
+   $ yarn slashing
    # Report withdrawal
    $ yarn withdrawal
    # Report bad performer ejection

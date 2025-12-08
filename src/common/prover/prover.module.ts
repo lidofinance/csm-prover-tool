@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { SlashingsService } from './duties/slashings.service';
 import { WithdrawalsService } from './duties/withdrawals.service';
 import { ProverService } from './prover.service';
 import { ContractsModule } from '../contracts/contracts.module';
@@ -9,7 +10,7 @@ import { BadPerformersService } from './duties/bad-performers.service';
 
 @Module({
   imports: [ProvidersModule, ContractsModule, WorkersModule],
-  providers: [ProverService, WithdrawalsService, BadPerformersService],
+  providers: [ProverService, SlashingsService, WithdrawalsService, BadPerformersService],
   exports: [ProverService],
 })
 export class ProverModule {}
