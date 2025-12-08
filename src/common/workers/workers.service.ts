@@ -6,11 +6,11 @@ import { ConfigService } from '@nestjs/config';
 
 import { WorkingMode } from '../config/env.validation';
 import { PrometheusService, TrackWorker } from '../prometheus';
-import { HistoricalWithdrawalsProofPayload, WithdrawalsProofPayload } from '../prover/types';
 import { BuildGeneralWithdrawalProofArgs } from './items/build-general-wd-proof-payloads';
 import { BuildHistoricalWithdrawalProofArgs } from './items/build-historical-wd-proof-payloads';
 import { GetNewValidatorKeysArgs, GetNewValidatorKeysResult } from './items/get-new-validator-keys';
 import { GetValidatorExitEpochsArgs, GetValidatorExitEpochsResult } from './items/get-validator-exit-epochs';
+import { IVerifier } from '../contracts/types/Verifier';
 
 class ParentLoggerMessage {
   __class: string;
@@ -64,13 +64,13 @@ export class WorkersService {
 
   public async getGeneralWithdrawalProofPayloads(
     args: BuildGeneralWithdrawalProofArgs,
-  ): Promise<WithdrawalsProofPayload[]> {
+  ): Promise<IVerifier.ProcessWithdrawalInputStruct[]> {
     return await this._run('build-general-wd-proof-payloads', args);
   }
 
   public async getHistoricalWithdrawalProofPayloads(
     args: BuildHistoricalWithdrawalProofArgs,
-  ): Promise<HistoricalWithdrawalsProofPayload[]> {
+  ): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
     return await this._run('build-historical-wd-proof-payloads', args);
   }
 

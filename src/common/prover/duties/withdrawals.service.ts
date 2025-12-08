@@ -2,11 +2,12 @@ import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
 import { CsmContract } from '../../contracts/csm-contract.service';
+import { IVerifier } from '../../contracts/types/Verifier';
 import { VerifierContract } from '../../contracts/verifier-contract.service';
 import { Consensus, State, SupportedBlock, SupportedWithdrawal } from '../../providers/consensus/consensus';
 import { BlockHeaderResponse, RootHex } from '../../providers/consensus/response.interface';
 import { WorkersService } from '../../workers/workers.service';
-import { HistoricalWithdrawalsProofPayload, KeyInfo, KeyInfoFn, WithdrawalsProofPayload } from '../types';
+import { KeyInfo, KeyInfoFn } from '../types';
 
 // according to the research https://hackmd.io/1wM8vqeNTjqt4pC3XoCUKQ?view#Proposed-solution
 const FULL_WITHDRAWAL_MIN_AMOUNT = 8 * 10 ** 9; // 8 ETH in Gwei
@@ -76,7 +77,7 @@ export class WithdrawalsService {
     blockInfo: SupportedBlock,
     state: State,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Promise<WithdrawalsProofPayload[]> {
+  ): Promise<IVerifier.ProcessWithdrawalInputStruct[]> {
     // create proof against the state with withdrawals
     const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data[0];
     if (!nextBlockHeader) throw new Error(`Next block header after ${blockHeader.root} not found`);
@@ -91,7 +92,7 @@ export class WithdrawalsService {
       epoch: this.consensus.slotToEpoch(Number(blockHeader.header.message.slot)),
     });
     for (const payload of payloads) {
-      this.logger.log(`📡 Sending withdrawal proof payload for validator index: ${payload.witness.validatorIndex}`);
+      this.logger.log(`📡 Sending withdrawal proof payload for validator index: ${payload.validator.index}`);
       await this.verifier.sendWithdrawalProof(payload);
     }
     return payloads;
@@ -103,7 +104,7 @@ export class WithdrawalsService {
     state: State,
     finalizedHeader: BlockHeaderResponse,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Promise<HistoricalWithdrawalsProofPayload[]> {
+  ): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
     // create proof against the historical state with withdrawals
     const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data[0];
     if (!nextBlockHeader) throw new Error(`Next block header after ${finalizedHeader.root} not found`);
@@ -127,9 +128,7 @@ export class WithdrawalsService {
       epoch: this.consensus.slotToEpoch(Number(blockHeader.header.message.slot)),
     });
     for (const payload of payloads) {
-      this.logger.log(
-        `📡 Sending historical withdrawal proof payload for validator index: ${payload.witness.validatorIndex}`,
-      );
+      this.logger.log(`📡 Sending historical withdrawal proof payload for validator index: ${payload.validator.index}`);
       await this.verifier.sendHistoricalWithdrawalProof(payload);
     }
     return payloads;

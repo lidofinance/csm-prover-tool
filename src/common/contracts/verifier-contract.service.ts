@@ -2,9 +2,9 @@ import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
 import { CsmContract } from './csm-contract.service';
-import { Verifier, Verifier__factory } from './types';
+import { Verifier__factory } from './types';
+import { IVerifier, Verifier } from './types/Verifier';
 import { ConfigService } from '../config/config.service';
-import { HistoricalWithdrawalsProofPayload, WithdrawalsProofPayload } from '../prover/types';
 import { Execution } from '../providers/execution/execution';
 
 @Injectable()
@@ -54,19 +54,19 @@ export class VerifierContract {
     }
   }
 
-  public async sendWithdrawalProof(payload: WithdrawalsProofPayload): Promise<void> {
+  public async sendWithdrawalProof(payload: IVerifier.ProcessWithdrawalInputStruct): Promise<void> {
     await this.execution.execute(
       this.contract.callStatic.processWithdrawalProof,
       this.contract.populateTransaction.processWithdrawalProof,
-      [payload.beaconBlock, payload.witness, payload.nodeOperatorId, payload.keyIndex],
+      [payload],
     );
   }
 
-  public async sendHistoricalWithdrawalProof(payload: HistoricalWithdrawalsProofPayload): Promise<void> {
+  public async sendHistoricalWithdrawalProof(payload: IVerifier.ProcessHistoricalWithdrawalInputStruct): Promise<void> {
     await this.execution.execute(
       this.contract.callStatic.processHistoricalWithdrawalProof,
       this.contract.populateTransaction.processHistoricalWithdrawalProof,
-      [payload.beaconBlock, payload.oldBlock, payload.witness, payload.nodeOperatorId, payload.keyIndex],
+      [payload],
     );
   }
 
