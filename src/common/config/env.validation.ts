@@ -95,7 +95,7 @@ export class EnvironmentVariables {
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public TX_MINING_WAITING_TIMEOUT_MS = HOUR_MS;
+  public TX_MINING_WAITING_TIMEOUT_MS = 10 * MINUTE_MS;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
@@ -145,6 +145,10 @@ export class EnvironmentVariables {
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public EL_RPC_MAX_RETRIES = 3;
+
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public EL_RPC_RESET_INTERVAL_MS = 30 * MINUTE_MS;
 
   @IsArray()
   @ArrayMinSize(1)
