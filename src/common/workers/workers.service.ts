@@ -8,6 +8,7 @@ import { WorkingMode } from '../config/env.validation';
 import { PrometheusService, TrackWorker } from '../prometheus';
 import { BuildGeneralWithdrawalProofArgs } from './items/build-general-wd-proof-payloads';
 import { BuildHistoricalWithdrawalProofArgs } from './items/build-historical-wd-proof-payloads';
+import { BuildSlashingProofArgs } from './items/build-slashing-proof-payloads';
 import { GetNewValidatorKeysArgs, GetNewValidatorKeysResult } from './items/get-new-validator-keys';
 import { GetValidatorExitEpochsArgs, GetValidatorExitEpochsResult } from './items/get-validator-exit-epochs';
 import { IVerifier } from '../contracts/types/Verifier';
@@ -60,6 +61,10 @@ export class WorkersService {
   public async getValidatorExitEpochs(args: GetValidatorExitEpochsArgs): Promise<number[]> {
     const result: GetValidatorExitEpochsResult = await this._run('get-validator-exit-epochs', args);
     return result.valExitEpochs;
+  }
+
+  public async getSlashedProofPayloads(args: BuildSlashingProofArgs): Promise<IVerifier.ProcessSlashedInputStruct[]> {
+    return await this._run('build-slashing-proof-payloads', args);
   }
 
   public async getGeneralWithdrawalProofPayloads(

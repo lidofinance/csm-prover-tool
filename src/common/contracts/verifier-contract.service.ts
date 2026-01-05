@@ -54,6 +54,14 @@ export class VerifierContract {
     }
   }
 
+  public async sendSlashingProof(payload: IVerifier.ProcessSlashedInputStruct): Promise<void> {
+    await this.execution.execute(
+      this.contract.callStatic.processSlashedProof,
+      this.contract.populateTransaction.processSlashedProof,
+      [payload],
+    );
+  }
+
   public async sendWithdrawalProof(payload: IVerifier.ProcessWithdrawalInputStruct): Promise<void> {
     await this.execution.execute(
       this.contract.callStatic.processWithdrawalProof,
