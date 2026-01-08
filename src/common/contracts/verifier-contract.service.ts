@@ -78,6 +78,14 @@ export class VerifierContract {
     );
   }
 
+  public async sendConsolidationProof(payload: IVerifier.ProcessConsolidationInputStruct): Promise<void> {
+    await this.execution.execute(
+      this.contract.callStatic.processConsolidation,
+      this.contract.populateTransaction.processConsolidation,
+      [payload],
+    );
+  }
+
   public async isPaused(): Promise<boolean> {
     return await this.contract.isPaused();
   }

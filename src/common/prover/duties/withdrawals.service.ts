@@ -8,6 +8,7 @@ import { Consensus, State, SupportedBlock, SupportedWithdrawal } from '../../pro
 import { BlockHeaderResponse, RootHex } from '../../providers/consensus/response.interface';
 import { WorkersService } from '../../workers/workers.service';
 import { KeyInfo, KeyInfoFn } from '../types';
+import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../utils/historical-summary';
 
 // according to the research https://hackmd.io/1wM8vqeNTjqt4pC3XoCUKQ?view#Proposed-solution
 const FULL_WITHDRAWAL_MIN_AMOUNT = 8 * 10 ** 9; // 8 ETH in Gwei
@@ -33,7 +34,7 @@ export class WithdrawalsService {
     if (!Object.keys(withdrawals).length) return {};
     const unproven: InvolvedKeysWithWithdrawal = {};
     for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
-      const proved = await this.csm.isWithdrawalProved('latest', keyWithWithdrawalInfo);
+      const proved = await this.csm.isWithdrawalProved(keyWithWithdrawalInfo);
       if (!proved) unproven[Number(valIndex)] = keyWithWithdrawalInfo;
     }
     const unprovenCount = Object.keys(unproven).length;
@@ -110,9 +111,18 @@ export class WithdrawalsService {
     if (!nextBlockHeader) throw new Error(`Next block header after ${finalizedHeader.root} not found`);
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
     const finalizedState = await this.consensus.getState(finalizedHeader.header.message.state_root);
-    const summaryIndex = this.calcSummaryIndex(blockInfo);
-    const summarySlot = this.calcSlotOfSummary(summaryIndex);
-    const summaryState = await this.consensus.getState(summarySlot);
+    const summaryResolution = await resolveHistoricalSummaryContext(
+      this.consensus,
+      finalizedHeader,
+      Number(blockInfo.slot),
+    );
+    if (summaryResolution.status === HistoricalSummaryResolutionStatus.BeforeCapella) {
+      throw new Error('Historical summary is not available before Capella fork slot');
+    }
+    if (summaryResolution.status === HistoricalSummaryResolutionStatus.NotHistoricalYet) {
+      throw new Error(`Historical summary is not available yet (summary slot ${summaryResolution.summarySlot})`);
+    }
+    const { summaryState, summaryIndex, rootIndexInSummary } = summaryResolution.context;
     this.logger.log('Building historical withdrawal proof payloads');
     const payloads = await this.workers.getHistoricalWithdrawalProofPayloads({
       headerWithWds: blockHeader,
@@ -123,7 +133,7 @@ export class WithdrawalsService {
       stateWithWds: state,
       blockWithWds: blockInfo,
       summaryIndex,
-      rootIndexInSummary: this.calcRootIndexInSummary(blockInfo),
+      rootIndexInSummary,
       withdrawals,
       epoch: this.consensus.slotToEpoch(Number(blockHeader.header.message.slot)),
     });
@@ -156,22 +166,5 @@ export class WithdrawalsService {
       Number(finalizedHeader.header.message.slot) - Number(blockInfo.slot) >=
       Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT) - finalizationBufferSlots
     );
-  }
-
-  private calcSummaryIndex(blockInfo: SupportedBlock): number {
-    const capellaForkSlot = this.consensus.epochToSlot(Number(this.consensus.beaconConfig.CAPELLA_FORK_EPOCH));
-    const slotsPerHistoricalRoot = Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT);
-    return Math.floor((blockInfo.slot - capellaForkSlot) / slotsPerHistoricalRoot);
-  }
-
-  private calcSlotOfSummary(summaryIndex: number): number {
-    const capellaForkSlot = this.consensus.epochToSlot(Number(this.consensus.beaconConfig.CAPELLA_FORK_EPOCH));
-    const slotsPerHistoricalRoot = Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT);
-    return capellaForkSlot + (summaryIndex + 1) * slotsPerHistoricalRoot;
-  }
-
-  private calcRootIndexInSummary(blockInfo: SupportedBlock): number {
-    const slotsPerHistoricalRoot = Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT);
-    return blockInfo.slot % slotsPerHistoricalRoot;
   }
 }

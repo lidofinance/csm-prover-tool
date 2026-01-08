@@ -27,13 +27,20 @@ export class RootsProcessor {
       slotNumber: blockInfoToProcess.slot,
     };
     await this.rootsStack.push(rootSlot); // in case of revert we should reprocess the root
-    await this.prover.handleSlashingsInBlock(blockInfoToProcess, finalizedHeader, this.keysIndexer.getKey);
-    await this.prover.handleWithdrawalsInBlock(
-      blockRootToProcess,
-      blockInfoToProcess,
-      finalizedHeader,
-      this.keysIndexer.getKey,
-    );
+    {
+      await this.prover.handleSlashingsInBlock(blockInfoToProcess, finalizedHeader, this.keysIndexer.getKey);
+      await this.prover.handlePendingConsolidationsInEpoch(
+        blockInfoToProcess,
+        finalizedHeader,
+        this.keysIndexer.getKey,
+      );
+      await this.prover.handleWithdrawalsInBlock(
+        blockRootToProcess,
+        blockInfoToProcess,
+        finalizedHeader,
+        this.keysIndexer.getKey,
+      );
+    }
     const indexerIsTrusted = this.keysIndexer.isTrustedForEveryDuty(rootSlot.slotNumber);
     if (indexerIsTrusted) await this.rootsStack.purge(rootSlot);
     await this.rootsStack.setLastProcessed(rootSlot);

@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto';
 
 import type { SingleProof } from '@chainsafe/persistent-merkle-tree';
+import type { CompositeView } from '@chainsafe/ssz/lib/type/composite';
 import type { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
 import type { ssz as sszType } from '@lodestar/types';
 
-import { SupportedFork } from '../providers/consensus/consensus';
+import { BeaconBlockHeaderStruct, ValidatorStruct, WithdrawalStruct } from '../contracts/types/Verifier';
+import { SupportedFork, SupportedWithdrawal } from '../providers/consensus/consensus';
+import { BlockHeaderResponse, RootHex } from '../providers/consensus/response.interface';
 import { loadPMT } from '../vendors/persistent-merkle-tree';
 
 let ssz: typeof sszType;
@@ -15,6 +18,10 @@ export type SupportedStateView = {
 
 export type SupportedBlockView = {
   [K in keyof typeof SupportedFork]: ContainerTreeViewType<(typeof ssz)[K]['BeaconBlock']['fields']>;
+}[keyof typeof SupportedFork];
+
+export type SupportedValidatorView = {
+  [K in keyof typeof SupportedFork]: CompositeView<(typeof ssz)[K]['Validator']>;
 }[keyof typeof SupportedFork];
 
 export async function generateValidatorProof(stateView: SupportedStateView, valIndex: number): Promise<SingleProof> {
@@ -39,6 +46,24 @@ export async function generateWithdrawalProof(
     type: ProofType.single,
     gindex: gI,
   }) as SingleProof;
+}
+
+export async function generatePendingConsolidationProof(
+  stateView: SupportedStateView,
+  consolidationOffset: number,
+): Promise<SingleProof> {
+  const { ProofType, createProof } = await loadPMT();
+  const gI = stateView.type.getPathInfo(['pendingConsolidations', consolidationOffset]).gindex;
+  return createProof(stateView.node, { type: ProofType.single, gindex: gI }) as SingleProof;
+}
+
+export async function generateBalanceProof(
+  stateView: SupportedStateView,
+  validatorIndex: number,
+): Promise<SingleProof> {
+  const { ProofType, createProof } = await loadPMT();
+  const gI = stateView.type.getPathInfo(['balances', validatorIndex]).gindex;
+  return createProof(stateView.node, { type: ProofType.single, gindex: gI }) as SingleProof;
 }
 
 export async function generateHistoricalStateProof(
@@ -95,4 +120,41 @@ export function verifyProof(root: Uint8Array, gI: bigint, proof: Uint8Array[], v
 
 export function toHex(value: Uint8Array) {
   return '0x' + Buffer.from(value).toString('hex');
+}
+
+export function toRootHex(value: RootHex | Uint8Array): RootHex {
+  return typeof value === 'string' ? value : toHex(value);
+}
+
+export function toBeaconHeaderStruct(header: BlockHeaderResponse): BeaconBlockHeaderStruct {
+  const message = header.header.message;
+  return {
+    slot: Number(message.slot),
+    proposerIndex: Number(message.proposer_index),
+    parentRoot: message.parent_root,
+    stateRoot: message.state_root,
+    bodyRoot: message.body_root,
+  };
+}
+
+export function toValidatorStruct(validator: SupportedValidatorView): ValidatorStruct {
+  return {
+    pubkey: toHex(validator.pubkey),
+    withdrawalCredentials: toHex(validator.withdrawalCredentials),
+    effectiveBalance: BigInt(validator.effectiveBalance),
+    slashed: Boolean(validator.slashed),
+    activationEligibilityEpoch: BigInt(validator.activationEligibilityEpoch),
+    activationEpoch: BigInt(validator.activationEpoch),
+    exitEpoch: BigInt(validator.exitEpoch),
+    withdrawableEpoch: BigInt(validator.withdrawableEpoch),
+  };
+}
+
+export function toWithdrawalStruct(withdrawal: SupportedWithdrawal): WithdrawalStruct {
+  return {
+    index: Number(withdrawal.index),
+    validatorIndex: Number(withdrawal.validatorIndex),
+    withdrawalAddress: toHex(withdrawal.address),
+    amount: BigInt(withdrawal.amount),
+  };
 }

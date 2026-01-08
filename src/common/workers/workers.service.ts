@@ -6,11 +6,16 @@ import { ConfigService } from '@nestjs/config';
 
 import { WorkingMode } from '../config/env.validation';
 import { PrometheusService, TrackWorker } from '../prometheus';
+import { BuildConsolidationProofArgs } from './items/build-conslidation-proof-payloads';
 import { BuildGeneralWithdrawalProofArgs } from './items/build-general-wd-proof-payloads';
 import { BuildHistoricalWithdrawalProofArgs } from './items/build-historical-wd-proof-payloads';
 import { BuildSlashingProofArgs } from './items/build-slashing-proof-payloads';
 import { GetNewValidatorKeysArgs, GetNewValidatorKeysResult } from './items/get-new-validator-keys';
 import { GetValidatorExitEpochsArgs, GetValidatorExitEpochsResult } from './items/get-validator-exit-epochs';
+import type {
+  InspectPendingConsolidationsArgs,
+  InspectPendingConsolidationsResult,
+} from './items/inspect-pending-consolidations';
 import { IVerifier } from '../contracts/types/Verifier';
 
 class ParentLoggerMessage {
@@ -77,6 +82,18 @@ export class WorkersService {
     args: BuildHistoricalWithdrawalProofArgs,
   ): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
     return await this._run('build-historical-wd-proof-payloads', args);
+  }
+
+  public async getConsolidationProofPayloads(
+    args: BuildConsolidationProofArgs,
+  ): Promise<IVerifier.ProcessConsolidationInputStruct[]> {
+    return await this._run('build-consolidation-proof-payloads', args);
+  }
+
+  public async inspectPendingConsolidations(
+    args: InspectPendingConsolidationsArgs,
+  ): Promise<InspectPendingConsolidationsResult> {
+    return await this._run('inspect-pending-consolidations', args);
   }
 
   private async _run<T>(name: string, data: any): Promise<T> {

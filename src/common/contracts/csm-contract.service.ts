@@ -1,4 +1,3 @@
-import { BlockTag } from '@ethersproject/abstract-provider';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
@@ -32,8 +31,8 @@ export class CsmContract {
     }
   }
 
-  public async isWithdrawalProved(blockTag: BlockTag, keyInfo: KeyInfo): Promise<boolean> {
-    return await this.contract.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex, { blockTag });
+  public async isWithdrawalProved(keyInfo: KeyInfo): Promise<boolean> {
+    return await this.contract.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex);
   }
 
   public async isSlashingProved(keyInfo: KeyInfo): Promise<boolean> {

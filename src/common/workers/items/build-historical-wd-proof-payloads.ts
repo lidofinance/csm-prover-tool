@@ -7,7 +7,10 @@ import {
   generateHistoricalStateProof,
   generateValidatorProof,
   generateWithdrawalProof,
+  toBeaconHeaderStruct,
   toHex,
+  toValidatorStruct,
+  toWithdrawalStruct,
   verifyProof,
 } from '../../helpers/proofs';
 import { InvolvedKeysWithWithdrawal } from '../../prover/duties/withdrawals.service';
@@ -113,48 +116,22 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
     payloads.push({
       withdrawal: {
         offset: Number(keyWithWithdrawalInfo.withdrawal.offset),
-        object: {
-          index: Number(keyWithWithdrawalInfo.withdrawal.index),
-          validatorIndex: Number(keyWithWithdrawalInfo.withdrawal.validatorIndex),
-          withdrawalAddress: ssz.ExecutionAddress.toJson(keyWithWithdrawalInfo.withdrawal.address) as string,
-          amount: BigInt(keyWithWithdrawalInfo.withdrawal.amount),
-        },
+        object: toWithdrawalStruct(keyWithWithdrawalInfo.withdrawal),
         proof: withdrawalProof.witnesses.map(toHex),
       },
       validator: {
         index: Number(valIndex),
         nodeOperatorId: keyWithWithdrawalInfo.operatorId,
         keyIndex: keyWithWithdrawalInfo.keyIndex,
-        object: {
-          pubkey: keyWithWithdrawalInfo.pubKey,
-          withdrawalCredentials: toHex(validator.withdrawalCredentials),
-          effectiveBalance: BigInt(validator.effectiveBalance),
-          slashed: Boolean(validator.slashed),
-          activationEligibilityEpoch: BigInt(validator.activationEligibilityEpoch),
-          activationEpoch: BigInt(validator.activationEpoch),
-          exitEpoch: BigInt(validator.exitEpoch),
-          withdrawableEpoch: BigInt(validator.withdrawableEpoch),
-        },
+        object: toValidatorStruct(validator),
         proof: validatorProof.witnesses.map(toHex),
       },
       recentBlock: {
-        header: {
-          slot: Number(finalHeader.header.message.slot),
-          proposerIndex: Number(finalHeader.header.message.proposer_index),
-          parentRoot: finalHeader.header.message.parent_root,
-          stateRoot: finalHeader.header.message.state_root,
-          bodyRoot: finalHeader.header.message.body_root,
-        },
+        header: toBeaconHeaderStruct(finalHeader),
         rootsTimestamp: nextToFinalizedHeaderTimestamp,
       },
       withdrawalBlock: {
-        header: {
-          slot: Number(headerWithWds.header.message.slot),
-          proposerIndex: Number(headerWithWds.header.message.proposer_index),
-          parentRoot: headerWithWds.header.message.parent_root,
-          stateRoot: headerWithWds.header.message.state_root,
-          bodyRoot: headerWithWds.header.message.body_root,
-        },
+        header: toBeaconHeaderStruct(headerWithWds),
         proof: historicalStateProof.witnesses.map(toHex),
       },
     });

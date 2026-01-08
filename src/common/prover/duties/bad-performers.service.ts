@@ -50,7 +50,7 @@ export class BadPerformersService {
     if (!badPerfKeys) return [];
     const unproven = await this.getUnprovenKeys(headBlockInfo, badPerfKeys);
     if (!unproven) return [];
-    const unprovenNonWithdrawn = await this.getNonWithdrawnKeys(headBlockInfo, unproven);
+    const unprovenNonWithdrawn = await this.getNonWithdrawnKeys(unproven);
     if (!unprovenNonWithdrawn) return [];
     return unprovenNonWithdrawn;
   }
@@ -276,16 +276,14 @@ export class BadPerformersService {
   }
 
   private async getNonWithdrawnKeys(
-    headBlockInfo: SupportedBlock,
     keys: InvolvedKeysWithBadPerformance,
   ): Promise<InvolvedKeysWithBadPerformance | undefined> {
-    const latestBlockHash = toHex(headBlockInfo.body.executionPayload.blockHash);
     const nonWithdrawn: InvolvedKeysWithBadPerformance = [];
 
     this.logger.log('🔍 Searching for non-withdrawn bad performers');
 
     for (const key of keys) {
-      const withdrawalProved = await this.csm.isWithdrawalProved(latestBlockHash, key);
+      const withdrawalProved = await this.csm.isWithdrawalProved(key);
       if (withdrawalProved) {
         this.logger.warn(
           `Validator ${key.validatorIndex} already reported as withdrawn. No need to prove as a bad performer`,
