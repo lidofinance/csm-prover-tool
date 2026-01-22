@@ -40,8 +40,8 @@ export class SlashingsService {
     return unproven;
   }
 
-  public async sendSlashingProofs(finalizedHeader: BlockHeaderResponse, slashings: InvolvedKeys): Promise<void> {
-    if (!Object.keys(slashings).length) return;
+  public async sendSlashingProofs(finalizedHeader: BlockHeaderResponse, slashings: InvolvedKeys): Promise<number> {
+    if (!Object.keys(slashings).length) return 0;
     const finalizedState = await this.consensus.getState(finalizedHeader.header.message.state_root);
     const nextHeader = (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data[0];
     const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
@@ -56,6 +56,7 @@ export class SlashingsService {
       this.logger.log(`📡 Sending slashing proof payload for validator index: ${payload.validator.index}`);
       await this.verifier.sendSlashingProof(payload);
     }
+    return payloads.length;
   }
 
   private getSlashedAttesters(

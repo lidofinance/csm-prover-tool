@@ -6,6 +6,7 @@ import * as buildInfo from 'build-info';
 import { KeysIndexer } from './services/keys-indexer';
 import { RootsProcessor } from './services/roots-processor';
 import { RootsProvider } from './services/roots-provider';
+import { SingletonTask } from './utils/singleton-task.decorator';
 import sleep from './utils/sleep';
 import { ConfigService } from '../common/config/config.service';
 import { SECOND_MS } from '../common/config/env.validation';
@@ -13,7 +14,6 @@ import { APP_NAME, PrometheusService, TrackTask } from '../common/prometheus';
 import { ProverService } from '../common/prover/prover.service';
 import { Consensus } from '../common/providers/consensus/consensus';
 import { BlockHeaderResponse } from '../common/providers/consensus/response.interface';
-import { SingletonTask } from '../common/utils/singleton-task.decorator';
 
 @Injectable()
 export class DaemonService implements OnModuleInit {

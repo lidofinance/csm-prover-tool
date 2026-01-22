@@ -2,9 +2,11 @@ import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
 import { BadPerformersService } from './duties/bad-performers.service';
+import { ConsolidationsService } from './duties/consolidations.service';
 import { SlashingsService } from './duties/slashings.service';
 import { WithdrawalsService } from './duties/withdrawals.service';
 import { FullKeyInfoByPubKeyFn, KeyInfoFn } from './types';
+import { toRootHex } from '../helpers/proofs';
 import { Consensus, SupportedBlock } from '../providers/consensus/consensus';
 import { BlockHeaderResponse, RootHex } from '../providers/consensus/response.interface';
 
@@ -16,6 +18,7 @@ export class ProverService {
     protected readonly withdrawals: WithdrawalsService,
     protected readonly strikes: BadPerformersService,
     protected readonly slashings: SlashingsService,
+    protected readonly consolidations: ConsolidationsService,
   ) {}
 
   public async handleWithdrawalsInBlock(
@@ -53,11 +56,40 @@ export class ProverService {
     keyInfoFn: KeyInfoFn,
   ): Promise<void> {
     const slashings = await this.slashings.getUnprovenSlashings(blockInfo, keyInfoFn);
-    if (!Object.keys(slashings).length) {
-      this.logger.log('No slashings to prove');
+    const sentCount = await this.slashings.sendSlashingProofs(finalizedHeader, slashings);
+    if (sentCount > 0) {
+      this.logger.log(`🏁 ${sentCount} Slashing proof(s) sent`);
+    } else {
+      this.logger.log('No slashing proof(s) were sent');
+    }
+  }
+
+  public async handlePendingConsolidationsInEpoch(
+    blockInfo: SupportedBlock,
+    finalizedHeader: BlockHeaderResponse,
+    keyInfoFn: KeyInfoFn,
+  ): Promise<void> {
+    const isFirstBlockInEpoch = await this.isFirstBlockInEpoch(blockInfo);
+    if (!isFirstBlockInEpoch) {
+      this.logger.log('Skipping pending consolidations handling. Not the first block in epoch');
       return;
     }
-    await this.slashings.sendSlashingProofs(finalizedHeader, slashings);
-    this.logger.log('🏁 Slashing proof(s) sent');
+    const consolidations = await this.consolidations.getConsolidationsToProve(blockInfo, keyInfoFn);
+    const sentCount = await this.consolidations.sendConsolidationProofs(finalizedHeader, consolidations);
+    if (sentCount > 0) {
+      this.logger.log(`🏁 ${sentCount} Consolidation proof(s) sent`);
+    } else {
+      this.logger.log('No consolidation proof(s) were sent');
+    }
+  }
+
+  private async isFirstBlockInEpoch(blockInfo: SupportedBlock): Promise<boolean> {
+    const currentSlot = Number(blockInfo.slot);
+    if (currentSlot === 0) return true;
+    const parentRoot = toRootHex(blockInfo.parentRoot);
+    const parentHeader = await this.consensus.getBeaconHeader(parentRoot);
+    const parentEpoch = this.consensus.slotToEpoch(Number(parentHeader.header.message.slot));
+    const currentEpoch = this.consensus.slotToEpoch(currentSlot);
+    return parentEpoch < currentEpoch;
   }
 }

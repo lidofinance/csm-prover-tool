@@ -4,12 +4,12 @@ import { Module } from '@nestjs/common';
 import { ConditionalModule } from '@nestjs/config';
 
 import { Consensus } from './consensus/consensus';
+import { DownloadProgressModule } from './consensus/download-progress.module';
 import { Execution } from './execution/execution';
 import { Keysapi } from './keysapi/keysapi';
 import { ConfigService } from '../config/config.service';
 import { WorkingMode } from '../config/env.validation';
 import { PrometheusService, RequestStatus } from '../prometheus';
-import { UtilsModule } from '../utils/utils.module';
 import { Ipfs } from './ipfs/ipfs';
 
 const ExecutionDaemon = () =>
@@ -74,7 +74,7 @@ const ExecutionCli = () =>
     ConditionalModule.registerWhen(ExecutionCli(), (env: NodeJS.ProcessEnv) => {
       return env['WORKING_MODE'] === WorkingMode.CLI;
     }),
-    ConditionalModule.registerWhen(UtilsModule, (env: NodeJS.ProcessEnv) => {
+    ConditionalModule.registerWhen(DownloadProgressModule, (env: NodeJS.ProcessEnv) => {
       return env['WORKING_MODE'] === WorkingMode.CLI;
     }),
   ],

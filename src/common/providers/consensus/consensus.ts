@@ -6,10 +6,10 @@ import { promise as spinnerFor } from 'ora-classic';
 import { IncomingHttpHeaders } from 'undici/types/header';
 import BodyReadable from 'undici/types/readable';
 
+import { DownloadProgress } from './download-progress';
 import { BeaconConfig, BlockHeaderResponse, BlockId, GenesisResponse, RootHex, StateId } from './response.interface';
 import { ConfigService } from '../../config/config.service';
 import { PrometheusService, TrackCLRequest } from '../../prometheus';
-import { DownloadProgress } from '../../utils/download-progress/download-progress';
 import { BaseRestProvider } from '../base/rest-provider';
 import { RequestOptions } from '../base/utils/func';
 

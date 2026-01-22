@@ -8,8 +8,6 @@ import BodyReadable from 'undici/types/readable';
 export class DownloadProgress {
   private spinner: Ora;
 
-  constructor() {}
-
   public show(name: string, resp: { body: BodyReadable; headers: IncomingHttpHeaders }): void {
     const totalContentLength = Number(resp.headers['content-length']);
     let downloaded = 0;
