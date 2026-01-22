@@ -10,10 +10,10 @@ import { ContractsModule } from '../contracts/contracts.module';
 import { ProvidersModule } from '../providers/providers.module';
 import { WorkersModule } from '../workers/workers.module';
 import { BadPerformersService } from './duties/bad-performers.service';
-import { ConsolidationsService } from './duties/consolidations.service';
 import { ConsolidationCacheManager } from './duties/consolidations/consolidation-cache-manager';
 import { ConsolidationProofContextResolver } from './duties/consolidations/consolidation-proof-context';
 import { ConsolidationProofSender } from './duties/consolidations/consolidation-proof-sender';
+import { ConsolidationsService } from './duties/consolidations.service';
 
 @Module({
   imports: [

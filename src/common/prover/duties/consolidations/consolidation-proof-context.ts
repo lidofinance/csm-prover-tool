@@ -1,10 +1,10 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 
+import { ConsolidationProofContext } from './consolidations.types';
 import { Consensus } from '../../../providers/consensus/consensus';
 import { BlockHeaderResponse, RootHex } from '../../../providers/consensus/response.interface';
 import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../../utils/historical-summary';
-import { ConsolidationProofContext } from './consolidations.types';
 
 @Injectable()
 export class ConsolidationProofContextResolver {

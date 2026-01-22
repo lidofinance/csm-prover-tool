@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
 import { Low } from '@huanshiwushuang/lowdb';
 import { JSONFile } from '@huanshiwushuang/lowdb/node';
+import { Injectable } from '@nestjs/common';
 
 import { RootHex } from '../../providers/consensus/response.interface';
 
