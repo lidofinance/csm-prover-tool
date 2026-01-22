@@ -12,7 +12,6 @@ import { StrikesContract } from '../../contracts/strikes-contract.service';
 import { ICSStrikes } from '../../contracts/types/Strikes';
 import { toHex } from '../../helpers/proofs';
 import { Consensus, SupportedBlock } from '../../providers/consensus/consensus';
-import { Execution } from '../../providers/execution/execution';
 import { Ipfs } from '../../providers/ipfs/ipfs';
 import { FullKeyInfo, FullKeyInfoByPubKeyFn } from '../types';
 
@@ -26,7 +25,6 @@ export class BadPerformersService {
     @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
     protected readonly config: ConfigService,
     protected readonly consensus: Consensus,
-    protected readonly execution: Execution,
     protected readonly ipfs: Ipfs,
     protected readonly csm: CsmContract,
     protected readonly strikes: StrikesContract,
