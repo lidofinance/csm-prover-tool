@@ -58,10 +58,9 @@ export class NoopConsolidationCacheStore implements ConsolidationCacheStore {
 @Injectable()
 export class PersistentConsolidationCacheStore implements ConsolidationCacheStore {
   private readonly cache = new Map<ConsolidationKey, ConsolidationCacheEntry>();
+  private readonly storagePath = 'storage/roots-stack-consolidations.json';
   private storage: Low<ConsolidationCacheStorage> | null = null;
   private pendingWrite = false;
-
-  constructor(private readonly storagePath: string = 'storage/roots-stack-consolidations.json') {}
 
   public async ensureReady(): Promise<void> {
     if (this.storage) return;

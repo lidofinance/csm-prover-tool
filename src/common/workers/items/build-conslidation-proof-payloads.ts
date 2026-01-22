@@ -13,7 +13,7 @@ import {
   toValidatorStruct,
   verifyProof,
 } from '../../helpers/proofs';
-import type { ConsolidationToProve } from '../../prover/duties/consolidations.service';
+import type { ConsolidationToProve } from '../../prover/duties/consolidations/consolidations.types';
 import { State } from '../../providers/consensus/consensus';
 import { BlockHeaderResponse } from '../../providers/consensus/response.interface';
 import { WorkerLogger } from '../workers.service';

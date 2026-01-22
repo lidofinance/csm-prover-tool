@@ -56,10 +56,6 @@ export class ProverService {
     keyInfoFn: KeyInfoFn,
   ): Promise<void> {
     const slashings = await this.slashings.getUnprovenSlashings(blockInfo, keyInfoFn);
-    if (!Object.keys(slashings).length) {
-      this.logger.log('No slashings to prove');
-      return;
-    }
     const sentCount = await this.slashings.sendSlashingProofs(finalizedHeader, slashings);
     if (sentCount > 0) {
       this.logger.log(`🏁 ${sentCount} Slashing proof(s) sent`);
@@ -73,15 +69,12 @@ export class ProverService {
     finalizedHeader: BlockHeaderResponse,
     keyInfoFn: KeyInfoFn,
   ): Promise<void> {
-    if (!(await this.isFirstBlockInEpoch(blockInfo))) {
-      this.logger.log('Not the first block in epoch, skipping pending consolidations handling');
+    const isFirstBlockInEpoch = await this.isFirstBlockInEpoch(blockInfo);
+    if (!isFirstBlockInEpoch) {
+      this.logger.log('Skipping pending consolidations handling. Not the first block in epoch');
       return;
     }
     const consolidations = await this.consolidations.getConsolidationsToProve(blockInfo, keyInfoFn);
-    if (!consolidations.length) {
-      this.logger.log('No consolidations to prove');
-      return;
-    }
     const sentCount = await this.consolidations.sendConsolidationProofs(finalizedHeader, consolidations);
     if (sentCount > 0) {
       this.logger.log(`🏁 ${sentCount} Consolidation proof(s) sent`);

@@ -11,6 +11,9 @@ import { ProvidersModule } from '../providers/providers.module';
 import { WorkersModule } from '../workers/workers.module';
 import { BadPerformersService } from './duties/bad-performers.service';
 import { ConsolidationsService } from './duties/consolidations.service';
+import { ConsolidationCacheManager } from './duties/consolidations/consolidation-cache-manager';
+import { ConsolidationProofContextResolver } from './duties/consolidations/consolidation-proof-context';
+import { ConsolidationProofSender } from './duties/consolidations/consolidation-proof-sender';
 
 @Module({
   imports: [
@@ -21,7 +24,16 @@ import { ConsolidationsService } from './duties/consolidations.service';
       return env['WORKING_MODE'] === WorkingMode.Daemon;
     }),
   ],
-  providers: [ProverService, SlashingsService, WithdrawalsService, BadPerformersService, ConsolidationsService],
+  providers: [
+    ProverService,
+    SlashingsService,
+    WithdrawalsService,
+    BadPerformersService,
+    ConsolidationCacheManager,
+    ConsolidationProofContextResolver,
+    ConsolidationProofSender,
+    ConsolidationsService,
+  ],
   exports: [ProverService],
 })
 export class ProverModule {}
