@@ -1,14 +1,15 @@
-import { BlockTag } from '@ethersproject/abstract-provider';
+import { type BlockTag } from '@ethersproject/abstract-provider';
 import { AddressZero } from '@ethersproject/constants';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { utils } from 'ethers';
 
-import { AccountingContract } from './accounting-contract.service';
-import { FeeDistributor__factory, FeeOracle__factory, Strikes, Strikes__factory } from './types';
-import { ConfigService } from '../config/config.service';
-import { BadPerformerProofPayload } from '../prover/types';
-import { Execution } from '../providers/execution/execution';
+import { AccountingContract } from './accounting-contract.service.js';
+import { FeeDistributor__factory, FeeOracle__factory, type Strikes, Strikes__factory } from './types/index.js';
+import { ConfigService } from '../config/config.service.js';
+import { type AppLogger } from '../logger/app-logger.type.js';
+import type { BadPerformerProofPayload } from '../prover/types.js';
+import { Execution } from '../providers/execution/execution.js';
 
 const WITHDRAWAL_REQUEST_SYS_ADDRESS = '0x00000961Ef480Eb55e80D19ad83579A64c007002';
 
@@ -17,7 +18,7 @@ export class StrikesContract {
   private contract: Strikes;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly execution: Execution,
     protected readonly accounting: AccountingContract,
@@ -34,6 +35,9 @@ export class StrikesContract {
       const feeOracle = await feeDistributorContract.ORACLE();
       const feeOracleContract = FeeOracle__factory.connect(feeOracle, this.execution.provider);
       address = await feeOracleContract.STRIKES();
+    }
+    if (!address || address == '') {
+      throw new Error('Failed to resolve CSStrikes address');
     }
     this.logger.log(`CSStrikes address: ${address}`);
     this.contract = Strikes__factory.connect(address, this.execution.provider);

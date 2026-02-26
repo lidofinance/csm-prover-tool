@@ -1,11 +1,8 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type { ssz as sszType } from '@lodestar/types';
-
-import { State } from '../../providers/consensus/consensus';
-import { WorkerLogger } from '../workers.service';
-
-let ssz: typeof sszType;
+import type { State } from '../../providers/consensus/consensus.js';
+import { getSsz, isPostElectraFork } from '../../providers/consensus/forks.js';
+import { WorkerLogger } from '../worker-logger.js';
 
 export type PendingConsolidationInfo = {
   sourceIndex: number;
@@ -21,15 +18,13 @@ export type InspectPendingConsolidationsArgs = {
 export type InspectPendingConsolidationsResult = PendingConsolidationInfo[];
 
 async function inspectPendingConsolidations(): Promise<InspectPendingConsolidationsResult> {
-  ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
   const { state } = workerData as InspectPendingConsolidationsArgs;
-  const stateView = ssz[state.forkName].BeaconState.deserializeToView(state.bodyBytes);
-  // @ts-expect-error: pending consolidations exist only after Electra.
-  const pendingConsolidationsView = stateView.pendingConsolidations;
-  if (!pendingConsolidationsView) {
+  if (!isPostElectraFork(state.forkName)) {
     WorkerLogger.warn('Pending consolidations are not available in this fork');
     return [];
   }
+  const stateView = getSsz(state.forkName).BeaconState.deserializeToView(state.bodyBytes);
+  const pendingConsolidationsView = stateView.pendingConsolidations;
 
   const allPending: PendingConsolidationInfo[] = [];
   for (let i = 0; i < pendingConsolidationsView.length; i++) {
@@ -51,6 +46,6 @@ async function inspectPendingConsolidations(): Promise<InspectPendingConsolidati
 inspectPendingConsolidations()
   .then((v) => parentPort?.postMessage(v))
   .catch((e) => {
-    console.error(e);
+    WorkerLogger.error(e instanceof Error ? (e.stack ?? e.message) : String(e));
     throw e;
   });

@@ -1,9 +1,10 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import { State } from '../../providers/consensus/consensus';
-import { loadPMT } from '../../vendors/persistent-merkle-tree';
+import { iterateNodesAtDepth } from '@chainsafe/persistent-merkle-tree';
 
-let ssz: typeof import('@lodestar/types').ssz;
+import type { State } from '../../providers/consensus/consensus.js';
+import { getSsz } from '../../providers/consensus/forks.js';
+import { WorkerLogger } from '../worker-logger.js';
 
 export type GetValidatorExitEpochsArgs = {
   state: State;
@@ -14,13 +15,11 @@ export type GetValidatorExitEpochsResult = {
 };
 
 async function getValidatorExitEpochs(): Promise<GetValidatorExitEpochsResult> {
-  ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
-  const { iterateNodesAtDepth } = await loadPMT();
   const { state } = workerData as GetValidatorExitEpochsArgs;
   //
   // Get views
   //
-  const stateView = ssz[state.forkName].BeaconState.deserializeToView(state.bodyBytes);
+  const stateView = getSsz(state.forkName).BeaconState.deserializeToView(state.bodyBytes);
   //
   //
   //
@@ -44,6 +43,6 @@ async function getValidatorExitEpochs(): Promise<GetValidatorExitEpochsResult> {
 getValidatorExitEpochs()
   .then((v) => parentPort?.postMessage(v))
   .catch((e) => {
-    console.error(e);
+    WorkerLogger.error(e instanceof Error ? (e.stack ?? e.message) : String(e));
     throw e;
   });

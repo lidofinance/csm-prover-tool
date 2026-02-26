@@ -1,6 +1,8 @@
-import { State } from '../../../providers/consensus/consensus';
-import { BlockHeaderResponse, RootHex } from '../../../providers/consensus/response.interface';
-import { KeyInfo } from '../../types';
+import type { RootHex } from '@lodestar/types';
+
+import type { State } from '../../../providers/consensus/consensus.js';
+import type { BlockHeaderResponse } from '../../../providers/consensus/response.interface.js';
+import type { KeyInfo } from '../../types.js';
 
 export type ConsolidationToProve = {
   sourceIndex: number;

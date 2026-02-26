@@ -1,10 +1,13 @@
-import { LoggerService } from '@nestjs/common';
-import { request } from 'undici';
-import { IncomingHttpHeaders } from 'undici/types/header';
-import BodyReadable from 'undici/types/readable';
+import { type Dispatcher, request } from 'undici';
 
-import { RequestOptions, RequestPolicy, rejectDelay, retrier, urljoin } from './utils/func';
-import { PrometheusService } from '../../prometheus';
+import { type RequestOptions, type RequestPolicy, rejectDelay, retrier, urljoin } from './utils/func.js';
+import type { AppLogger } from '../../logger/app-logger.type.js';
+import { type PrometheusService } from '../../prometheus/index.js';
+
+export type RestResponse = {
+  body: Dispatcher.ResponseData['body'];
+  headers: Dispatcher.ResponseData['headers'];
+};
 
 export type RetryOptions = RequestOptions &
   RequestPolicy & {
@@ -30,7 +33,7 @@ export abstract class BaseRestProvider {
     responseTimeout: number,
     maxRetries: number,
     retryDelay: number,
-    protected readonly logger: LoggerService,
+    protected readonly logger: AppLogger,
     protected readonly prometheus?: PrometheusService,
   ) {
     this.baseUrls = urls;
@@ -42,12 +45,9 @@ export abstract class BaseRestProvider {
   }
 
   protected async retryRequest(
-    callback: (
-      apiURL: string,
-      options?: RequestOptions,
-    ) => Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }>,
+    callback: (apiURL: string, options?: RequestOptions) => Promise<RestResponse>,
     options?: RetryOptions,
-  ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
+  ): Promise<RestResponse> {
     options = {
       ...this.requestPolicy,
       useFallbackOnRejected: () => true, //  use fallback on error as default
@@ -88,11 +88,7 @@ export abstract class BaseRestProvider {
     return res;
   }
 
-  protected async baseGet(
-    base: string,
-    endpoint: string,
-    options?: RequestOptions,
-  ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
+  protected async baseGet(base: string, endpoint: string, options?: RequestOptions): Promise<RestResponse> {
     options = {
       requestPolicy: this.requestPolicy,
       ...options,
@@ -118,7 +114,7 @@ export abstract class BaseRestProvider {
     endpoint: string,
     requestBody: any,
     options?: RequestOptions,
-  ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
+  ): Promise<RestResponse> {
     options = {
       requestPolicy: this.requestPolicy,
       ...options,

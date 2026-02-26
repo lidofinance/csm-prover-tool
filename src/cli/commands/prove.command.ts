@@ -1,18 +1,19 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, LoggerService } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { Command as Commander } from 'commander';
 import { Command, CommandRunner, InjectCommander, InquirerService, Option } from 'nest-commander';
 
-import { CsmContract } from '../../common/contracts/csm-contract.service';
-import { ProverService } from '../../common/prover/prover.service';
-import { FullKeyInfoByPubKeyFn, KeyInfoFn } from '../../common/prover/types';
-import { Consensus } from '../../common/providers/consensus/consensus';
+import { CsmContract } from '../../common/contracts/csm-contract.service.js';
+import { type AppLogger } from '../../common/logger/app-logger.type.js';
+import { ProverService } from '../../common/prover/prover.service.js';
+import type { FullKeyInfoByPubKeyFn, KeyInfoFn } from '../../common/prover/types.js';
+import { Consensus } from '../../common/providers/consensus/consensus.js';
 import {
   validateClBlock,
   validateKeyIndex,
   validateNodeOperatorId,
   validateValidatorIndex,
-} from '../questions/proof-input.question';
+} from '../questions/proof-input.question.js';
 
 type ProofOptions = {
   nodeOperatorId: string;
@@ -36,7 +37,7 @@ export class ProveCommand extends CommandRunner {
   private pubkey: string;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     @InjectCommander() private readonly commander: Commander,
     protected readonly inquirerService: InquirerService,
     protected readonly csm: CsmContract,

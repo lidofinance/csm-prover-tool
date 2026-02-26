@@ -3,7 +3,11 @@
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": "daemon.e2e-spec.ts$",
+  "extensionsToTreatAsEsm": [".ts"],
+  "moduleNameMapper": {
+    "^(\\.{1,2}/.*)\\.js$": "$1"
+  },
   "transform": {
-    "^.+\\.(t|j)s?$": ["@swc/jest"]
+    "^.+\\.(t|j)s?$": ["@swc/jest", { "module": { "type": "es6" } }]
   }
 }

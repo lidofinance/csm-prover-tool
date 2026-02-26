@@ -1,19 +1,22 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import type { RootHex } from '@lodestar/types';
+import { Inject, Injectable } from '@nestjs/common';
 
-import { BadPerformersService } from './duties/bad-performers.service';
-import { ConsolidationsService } from './duties/consolidations.service';
-import { SlashingsService } from './duties/slashings.service';
-import { WithdrawalsService } from './duties/withdrawals.service';
-import { FullKeyInfoByPubKeyFn, KeyInfoFn } from './types';
-import { toRootHex } from '../helpers/proofs';
-import { Consensus, SupportedBlock } from '../providers/consensus/consensus';
-import { BlockHeaderResponse, RootHex } from '../providers/consensus/response.interface';
+import type { AppLogger } from '../logger/app-logger.type.js';
+import { BadPerformersService } from './duties/bad-performers.service.js';
+import { ConsolidationsService } from './duties/consolidations.service.js';
+import { SlashingsService } from './duties/slashings.service.js';
+import { WithdrawalsService } from './duties/withdrawals.service.js';
+import { FullKeyInfoByPubKeyFn, KeyInfoFn } from './types.js';
+import { toRootHex } from '../helpers/proofs.js';
+import { Consensus } from '../providers/consensus/consensus.js';
+import type { SupportedBlock } from '../providers/consensus/forks.js';
+import type { BlockHeaderResponse } from '../providers/consensus/response.interface.js';
 
 @Injectable()
 export class ProverService {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly consensus: Consensus,
     protected readonly withdrawals: WithdrawalsService,
     protected readonly strikes: BadPerformersService,

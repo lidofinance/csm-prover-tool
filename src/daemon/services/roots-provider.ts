@@ -1,15 +1,17 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import type { RootHex } from '@lodestar/types';
+import { Inject, Injectable } from '@nestjs/common';
 
-import { RootSlot, RootsStack } from './roots-stack';
-import { ConfigService } from '../../common/config/config.service';
-import { Consensus } from '../../common/providers/consensus/consensus';
-import { BlockHeaderResponse, RootHex } from '../../common/providers/consensus/response.interface';
+import { type RootSlot, RootsStack } from './roots-stack.js';
+import { ConfigService } from '../../common/config/config.service.js';
+import { type AppLogger } from '../../common/logger/app-logger.type.js';
+import { Consensus } from '../../common/providers/consensus/consensus.js';
+import type { BlockHeaderResponse } from '../../common/providers/consensus/response.interface.js';
 
 @Injectable()
 export class RootsProvider {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly consensus: Consensus,
     protected readonly rootsStack: RootsStack,

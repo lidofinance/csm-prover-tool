@@ -1,8 +1,8 @@
 import { CommandTestFactory } from 'nest-commander-testing';
 
-import { CliModule } from '../src/cli/cli.module';
-import { ConfigService } from '../src/common/config/config.service';
-import { EnvironmentVariables } from '../src/common/config/env.validation';
+import { CliModule } from '../src/cli/cli.module.js';
+import { ConfigService } from '../src/common/config/config.service.js';
+import { type EnvironmentVariables } from '../src/common/config/env.validation.js';
 
 class CustomConfigService extends ConfigService {
   public get<T extends keyof EnvironmentVariables>(key: T): EnvironmentVariables[T] {

@@ -1,6 +1,6 @@
 import { ConfigService as ConfigServiceSource } from '@nestjs/config';
 
-import { EnvironmentVariables } from './env.validation';
+import { type EnvironmentVariables } from './env.validation.js';
 
 export class ConfigService extends ConfigServiceSource<EnvironmentVariables> {
   /**

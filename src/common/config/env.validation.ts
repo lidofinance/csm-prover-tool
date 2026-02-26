@@ -15,7 +15,7 @@ import {
   validateSync,
 } from 'class-validator';
 
-import { Environment, LogFormat, LogLevel } from './interfaces';
+import { Environment, LogFormat, LogLevel } from './interfaces/environment.interface.js';
 
 export enum Network {
   Mainnet = 1,

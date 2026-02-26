@@ -1,8 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type { ssz as sszType } from '@lodestar/types';
-
-import { IVerifier } from '../../contracts/types/Verifier';
+import type { IVerifier } from '../../contracts/types/Verifier.js';
 import {
   generateHistoricalStateProof,
   generateValidatorProof,
@@ -12,13 +10,12 @@ import {
   toValidatorStruct,
   toWithdrawalStruct,
   verifyProof,
-} from '../../helpers/proofs';
-import { InvolvedKeysWithWithdrawal } from '../../prover/duties/withdrawals.service';
-import { State, SupportedBlock } from '../../providers/consensus/consensus';
-import { BlockHeaderResponse } from '../../providers/consensus/response.interface';
-import { WorkerLogger } from '../workers.service';
-
-let ssz: typeof sszType;
+} from '../../helpers/proofs.js';
+import type { InvolvedKeysWithWithdrawal } from '../../prover/duties/withdrawals.service.js';
+import type { State } from '../../providers/consensus/consensus.js';
+import { type SupportedBlock, getSsz } from '../../providers/consensus/forks.js';
+import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { WorkerLogger } from '../worker-logger.js';
 
 export type BuildHistoricalWithdrawalProofArgs = {
   headerWithWds: BlockHeaderResponse;
@@ -35,7 +32,6 @@ export type BuildHistoricalWithdrawalProofArgs = {
 };
 
 async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
-  ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
   const {
     headerWithWds,
     finalHeader,
@@ -52,11 +48,10 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
   //
   // Get views
   //
-  const finalizedStateView = ssz[finalizedState.forkName].BeaconState.deserializeToView(finalizedState.bodyBytes);
-  const summaryStateView = ssz[summaryState.forkName].BeaconState.deserializeToView(summaryState.bodyBytes);
-  const stateWithWdsView = ssz[stateWithWds.forkName].BeaconState.deserializeToView(stateWithWds.bodyBytes);
-  // @ts-expect-error: thinks state can have different fork with currentBlock, but it's not possible
-  const blockWithWdsView = ssz[stateWithWds.forkName].BeaconBlock.toView(blockWithWds);
+  const finalizedStateView = getSsz(finalizedState.forkName).BeaconState.deserializeToView(finalizedState.bodyBytes);
+  const summaryStateView = getSsz(summaryState.forkName).BeaconState.deserializeToView(summaryState.bodyBytes);
+  const stateWithWdsView = getSsz(stateWithWds.forkName).BeaconState.deserializeToView(stateWithWds.bodyBytes);
+  const blockWithWdsView = getSsz(stateWithWds.forkName).BeaconBlock.toView(blockWithWds);
   //
   //
   //
@@ -142,6 +137,6 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
 buildHistoricalWithdrawalsProofPayloads()
   .then((v) => parentPort?.postMessage(v))
   .catch((e) => {
-    console.error(e);
+    WorkerLogger.error(e instanceof Error ? (e.stack ?? e.message) : String(e));
     throw e;
   });

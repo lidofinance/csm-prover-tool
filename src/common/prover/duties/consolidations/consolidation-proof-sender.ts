@@ -1,17 +1,20 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import type { RootHex } from '@lodestar/types';
+import { Inject, Injectable } from '@nestjs/common';
 
-import { ConsolidationProofContextResolver } from './consolidation-proof-context';
-import { ConsolidationToProve } from './consolidations.types';
-import { VerifierContract } from '../../../contracts/verifier-contract.service';
-import { Consensus } from '../../../providers/consensus/consensus';
-import { BlockHeaderResponse, RootHex } from '../../../providers/consensus/response.interface';
-import { WorkersService } from '../../../workers/workers.service';
+import { ConsolidationProofContextResolver } from './consolidation-proof-context.js';
+import type { ConsolidationToProve } from './consolidations.types.js';
+import { VerifierContract } from '../../../contracts/verifier-contract.service.js';
+import { toRootHex } from '../../../helpers/proofs.js';
+import { type AppLogger } from '../../../logger/app-logger.type.js';
+import { Consensus } from '../../../providers/consensus/consensus.js';
+import type { BlockHeaderResponse } from '../../../providers/consensus/response.interface.js';
+import { WorkersService } from '../../../workers/workers.service.js';
 
 @Injectable()
 export class ConsolidationProofSender {
   constructor(
-    @Inject(LOGGER_PROVIDER) private readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) private readonly logger: AppLogger,
     private readonly workers: WorkersService,
     private readonly consensus: Consensus,
     private readonly verifier: VerifierContract,
@@ -20,7 +23,7 @@ export class ConsolidationProofSender {
 
   public async send(finalizedHeader: BlockHeaderResponse, consolidations: ConsolidationToProve[]): Promise<number> {
     if (!consolidations.length) return 0;
-    const finalizedState = await this.consensus.getState(finalizedHeader.header.message.state_root);
+    const finalizedState = await this.consensus.getState(toRootHex(finalizedHeader.header.message.stateRoot));
     const nextHeader = (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data[0];
     if (!nextHeader) throw new Error(`Next block header after ${finalizedHeader.root} not found`);
     const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));

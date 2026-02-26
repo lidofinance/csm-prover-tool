@@ -1,25 +1,29 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import type { RootHex } from '@lodestar/types';
+import { Inject, Injectable } from '@nestjs/common';
 
-import { CsmContract } from '../../contracts/csm-contract.service';
-import { IVerifier } from '../../contracts/types/Verifier';
-import { VerifierContract } from '../../contracts/verifier-contract.service';
-import { Consensus, State, SupportedBlock, SupportedWithdrawal } from '../../providers/consensus/consensus';
-import { BlockHeaderResponse, RootHex } from '../../providers/consensus/response.interface';
-import { WorkersService } from '../../workers/workers.service';
-import { KeyInfo, KeyInfoFn } from '../types';
-import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../utils/historical-summary';
+import { CsmContract } from '../../contracts/csm-contract.service.js';
+import type { IVerifier } from '../../contracts/types/Verifier.js';
+import { VerifierContract } from '../../contracts/verifier-contract.service.js';
+import { toRootHex } from '../../helpers/proofs.js';
+import { type AppLogger } from '../../logger/app-logger.type.js';
+import { Consensus, type State } from '../../providers/consensus/consensus.js';
+import type { SupportedBlock, SupportedWithdrawal } from '../../providers/consensus/forks.js';
+import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { WorkersService } from '../../workers/workers.service.js';
+import type { KeyInfo, KeyInfoFn } from '../types.js';
+import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../utils/historical-summary.js';
 
 // according to the research https://hackmd.io/1wM8vqeNTjqt4pC3XoCUKQ?view#Proposed-solution
 const FULL_WITHDRAWAL_MIN_AMOUNT = 8 * 10 ** 9; // 8 ETH in Gwei
 
 type WithdrawalWithOffset = SupportedWithdrawal & { offset: number };
-export type InvolvedKeysWithWithdrawal = { [valIndex: number]: KeyInfo & { withdrawal: WithdrawalWithOffset } };
+export type InvolvedKeysWithWithdrawal = { [valIndex: string]: KeyInfo & { withdrawal: WithdrawalWithOffset } };
 
 @Injectable()
 export class WithdrawalsService {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
     protected readonly csm: CsmContract,
@@ -35,7 +39,7 @@ export class WithdrawalsService {
     const unproven: InvolvedKeysWithWithdrawal = {};
     for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
       const proved = await this.csm.isWithdrawalProved(keyWithWithdrawalInfo);
-      if (!proved) unproven[Number(valIndex)] = keyWithWithdrawalInfo;
+      if (!proved) unproven[valIndex] = keyWithWithdrawalInfo;
     }
     const unprovenCount = Object.keys(unproven).length;
     if (!unprovenCount) {
@@ -54,7 +58,7 @@ export class WithdrawalsService {
   ): Promise<number> {
     if (!Object.keys(withdrawals).length) return 0;
     const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
-    const state = await this.consensus.getState(blockHeader.header.message.state_root);
+    const state = await this.consensus.getState(toRootHex(blockHeader.header.message.stateRoot));
     // There is a case when the block is not historical regarding the finalized block, but it is historical
     // regarding the transaction execution time. This is possible when long finalization time
     // The transaction will be reverted and the application will try to handle that block again
@@ -110,7 +114,7 @@ export class WithdrawalsService {
     const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data[0];
     if (!nextBlockHeader) throw new Error(`Next block header after ${finalizedHeader.root} not found`);
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
-    const finalizedState = await this.consensus.getState(finalizedHeader.header.message.state_root);
+    const finalizedState = await this.consensus.getState(toRootHex(finalizedHeader.header.message.stateRoot));
     const summaryResolution = await resolveHistoricalSummaryContext(
       this.consensus,
       finalizedHeader,

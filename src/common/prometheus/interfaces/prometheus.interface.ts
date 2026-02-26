@@ -1,6 +1,5 @@
-import { Metrics } from '@willsoto/nestjs-prometheus';
-import * as client from 'prom-client';
-export { Metrics } from '@willsoto/nestjs-prometheus';
+import type { Metrics } from '@willsoto/nestjs-prometheus';
+import type * as client from 'prom-client';
 
 export type Options<T extends string> =
   | client.GaugeConfiguration<T>

@@ -7,6 +7,17 @@
 
 Tool for reporting Bad Performers and Withdrawals for Lido Community Staking Module
 
+### Build steps (for development)
+
+```bash
+# Deps
+$ nvm install && nvm use
+$ corepack enable && corepack use yarn@4.12.0
+$ yarn install --immutable
+# Build
+$ yarn build
+```
+
 ### Daemon working mode
 
 The tool is a daemon that listens to the CL and EL and reports any bad performers and withdrawals to the Lido Community Staking Module.
@@ -58,9 +69,6 @@ So, according to the algorithm, there are the following statements:
    b. Or using yarn
     
    ```bash
-   $ yarn install
-   $ yarn run typechain
-   $ yarn build
    $ yarn run start:prod
    ```
 
@@ -90,9 +98,6 @@ So, according to the algorithm, there are the following statements:
    b. Or using yarn
 
    ```bash
-   $ yarn install
-   $ yarn run typechain
-   $ yarn build
    # Report slashing
    $ yarn slashing
    # Report withdrawal

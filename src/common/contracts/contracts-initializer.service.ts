@@ -1,17 +1,18 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 
-import { AccountingContract } from './accounting-contract.service';
-import { CsmContract } from './csm-contract.service';
-import { ExitPenaltiesContract } from './exit-penalties-contract.service';
-import { ParametersRegistryContract } from './parameters-registry-contract.service';
-import { StrikesContract } from './strikes-contract.service';
-import { VerifierContract } from './verifier-contract.service';
+import { AccountingContract } from './accounting-contract.service.js';
+import { CsmContract } from './csm-contract.service.js';
+import { ExitPenaltiesContract } from './exit-penalties-contract.service.js';
+import { ParametersRegistryContract } from './parameters-registry-contract.service.js';
+import { StrikesContract } from './strikes-contract.service.js';
+import { VerifierContract } from './verifier-contract.service.js';
+import { type AppLogger } from '../logger/app-logger.type.js';
 
 @Injectable()
 export class ContractsInitializer implements OnModuleInit {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly csm: CsmContract,
     protected readonly accounting: AccountingContract,
     protected readonly params: ParametersRegistryContract,

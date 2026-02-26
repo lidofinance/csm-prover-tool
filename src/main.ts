@@ -2,11 +2,11 @@ import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { NestFactory } from '@nestjs/core';
 import { CommandFactory } from 'nest-commander';
 
-import { CliModule } from './cli/cli.module';
-import { ConfigService } from './common/config/config.service';
-import { WorkingMode } from './common/config/env.validation';
-import { DaemonModule } from './daemon/daemon.module';
-import { DaemonService } from './daemon/daemon.service';
+import { CliModule } from './cli/cli.module.js';
+import { ConfigService } from './common/config/config.service.js';
+import { WorkingMode } from './common/config/env.validation.js';
+import { DaemonModule } from './daemon/daemon.module.js';
+import { DaemonService } from './daemon/daemon.service.js';
 
 async function bootstrapCLI() {
   process

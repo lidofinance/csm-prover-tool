@@ -1,8 +1,7 @@
-import { Low } from '@huanshiwushuang/lowdb';
-import { JSONFile } from '@huanshiwushuang/lowdb/node';
+import type { RootHex } from '@lodestar/types';
 import { Injectable } from '@nestjs/common';
-
-import { RootHex } from '../../providers/consensus/response.interface';
+import { Low } from 'lowdb';
+import { JSONFile } from 'lowdb/node';
 
 type ConsolidationCacheEntry = {
   sourceIndex: number;

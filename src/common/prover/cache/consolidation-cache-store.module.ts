@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 
-import { PersistentConsolidationCacheStore } from './consolidation-cache-store';
+import { PersistentConsolidationCacheStore } from './consolidation-cache-store.js';
 
 @Module({
   providers: [PersistentConsolidationCacheStore],

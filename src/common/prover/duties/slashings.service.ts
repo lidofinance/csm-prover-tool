@@ -1,19 +1,22 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
-import { CsmContract } from '../../contracts/csm-contract.service';
-import { VerifierContract } from '../../contracts/verifier-contract.service';
-import { Consensus, SupportedBlock } from '../../providers/consensus/consensus';
-import { BlockHeaderResponse } from '../../providers/consensus/response.interface';
-import { WorkersService } from '../../workers/workers.service';
-import { KeyInfo, KeyInfoFn } from '../types';
+import { CsmContract } from '../../contracts/csm-contract.service.js';
+import { VerifierContract } from '../../contracts/verifier-contract.service.js';
+import { toRootHex } from '../../helpers/proofs.js';
+import { type AppLogger } from '../../logger/app-logger.type.js';
+import { Consensus } from '../../providers/consensus/consensus.js';
+import type { SupportedBlock } from '../../providers/consensus/forks.js';
+import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { WorkersService } from '../../workers/workers.service.js';
+import type { KeyInfo, KeyInfoFn } from '../types.js';
 
 export type InvolvedKeys = { [valIndex: string]: KeyInfo };
 
 @Injectable()
 export class SlashingsService {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
     protected readonly csm: CsmContract,
@@ -42,8 +45,9 @@ export class SlashingsService {
 
   public async sendSlashingProofs(finalizedHeader: BlockHeaderResponse, slashings: InvolvedKeys): Promise<number> {
     if (!Object.keys(slashings).length) return 0;
-    const finalizedState = await this.consensus.getState(finalizedHeader.header.message.state_root);
+    const finalizedState = await this.consensus.getState(toRootHex(finalizedHeader.header.message.stateRoot));
     const nextHeader = (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data[0];
+    if (!nextHeader) throw new Error(`Next block header after ${finalizedHeader.root} not found`);
     const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
     this.logger.log(`Building slashing proof payloads`);
     const payloads = await this.workers.getSlashedProofPayloads({
