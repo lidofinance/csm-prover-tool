@@ -1,19 +1,21 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
-import { toRootHex } from '../../helpers/proofs';
-import { Consensus, SupportedBlock } from '../../providers/consensus/consensus';
-import { BlockHeaderResponse } from '../../providers/consensus/response.interface';
-import { WorkersService } from '../../workers/workers.service';
-import { KeyInfoFn } from '../types';
-import { ConsolidationCacheManager } from './consolidations/consolidation-cache-manager';
-import { ConsolidationProofSender } from './consolidations/consolidation-proof-sender';
-import { ConsolidationToProve } from './consolidations/consolidations.types';
+import { ConsolidationCacheManager } from './consolidations/consolidation-cache-manager.js';
+import { ConsolidationProofSender } from './consolidations/consolidation-proof-sender.js';
+import type { ConsolidationToProve } from './consolidations/consolidations.types.js';
+import { toRootHex } from '../../helpers/proofs.js';
+import { type AppLogger } from '../../logger/app-logger.type.js';
+import { Consensus } from '../../providers/consensus/consensus.js';
+import type { SupportedBlock } from '../../providers/consensus/forks.js';
+import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { WorkersService } from '../../workers/workers.service.js';
+import type { KeyInfoFn } from '../types.js';
 
 @Injectable()
 export class ConsolidationsService {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
     protected readonly cacheManager: ConsolidationCacheManager,

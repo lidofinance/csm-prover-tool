@@ -1,16 +1,16 @@
-import { FallbackProviderModule, NonEmptyArray } from '@lido-nestjs/execution';
+import { FallbackProviderModule, type NonEmptyArray } from '@lido-nestjs/execution';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Module } from '@nestjs/common';
 import { ConditionalModule } from '@nestjs/config';
 
-import { Consensus } from './consensus/consensus';
-import { DownloadProgressModule } from './consensus/download-progress.module';
-import { Execution } from './execution/execution';
-import { Keysapi } from './keysapi/keysapi';
-import { ConfigService } from '../config/config.service';
-import { WorkingMode } from '../config/env.validation';
-import { PrometheusService, RequestStatus } from '../prometheus';
-import { Ipfs } from './ipfs/ipfs';
+import { Consensus } from './consensus/consensus.js';
+import { DownloadProgressModule } from './consensus/download-progress.module.js';
+import { Execution } from './execution/execution.js';
+import { Ipfs } from './ipfs/ipfs.js';
+import { Keysapi } from './keysapi/keysapi.js';
+import { ConfigService } from '../config/config.service.js';
+import { WorkingMode } from '../config/env.validation.js';
+import { PrometheusService, RequestStatus } from '../prometheus/index.js';
 
 const ExecutionDaemon = () =>
   FallbackProviderModule.forRootAsync({

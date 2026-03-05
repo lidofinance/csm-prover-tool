@@ -1,16 +1,18 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, Optional } from '@nestjs/common';
-import { chain } from 'stream-chain';
-import { parser } from 'stream-json';
-import { connectTo } from 'stream-json/Assembler';
-import { IncomingHttpHeaders } from 'undici/types/header';
-import BodyReadable from 'undici/types/readable';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import streamChain from 'stream-chain';
+import streamJson from 'stream-json';
+import Assembler from 'stream-json/Assembler.js';
 
-import { ELBlockSnapshot, ModuleKeys, ModuleKeysFind, Modules, Status } from './response.interface';
-import { ConfigService } from '../../config/config.service';
-import { PrometheusService, TrackKeysAPIRequest } from '../../prometheus';
-import { BaseRestProvider } from '../base/rest-provider';
-import { RequestOptions } from '../base/utils/func';
+const { chain } = streamChain;
+const { parser } = streamJson;
+
+import type { ELBlockSnapshot, ModuleKeys, ModuleKeysFind, Modules, Status } from './response.interface.js';
+import { ConfigService } from '../../config/config.service.js';
+import { type AppLogger } from '../../logger/app-logger.type.js';
+import { PrometheusService, TrackKeysAPIRequest } from '../../prometheus/index.js';
+import { BaseRestProvider, type RestResponse } from '../base/rest-provider.js';
+import { type RequestOptions } from '../base/utils/func.js';
 
 @Injectable()
 export class Keysapi extends BaseRestProvider {
@@ -22,7 +24,7 @@ export class Keysapi extends BaseRestProvider {
   };
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     @Optional() protected readonly prometheus: PrometheusService,
     protected readonly config: ConfigService,
   ) {
@@ -62,7 +64,7 @@ export class Keysapi extends BaseRestProvider {
     // TODO: ignore depositSignature ?
     const pipeline = chain([resp.body, parser()]);
     return await new Promise((resolve) => {
-      connectTo(pipeline).on('done', (asm) => resolve(asm.current));
+      Assembler.connectTo(pipeline).on('done', (asm) => resolve(asm.current));
     });
   }
 
@@ -78,11 +80,7 @@ export class Keysapi extends BaseRestProvider {
   }
 
   @TrackKeysAPIRequest
-  protected baseGet(
-    baseUrl: string,
-    endpoint: string,
-    options?: RequestOptions,
-  ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
+  protected baseGet(baseUrl: string, endpoint: string, options?: RequestOptions): Promise<RestResponse> {
     return super.baseGet(baseUrl, endpoint, options);
   }
 
@@ -92,7 +90,7 @@ export class Keysapi extends BaseRestProvider {
     endpoint: string,
     requestBody: any,
     options?: RequestOptions,
-  ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
+  ): Promise<RestResponse> {
     return super.basePost(baseUrl, endpoint, requestBody, options);
   }
 }

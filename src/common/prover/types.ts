@@ -1,4 +1,4 @@
-import { ICSStrikes } from '../contracts/types/Strikes';
+import type { ICSStrikes } from '../contracts/types/Strikes.js';
 
 export interface KeyInfo {
   operatorId: number;

@@ -1,19 +1,20 @@
-import { BlockTag } from '@ethersproject/abstract-provider';
+import { type BlockTag } from '@ethersproject/abstract-provider';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
-import { StrikesContract } from './strikes-contract.service';
-import { ExitPenalties, ExitPenalties__factory } from './types';
-import { ConfigService } from '../config/config.service';
-import { KeyInfo } from '../prover/types';
-import { Execution } from '../providers/execution/execution';
+import { StrikesContract } from './strikes-contract.service.js';
+import { type ExitPenalties, ExitPenalties__factory } from './types/index.js';
+import { ConfigService } from '../config/config.service.js';
+import { type AppLogger } from '../logger/app-logger.type.js';
+import type { KeyInfo } from '../prover/types.js';
+import { Execution } from '../providers/execution/execution.js';
 
 @Injectable()
 export class ExitPenaltiesContract {
   private contract: ExitPenalties;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly execution: Execution,
     protected readonly strikes: StrikesContract,

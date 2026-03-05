@@ -1,15 +1,18 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import type { RootHex } from '@lodestar/types';
+import { Inject, Injectable } from '@nestjs/common';
 
-import { ConsolidationProofContext } from './consolidations.types';
-import { Consensus } from '../../../providers/consensus/consensus';
-import { BlockHeaderResponse, RootHex } from '../../../providers/consensus/response.interface';
-import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../../utils/historical-summary';
+import type { ConsolidationProofContext } from './consolidations.types.js';
+import { toRootHex } from '../../../helpers/proofs.js';
+import { type AppLogger } from '../../../logger/app-logger.type.js';
+import { Consensus } from '../../../providers/consensus/consensus.js';
+import type { BlockHeaderResponse } from '../../../providers/consensus/response.interface.js';
+import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../../utils/historical-summary.js';
 
 @Injectable()
 export class ConsolidationProofContextResolver {
   constructor(
-    @Inject(LOGGER_PROVIDER) private readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) private readonly logger: AppLogger,
     private readonly consensus: Consensus,
   ) {}
 
@@ -31,7 +34,7 @@ export class ConsolidationProofContextResolver {
       return null;
     }
     const { summaryState, summaryIndex, rootIndexInSummary } = summaryResolution.context;
-    const consolidationState = await this.consensus.getState(consolidationHeader.header.message.state_root);
+    const consolidationState = await this.consensus.getState(toRootHex(consolidationHeader.header.message.stateRoot));
     return {
       consolidationHeader,
       consolidationState,

@@ -1,66 +1,43 @@
-import { Worker, parentPort } from 'node:worker_threads';
+import { Worker } from 'node:worker_threads';
 
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, Optional } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 
-import { WorkingMode } from '../config/env.validation';
-import { PrometheusService, TrackWorker } from '../prometheus';
-import { BuildConsolidationProofArgs } from './items/build-conslidation-proof-payloads';
-import { BuildGeneralWithdrawalProofArgs } from './items/build-general-wd-proof-payloads';
-import { BuildHistoricalWithdrawalProofArgs } from './items/build-historical-wd-proof-payloads';
-import { BuildSlashingProofArgs } from './items/build-slashing-proof-payloads';
-import { GetNewValidatorKeysArgs, GetNewValidatorKeysResult } from './items/get-new-validator-keys';
-import { GetValidatorExitEpochsArgs, GetValidatorExitEpochsResult } from './items/get-validator-exit-epochs';
+import { ConfigService } from '../config/config.service.js';
+import { WorkingMode } from '../config/env.validation.js';
+import { type AppLogger } from '../logger/app-logger.type.js';
+import { PrometheusService, TrackWorker } from '../prometheus/index.js';
+import type { BuildBalanceProofArgs } from './items/build-balance-proof-payloads.js';
+import type { BuildConsolidationProofArgs } from './items/build-consolidation-proof-payloads.js';
+import type { BuildGeneralWithdrawalProofArgs } from './items/build-general-wd-proof-payloads.js';
+import type { BuildHistoricalBalanceProofArgs } from './items/build-historical-balance-proof-payloads.js';
+import type { BuildHistoricalWithdrawalProofArgs } from './items/build-historical-wd-proof-payloads.js';
+import type { BuildSlashingProofArgs } from './items/build-slashing-proof-payloads.js';
+import type { GetNewValidatorKeysArgs, GetNewValidatorKeysResult } from './items/get-new-validator-keys.js';
+import type { GetValidatorBalancesArgs, GetValidatorBalancesResult } from './items/get-validator-balances.js';
+import type { GetValidatorExitEpochsArgs, GetValidatorExitEpochsResult } from './items/get-validator-exit-epochs.js';
 import type {
   InspectPendingConsolidationsArgs,
   InspectPendingConsolidationsResult,
-} from './items/inspect-pending-consolidations';
-import { IVerifier } from '../contracts/types/Verifier';
-
-class ParentLoggerMessage {
-  __class: string;
-  level: string;
-  message: string;
-
-  constructor(level: string, message: string) {
-    this.__class = ParentLoggerMessage.name;
-    this.level = level;
-    this.message = message;
-  }
-
-  // override `instanceof` behavior to allow simple type checking
-  static get [Symbol.hasInstance]() {
-    return function (instance: any) {
-      return instance.__class === ParentLoggerMessage.name;
-    };
-  }
-}
-
-export class WorkerLogger {
-  public static warn(message: string): void {
-    parentPort?.postMessage(new ParentLoggerMessage('warn', message));
-  }
-
-  public static log(message: string): void {
-    parentPort?.postMessage(new ParentLoggerMessage('log', message));
-  }
-
-  public static error(message: string): void {
-    parentPort?.postMessage(new ParentLoggerMessage('error', message));
-  }
-}
+} from './items/inspect-pending-consolidations.js';
+import { ParentLoggerMessage } from './worker-logger.js';
+import type { IVerifier } from '../contracts/types/Verifier.js';
 
 @Injectable()
 export class WorkersService {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     @Optional() protected readonly prometheus: PrometheusService,
     protected readonly config: ConfigService,
   ) {}
 
   public async getNewValidatorKeys(args: GetNewValidatorKeysArgs): Promise<GetNewValidatorKeysResult> {
     return await this._run('get-new-validator-keys', args);
+  }
+
+  public async getValidatorBalances(args: GetValidatorBalancesArgs): Promise<bigint[]> {
+    const result: GetValidatorBalancesResult = await this._run('get-validator-balances', args);
+    return result.valBalances;
   }
 
   public async getValidatorExitEpochs(args: GetValidatorExitEpochsArgs): Promise<number[]> {
@@ -90,6 +67,18 @@ export class WorkersService {
     return await this._run('build-consolidation-proof-payloads', args);
   }
 
+  public async getBalanceProofPayloads(
+    args: BuildBalanceProofArgs,
+  ): Promise<IVerifier.ProcessBalanceProofInputStruct[]> {
+    return await this._run('build-balance-proof-payloads', args);
+  }
+
+  public async getHistoricalBalanceProofPayloads(
+    args: BuildHistoricalBalanceProofArgs,
+  ): Promise<IVerifier.ProcessHistoricalBalanceProofInputStruct[]> {
+    return await this._run('build-historical-balance-proof-payloads', args);
+  }
+
   public async inspectPendingConsolidations(
     args: InspectPendingConsolidationsArgs,
   ): Promise<InspectPendingConsolidationsResult> {
@@ -110,7 +99,7 @@ export class WorkersService {
 
   private async _baseRun<T>(name: string, data: any): Promise<T> {
     return new Promise((resolve, reject) => {
-      const worker = new Worker(__dirname + `/items/${name}.js`, {
+      const worker = new Worker(new URL(`./items/${name}.js`, import.meta.url), {
         workerData: data,
         resourceLimits: {
           maxOldGenerationSizeMb: 8192,
@@ -136,7 +125,7 @@ export class WorkersService {
         }
         resolve(msg);
       });
-      worker.on('error', (error) => reject(new Error(`Worker error: ${error}`)));
+      worker.on('error', (error) => reject(new Error('Worker error', { cause: error })));
       worker.on('exit', (code) => {
         if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`));
       });

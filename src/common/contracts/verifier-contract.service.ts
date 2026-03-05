@@ -1,18 +1,19 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
-import { CsmContract } from './csm-contract.service';
-import { Verifier__factory } from './types';
-import { IVerifier, Verifier } from './types/Verifier';
-import { ConfigService } from '../config/config.service';
-import { Execution } from '../providers/execution/execution';
+import { CsmContract } from './csm-contract.service.js';
+import { type Verifier, Verifier__factory } from './types/index.js';
+import type { IVerifier } from './types/Verifier.js';
+import { ConfigService } from '../config/config.service.js';
+import { type AppLogger } from '../logger/app-logger.type.js';
+import { Execution } from '../providers/execution/execution.js';
 
 @Injectable()
 export class VerifierContract {
   private contract: Verifier;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly execution: Execution,
     protected readonly csm: CsmContract,
@@ -74,6 +75,22 @@ export class VerifierContract {
     await this.execution.execute(
       this.contract.callStatic.processHistoricalWithdrawalProof,
       this.contract.populateTransaction.processHistoricalWithdrawalProof,
+      [payload],
+    );
+  }
+
+  public async sendBalanceProof(payload: IVerifier.ProcessBalanceProofInputStruct): Promise<void> {
+    await this.execution.execute(
+      this.contract.callStatic.processBalanceProof,
+      this.contract.populateTransaction.processBalanceProof,
+      [payload],
+    );
+  }
+
+  public async sendHistoricalBalanceProof(payload: IVerifier.ProcessHistoricalBalanceProofInputStruct): Promise<void> {
+    await this.execution.execute(
+      this.contract.callStatic.processHistoricalBalanceProof,
+      this.contract.populateTransaction.processHistoricalBalanceProof,
       [payload],
     );
   }

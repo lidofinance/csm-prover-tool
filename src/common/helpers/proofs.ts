@@ -1,31 +1,18 @@
 import { createHash } from 'node:crypto';
 
-import type { SingleProof } from '@chainsafe/persistent-merkle-tree';
-import type { CompositeView } from '@chainsafe/ssz/lib/type/composite';
-import type { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
-import type { ssz as sszType } from '@lodestar/types';
+import { ProofType, type SingleProof, Tree, concatGindices, createProof } from '@chainsafe/persistent-merkle-tree';
+import type { RootHex } from '@lodestar/types';
 
-import { BeaconBlockHeaderStruct, ValidatorStruct, WithdrawalStruct } from '../contracts/types/Verifier';
-import { SupportedFork, SupportedWithdrawal } from '../providers/consensus/consensus';
-import { BlockHeaderResponse, RootHex } from '../providers/consensus/response.interface';
-import { loadPMT } from '../vendors/persistent-merkle-tree';
-
-let ssz: typeof sszType;
-
-export type SupportedStateView = {
-  [K in keyof typeof SupportedFork]: ContainerTreeViewType<(typeof ssz)[K]['BeaconState']['fields']>;
-}[keyof typeof SupportedFork];
-
-export type SupportedBlockView = {
-  [K in keyof typeof SupportedFork]: ContainerTreeViewType<(typeof ssz)[K]['BeaconBlock']['fields']>;
-}[keyof typeof SupportedFork];
-
-export type SupportedValidatorView = {
-  [K in keyof typeof SupportedFork]: CompositeView<(typeof ssz)[K]['Validator']>;
-}[keyof typeof SupportedFork];
+import type { BeaconBlockHeaderStruct, ValidatorStruct, WithdrawalStruct } from '../contracts/types/Verifier.js';
+import type {
+  SupportedBlockView,
+  SupportedStateView,
+  SupportedValidatorView,
+  SupportedWithdrawal,
+} from '../providers/consensus/forks.js';
+import type { BlockHeaderResponse } from '../providers/consensus/response.interface.js';
 
 export async function generateValidatorProof(stateView: SupportedStateView, valIndex: number): Promise<SingleProof> {
-  const { ProofType, createProof } = await loadPMT();
   const gI = stateView.type.getPathInfo(['validators', Number(valIndex)]).gindex;
   return createProof(stateView.node, { type: ProofType.single, gindex: gI }) as SingleProof;
 }
@@ -35,7 +22,6 @@ export async function generateWithdrawalProof(
   blockView: SupportedBlockView,
   withdrawalOffset: number,
 ): Promise<SingleProof> {
-  const { Tree, concatGindices, ProofType, createProof } = await loadPMT();
   // NOTE: ugly hack to replace root with the value to make a proof
   const patchedTree = new Tree(stateView.node);
   const stateWdGindex = stateView.type.getPathInfo(['latestExecutionPayloadHeader', 'withdrawalsRoot']).gindex;
@@ -52,7 +38,6 @@ export async function generatePendingConsolidationProof(
   stateView: SupportedStateView,
   consolidationOffset: number,
 ): Promise<SingleProof> {
-  const { ProofType, createProof } = await loadPMT();
   const gI = stateView.type.getPathInfo(['pendingConsolidations', consolidationOffset]).gindex;
   return createProof(stateView.node, { type: ProofType.single, gindex: gI }) as SingleProof;
 }
@@ -61,7 +46,6 @@ export async function generateBalanceProof(
   stateView: SupportedStateView,
   validatorIndex: number,
 ): Promise<SingleProof> {
-  const { ProofType, createProof } = await loadPMT();
   const gI = stateView.type.getPathInfo(['balances', validatorIndex]).gindex;
   return createProof(stateView.node, { type: ProofType.single, gindex: gI }) as SingleProof;
 }
@@ -72,7 +56,6 @@ export async function generateHistoricalStateProof(
   summaryIndex: number,
   rootIndex: number,
 ): Promise<SingleProof> {
-  const { Tree, concatGindices, ProofType, createProof } = await loadPMT();
   // NOTE: ugly hack to replace root with the value to make a proof
   const patchedTree = new Tree(finalizedStateView.node);
   const blockSummaryRootGI = finalizedStateView.type.getPathInfo([
@@ -130,10 +113,10 @@ export function toBeaconHeaderStruct(header: BlockHeaderResponse): BeaconBlockHe
   const message = header.header.message;
   return {
     slot: Number(message.slot),
-    proposerIndex: Number(message.proposer_index),
-    parentRoot: message.parent_root,
-    stateRoot: message.state_root,
-    bodyRoot: message.body_root,
+    proposerIndex: Number(message.proposerIndex),
+    parentRoot: toHex(message.parentRoot),
+    stateRoot: toHex(message.stateRoot),
+    bodyRoot: toHex(message.bodyRoot),
   };
 }
 

@@ -1,24 +1,25 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, OnModuleInit, Optional } from '@nestjs/common';
+import type { RootHex } from '@lodestar/types';
+import { Inject, Injectable, type OnModuleInit, Optional } from '@nestjs/common';
 
-import { ConsolidationToProve } from './consolidations.types';
-import { CsmContract } from '../../../contracts/csm-contract.service';
-import { RootHex } from '../../../providers/consensus/response.interface';
-import type { PendingConsolidationInfo } from '../../../workers/items/inspect-pending-consolidations';
+import type { ConsolidationToProve } from './consolidations.types.js';
+import { CsmContract } from '../../../contracts/csm-contract.service.js';
+import { type AppLogger } from '../../../logger/app-logger.type.js';
+import type { PendingConsolidationInfo } from '../../../workers/items/inspect-pending-consolidations.js';
 import {
-  ConsolidationCacheStore,
-  ConsolidationKey,
+  type ConsolidationCacheStore,
+  type ConsolidationKey,
   NoopConsolidationCacheStore,
   PersistentConsolidationCacheStore,
-} from '../../cache/consolidation-cache-store';
-import { KeyInfoFn } from '../../types';
+} from '../../cache/consolidation-cache-store.js';
+import type { KeyInfoFn } from '../../types.js';
 
 @Injectable()
 export class ConsolidationCacheManager implements OnModuleInit {
   private readonly cacheStore: ConsolidationCacheStore;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) private readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) private readonly logger: AppLogger,
     private readonly csm: CsmContract,
     @Optional() cacheStore?: PersistentConsolidationCacheStore,
   ) {

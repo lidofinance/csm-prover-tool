@@ -7,6 +7,17 @@
 
 Tool for reporting Bad Performers and Withdrawals for Lido Community Staking Module
 
+### Build steps (for development)
+
+```bash
+# Deps
+$ nvm install && nvm use
+$ corepack enable && corepack use yarn@4.12.0
+$ yarn install --immutable
+# Build
+$ yarn build
+```
+
 ### Daemon working mode
 
 The tool is a daemon that listens to the CL and EL and reports any bad performers and withdrawals to the Lido Community Staking Module.
@@ -58,9 +69,6 @@ So, according to the algorithm, there are the following statements:
    b. Or using yarn
     
    ```bash
-   $ yarn install
-   $ yarn run typechain
-   $ yarn build
    $ yarn run start:prod
    ```
 
@@ -90,9 +98,6 @@ So, according to the algorithm, there are the following statements:
    b. Or using yarn
 
    ```bash
-   $ yarn install
-   $ yarn run typechain
-   $ yarn build
    # Report slashing
    $ yarn slashing
    # Report withdrawal
@@ -142,6 +147,7 @@ So, according to the algorithm, there are the following statements:
 | TX_GAS_LIMIT                            | Gas limit for the transaction                     | no                     | 1_000_000                |
 | TX_MINING_WAITING_TIMEOUT_MS            | Timeout for waiting for the transaction mining    | no                     | 3_600_000 (1 hour)       |
 | TX_CONFIRMATIONS                        | Number of confirmations for the transaction       | no                     | 1                        |
+| BALANCE_PROOF_MIN_DELTA_GWEI            | Minimum balance delta to prove (in gwei)          | no                     | 1_000_000_000 (1 ETH)    |
 | KEYS_INDEXER_RUNNING_PERIOD_MS          | Period of running keys indexer in milliseconds    | no                     | 3 * 3_600_000 (3 hours)  |
 | KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS | Period of keys indexer freshness in milliseconds  | no                     | 8 * 3_600_000 (8 hours)  |
 | HTTP_PORT                               | Port for the HTTP server                          | no                     | 8080                     |

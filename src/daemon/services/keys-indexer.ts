@@ -1,22 +1,25 @@
-import { Low } from '@huanshiwushuang/lowdb';
-import { JSONFile } from '@huanshiwushuang/lowdb/node';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, OnApplicationBootstrap } from '@nestjs/common';
+import type { RootHex, Slot } from '@lodestar/types';
+import { Inject, Injectable, type OnApplicationBootstrap } from '@nestjs/common';
+import { Low } from 'lowdb';
+import { JSONFile } from 'lowdb/node';
 
-import { ConfigService } from '../../common/config/config.service';
+import { ConfigService } from '../../common/config/config.service.js';
+import { toRootHex } from '../../common/helpers/proofs.js';
+import { type AppLogger } from '../../common/logger/app-logger.type.js';
 import {
   METRIC_KEYS_CSM_VALIDATORS_COUNT,
   METRIC_KEYS_INDEXER_ALL_VALIDATORS_COUNT,
   METRIC_KEYS_INDEXER_STORAGE_STATE_SLOT,
   PrometheusService,
-} from '../../common/prometheus';
-import { FullKeyInfo, KeyInfo } from '../../common/prover/types';
-import { Consensus, State } from '../../common/providers/consensus/consensus';
-import { BlockHeaderResponse, RootHex, Slot } from '../../common/providers/consensus/response.interface';
-import { Keysapi } from '../../common/providers/keysapi/keysapi';
-import { Key, Module } from '../../common/providers/keysapi/response.interface';
-import { WorkersService } from '../../common/workers/workers.service';
-import sleep from '../utils/sleep';
+} from '../../common/prometheus/index.js';
+import type { FullKeyInfo, KeyInfo } from '../../common/prover/types.js';
+import { Consensus, type State } from '../../common/providers/consensus/consensus.js';
+import type { BlockHeaderResponse } from '../../common/providers/consensus/response.interface.js';
+import { Keysapi } from '../../common/providers/keysapi/keysapi.js';
+import type { Key, Module } from '../../common/providers/keysapi/response.interface.js';
+import { WorkersService } from '../../common/workers/workers.service.js';
+import sleep from '../utils/sleep.js';
 
 type KeysIndexerServiceInfo = {
   moduleAddress: string;
@@ -26,7 +29,7 @@ type KeysIndexerServiceInfo = {
 };
 
 type KeysIndexerServiceStorage = {
-  [valIndex: number]: KeyInfo;
+  [valIndex: string]: KeyInfo;
 };
 
 export class ModuleNotFoundError extends Error {}
@@ -39,7 +42,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
   private storage: Low<KeysIndexerServiceStorage>;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly prometheus: PrometheusService,
     protected readonly workers: WorkersService,
@@ -53,6 +56,10 @@ export class KeysIndexer implements OnApplicationBootstrap {
 
   public getKey = (valIndex: number): KeyInfo | undefined => {
     return this.storage.data[valIndex];
+  };
+
+  public getAllKeys = (): KeysIndexerServiceStorage => {
+    return this.storage.data;
   };
 
   public getFullKeyInfoByPubKey = (pubKey: string): FullKeyInfo | undefined => {
@@ -81,7 +88,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
 
   public async update(finalizedHeader: BlockHeaderResponse): Promise<void> {
     const slot = Number(finalizedHeader.header.message.slot);
-    const stateRoot = finalizedHeader.header.message.state_root;
+    const stateRoot = toRootHex(finalizedHeader.header.message.stateRoot);
     // We shouldn't wait for task to finish
     // to avoid block processing if indexing fails or stuck
     await this.baseRun(
@@ -110,6 +117,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
 
   public isTrustedForAnyDuty(slotNumber: Slot): boolean {
     return (
+      this.isTrustedForBalanceChanges(slotNumber) ||
       this.isTrustedForSlashings(slotNumber) ||
       this.isTrustedForFullWithdrawals(slotNumber) ||
       this.isTrustedForConsolidations(slotNumber)
@@ -117,9 +125,15 @@ export class KeysIndexer implements OnApplicationBootstrap {
   }
 
   public isTrustedForEveryDuty(slotNumber: Slot): boolean {
+    const trustedForBalanceChanges = this.isTrustedForBalanceChanges(slotNumber);
     const trustedForSlashings = this.isTrustedForSlashings(slotNumber);
     const trustedForFullWithdrawals = this.isTrustedForFullWithdrawals(slotNumber);
     const trustedForConsolidations = this.isTrustedForConsolidations(slotNumber);
+    if (!trustedForBalanceChanges)
+      this.logger.warn(
+        '⚠️ Current keys indexer data might not be ready to detect balance changes. ' +
+          'The root will be processed later again',
+      );
     if (!trustedForSlashings)
       this.logger.warn(
         '🚨 Current keys indexer data might not be ready to detect slashing. ' +
@@ -135,7 +149,11 @@ export class KeysIndexer implements OnApplicationBootstrap {
         '⚠️ Current keys indexer data might not be ready to detect consolidations. ' +
           'The root will be processed later again',
       );
-    return trustedForSlashings && trustedForFullWithdrawals && trustedForConsolidations;
+    return trustedForBalanceChanges && trustedForSlashings && trustedForFullWithdrawals && trustedForConsolidations;
+  }
+
+  public isTrustedForBalanceChanges(slotNumber: Slot): boolean {
+    return this.isTrustedForFullWithdrawals(slotNumber);
   }
 
   private isTrustedForSlashings(slotNumber: Slot): boolean {
@@ -207,7 +225,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
       this.logger.log(`Init keys data`);
       const finalized = await this.consensus.getBeaconHeader('finalized');
       const finalizedSlot = Number(finalized.header.message.slot);
-      const stateRoot = finalized.header.message.state_root;
+      const stateRoot = toRootHex(finalized.header.message.stateRoot);
       await this.baseRun(
         stateRoot,
         finalizedSlot,

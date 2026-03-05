@@ -10,11 +10,14 @@
     "transform": {
       "legacyDecorator": true,
       "decoratorMetadata": true
-    },
-    "baseUrl": "./src",
-    "paths": {
-      "build-info": ["../build-info.json"]
     }
+  },
+  "module": {
+    "type": "es6",
+    "strict": true,
+    "importInterop": "node",
+    "resolveFully": true,
+    "outFileExtension": "js"
   },
   "minify": false
 }

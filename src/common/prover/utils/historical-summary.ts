@@ -1,5 +1,5 @@
-import { Consensus, State } from '../../providers/consensus/consensus';
-import { BlockHeaderResponse } from '../../providers/consensus/response.interface';
+import { type Consensus, type State } from '../../providers/consensus/consensus.js';
+import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
 
 export type HistoricalSummaryInfo = {
   summaryIndex: number;

@@ -1,9 +1,9 @@
-import * as v8 from 'v8';
+import * as v8 from 'node:v8';
 
 import { Controller, Get } from '@nestjs/common';
 import { HealthCheck, HealthCheckService, MemoryHealthIndicator } from '@nestjs/terminus';
 
-import { HEALTH_URL } from './health.constants';
+import { HEALTH_URL } from './health.constants.js';
 
 @Controller(HEALTH_URL)
 export class HealthController {

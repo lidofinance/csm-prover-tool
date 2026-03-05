@@ -2,11 +2,12 @@ FROM node:20.12.1-alpine AS building
 
 WORKDIR /app
 
-COPY package.json yarn.lock build-info.json ./
+COPY package.json yarn.lock build-info.json .yarnrc.yml ./
 COPY ./tsconfig*.json ./nest-cli.json ./.swcrc ./
 COPY ./src ./src
 
-RUN yarn install --frozen-lockfile --non-interactive && yarn cache clean && yarn typechain
+RUN corepack enable && corepack prepare yarn@4.12.0 --activate
+RUN yarn install --immutable && yarn cache clean
 RUN yarn build
 
 FROM building AS production

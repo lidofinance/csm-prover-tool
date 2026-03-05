@@ -1,17 +1,18 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
-import { Csm, Csm__factory } from './types';
-import { ConfigService } from '../config/config.service';
-import { KeyInfo } from '../prover/types';
-import { Execution } from '../providers/execution/execution';
+import { type Csm, Csm__factory } from './types/index.js';
+import { ConfigService } from '../config/config.service.js';
+import { type AppLogger } from '../logger/app-logger.type.js';
+import type { KeyInfo } from '../prover/types.js';
+import { Execution } from '../providers/execution/execution.js';
 
 @Injectable()
 export class CsmContract {
   private contract: Csm;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly execution: Execution,
   ) {
@@ -29,6 +30,11 @@ export class CsmContract {
       }
       throw e;
     }
+  }
+
+  public async getKeyAddedBalance(keyInfo: KeyInfo): Promise<bigint> {
+    const balance = await this.contract.getKeyAddedBalance(keyInfo.operatorId, keyInfo.keyIndex);
+    return balance.toBigInt();
   }
 
   public async isWithdrawalProved(keyInfo: KeyInfo): Promise<boolean> {

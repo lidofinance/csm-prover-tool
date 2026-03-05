@@ -1,8 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type { ssz as sszType } from '@lodestar/types';
-
-import { IVerifier } from '../../contracts/types/Verifier';
+import type { IVerifier } from '../../contracts/types/Verifier.js';
 import {
   generateBalanceProof,
   generateHistoricalStateProof,
@@ -12,13 +10,12 @@ import {
   toHex,
   toValidatorStruct,
   verifyProof,
-} from '../../helpers/proofs';
-import type { ConsolidationToProve } from '../../prover/duties/consolidations/consolidations.types';
-import { State } from '../../providers/consensus/consensus';
-import { BlockHeaderResponse } from '../../providers/consensus/response.interface';
-import { WorkerLogger } from '../workers.service';
-
-let ssz: typeof sszType;
+} from '../../helpers/proofs.js';
+import type { ConsolidationToProve } from '../../prover/duties/consolidations/consolidations.types.js';
+import type { State } from '../../providers/consensus/consensus.js';
+import { getSsz, isPostElectraFork } from '../../providers/consensus/forks.js';
+import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { WorkerLogger } from '../worker-logger.js';
 
 export type BuildConsolidationProofArgs = {
   recentHeader: BlockHeaderResponse;
@@ -33,7 +30,6 @@ export type BuildConsolidationProofArgs = {
 };
 
 async function buildConsolidationProofPayloads(): Promise<IVerifier.ProcessConsolidationInputStruct[]> {
-  ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
   const {
     recentHeader,
     nextHeaderTimestamp,
@@ -49,18 +45,19 @@ async function buildConsolidationProofPayloads(): Promise<IVerifier.ProcessConso
   //
   // Get views
   //
-  const recentStateView = ssz[recentState.forkName].BeaconState.deserializeToView(recentState.bodyBytes);
-  const consolidationStateView = ssz[consolidationState.forkName].BeaconState.deserializeToView(
+  if (!isPostElectraFork(consolidationState.forkName)) {
+    throw new Error('Pending consolidations are not available in this fork');
+  }
+  const recentStateView = getSsz(recentState.forkName).BeaconState.deserializeToView(recentState.bodyBytes);
+  const consolidationStateView = getSsz(consolidationState.forkName).BeaconState.deserializeToView(
     consolidationState.bodyBytes,
   );
-  const summaryStateView = ssz[summaryState.forkName].BeaconState.deserializeToView(summaryState.bodyBytes);
+  const summaryStateView = getSsz(summaryState.forkName).BeaconState.deserializeToView(summaryState.bodyBytes);
   //
   //
   //
   const consolidationOffsets = new Map<string, number>();
-  // @ts-expect-error: pending consolidations exist only after Electra.
   const pendingConsolidationsView = consolidationStateView.pendingConsolidations;
-  if (!pendingConsolidationsView) throw new Error('Pending consolidations are not available in this fork');
   for (let i = 0; i < pendingConsolidationsView.length; i++) {
     const entry = pendingConsolidationsView.getReadonly(i);
     const key = `${Number(entry.sourceIndex)}:${Number(entry.targetIndex)}`;
@@ -169,6 +166,6 @@ async function buildConsolidationProofPayloads(): Promise<IVerifier.ProcessConso
 buildConsolidationProofPayloads()
   .then((v) => parentPort?.postMessage(v))
   .catch((e) => {
-    console.error(e);
+    WorkerLogger.error(e instanceof Error ? (e.stack ?? e.message) : String(e));
     throw e;
   });

@@ -1,8 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type { ssz as sszType } from '@lodestar/types';
-
-import { IVerifier } from '../../contracts/types/Verifier';
+import type { IVerifier } from '../../contracts/types/Verifier.js';
 import {
   generateValidatorProof,
   generateWithdrawalProof,
@@ -11,13 +9,12 @@ import {
   toValidatorStruct,
   toWithdrawalStruct,
   verifyProof,
-} from '../../helpers/proofs';
-import { InvolvedKeysWithWithdrawal } from '../../prover/duties/withdrawals.service';
-import { State, SupportedBlock } from '../../providers/consensus/consensus';
-import { BlockHeaderResponse } from '../../providers/consensus/response.interface';
-import { WorkerLogger } from '../workers.service';
-
-let ssz: typeof sszType;
+} from '../../helpers/proofs.js';
+import type { InvolvedKeysWithWithdrawal } from '../../prover/duties/withdrawals.service.js';
+import type { State } from '../../providers/consensus/consensus.js';
+import { type SupportedBlock, getSsz } from '../../providers/consensus/forks.js';
+import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { WorkerLogger } from '../worker-logger.js';
 
 export type BuildGeneralWithdrawalProofArgs = {
   currentHeader: BlockHeaderResponse;
@@ -29,15 +26,13 @@ export type BuildGeneralWithdrawalProofArgs = {
 };
 
 async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.ProcessWithdrawalInputStruct[]> {
-  ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
   const { currentHeader, nextHeaderTimestamp, state, currentBlock, withdrawals, epoch } =
     workerData as BuildGeneralWithdrawalProofArgs;
   //
   // Get views
   //
-  const stateView = ssz[state.forkName].BeaconState.deserializeToView(state.bodyBytes);
-  // @ts-expect-error: thinks state can have different fork with currentBlock, but it's not possible
-  const currentBlockView = ssz[state.forkName].BeaconBlock.toView(currentBlock);
+  const stateView = getSsz(state.forkName).BeaconState.deserializeToView(state.bodyBytes);
+  const currentBlockView = getSsz(state.forkName).BeaconBlock.toView(currentBlock);
   //
   //
   //
@@ -100,6 +95,6 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.Process
 buildGeneralWithdrawalsProofPayloads()
   .then((v) => parentPort?.postMessage(v))
   .catch((e) => {
-    console.error(e);
+    WorkerLogger.error(e instanceof Error ? (e.stack ?? e.message) : String(e));
     throw e;
   });
