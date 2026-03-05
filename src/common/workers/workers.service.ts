@@ -8,6 +8,7 @@ import { WorkingMode } from '../config/env.validation.js';
 import { type AppLogger } from '../logger/app-logger.type.js';
 import { PrometheusService, TrackWorker } from '../prometheus/index.js';
 import type { BuildBalanceProofArgs } from './items/build-balance-proof-payloads.js';
+import type { BuildConsolidationProofArgs } from './items/build-consolidation-proof-payloads.js';
 import type { BuildGeneralWithdrawalProofArgs } from './items/build-general-wd-proof-payloads.js';
 import type { BuildHistoricalBalanceProofArgs } from './items/build-historical-balance-proof-payloads.js';
 import type { BuildHistoricalWithdrawalProofArgs } from './items/build-historical-wd-proof-payloads.js';
@@ -15,6 +16,10 @@ import type { BuildSlashingProofArgs } from './items/build-slashing-proof-payloa
 import type { GetNewValidatorKeysArgs, GetNewValidatorKeysResult } from './items/get-new-validator-keys.js';
 import type { GetValidatorBalancesArgs, GetValidatorBalancesResult } from './items/get-validator-balances.js';
 import type { GetValidatorExitEpochsArgs, GetValidatorExitEpochsResult } from './items/get-validator-exit-epochs.js';
+import type {
+  InspectPendingConsolidationsArgs,
+  InspectPendingConsolidationsResult,
+} from './items/inspect-pending-consolidations.js';
 import { ParentLoggerMessage } from './worker-logger.js';
 import type { IVerifier } from '../contracts/types/Verifier.js';
 
@@ -56,6 +61,12 @@ export class WorkersService {
     return await this._run('build-historical-wd-proof-payloads', args);
   }
 
+  public async getConsolidationProofPayloads(
+    args: BuildConsolidationProofArgs,
+  ): Promise<IVerifier.ProcessConsolidationInputStruct[]> {
+    return await this._run('build-consolidation-proof-payloads', args);
+  }
+
   public async getBalanceProofPayloads(
     args: BuildBalanceProofArgs,
   ): Promise<IVerifier.ProcessBalanceProofInputStruct[]> {
@@ -66,6 +77,12 @@ export class WorkersService {
     args: BuildHistoricalBalanceProofArgs,
   ): Promise<IVerifier.ProcessHistoricalBalanceProofInputStruct[]> {
     return await this._run('build-historical-balance-proof-payloads', args);
+  }
+
+  public async inspectPendingConsolidations(
+    args: InspectPendingConsolidationsArgs,
+  ): Promise<InspectPendingConsolidationsResult> {
+    return await this._run('inspect-pending-consolidations', args);
   }
 
   private async _run<T>(name: string, data: any): Promise<T> {
