@@ -24,12 +24,13 @@ type ProofOptions = {
 
 @Command({
   name: 'prove',
-  description: 'Prove a slashing or withdrawal or bad performer',
-  arguments: '<slashing|withdrawal|bad_performer>',
+  description: 'Prove a slashing or withdrawal or bad performer or balance change',
+  arguments: '<slashing|withdrawal|bad_performer|balance>',
   argsDescription: {
     withdrawal: 'Prove a withdrawal',
     bad_performer: 'Prove a bad performer',
     slashing: 'Prove a slashing',
+    balance: 'Prove a balance change',
   },
 })
 export class ProveCommand extends CommandRunner {
@@ -69,6 +70,15 @@ export class ProveCommand extends CommandRunner {
           break;
         case 'slashing':
           await this.prover.handleSlashingsInBlock(blockInfoToProcess, header, this.keyInfoFn);
+          break;
+        case 'balance':
+          await this.prover.handleBalanceChangesInBlock(blockRootToProcess, header, () => ({
+            [this.options.validatorIndex]: {
+              operatorId: Number(this.options.nodeOperatorId),
+              keyIndex: Number(this.options.keyIndex),
+              pubKey: this.pubkey,
+            },
+          }));
           break;
       }
     } catch (e) {

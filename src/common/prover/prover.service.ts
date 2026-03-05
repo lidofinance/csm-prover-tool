@@ -99,6 +99,15 @@ export class ProverService {
     await this.handleBalanceChanges(blockHeader, finalizedHeader, getKeys, true);
   }
 
+  public async handleBalanceChangesInBlock(
+    blockRoot: RootHex,
+    finalizedHeader: BlockHeaderResponse,
+    getKeys: () => InvolvedKeys,
+  ): Promise<void> {
+    const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
+    await this.handleBalanceChanges(blockHeader, finalizedHeader, getKeys, false);
+  }
+
   private async isFirstBlockInEpoch(blockInfo: SupportedBlock): Promise<boolean> {
     const currentSlot = Number(blockInfo.slot);
     if (currentSlot === 0) return true;
