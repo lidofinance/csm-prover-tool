@@ -9,11 +9,11 @@ import { SingletonTask } from './utils/singleton-task.decorator.js';
 import sleep from './utils/sleep.js';
 import { ConfigService } from '../common/config/config.service.js';
 import { SECOND_MS } from '../common/config/env.validation.js';
-import type { AppLogger } from '../common/logger/app-logger.type.js';
+import { type AppLogger } from '../common/logger/app-logger.type.js';
 import { APP_NAME, PrometheusService, TrackTask } from '../common/prometheus/index.js';
 import { ProverService } from '../common/prover/prover.service.js';
 import { Consensus } from '../common/providers/consensus/consensus.js';
-import type { BlockHeaderResponse } from '../common/providers/consensus/response.interface.js';
+import { type BlockHeaderResponse } from '../common/providers/consensus/response.interface.js';
 
 @Injectable()
 export class DaemonService implements OnModuleInit {

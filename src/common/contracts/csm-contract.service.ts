@@ -32,6 +32,11 @@ export class CsmContract {
     }
   }
 
+  public async getKeyAddedBalance(keyInfo: KeyInfo): Promise<bigint> {
+    const balance = await this.contract.getKeyAddedBalance(keyInfo.operatorId, keyInfo.keyIndex);
+    return balance.toBigInt();
+  }
+
   public async isWithdrawalProved(keyInfo: KeyInfo): Promise<boolean> {
     return await this.contract.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex);
   }

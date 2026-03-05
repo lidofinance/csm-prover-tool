@@ -79,6 +79,22 @@ export class VerifierContract {
     );
   }
 
+  public async sendBalanceProof(payload: IVerifier.ProcessBalanceProofInputStruct): Promise<void> {
+    await this.execution.execute(
+      this.contract.callStatic.processBalanceProof,
+      this.contract.populateTransaction.processBalanceProof,
+      [payload],
+    );
+  }
+
+  public async sendHistoricalBalanceProof(payload: IVerifier.ProcessHistoricalBalanceProofInputStruct): Promise<void> {
+    await this.execution.execute(
+      this.contract.callStatic.processHistoricalBalanceProof,
+      this.contract.populateTransaction.processHistoricalBalanceProof,
+      [payload],
+    );
+  }
+
   public async sendConsolidationProof(payload: IVerifier.ProcessConsolidationInputStruct): Promise<void> {
     await this.execution.execute(
       this.contract.callStatic.processConsolidation,

@@ -191,6 +191,11 @@ export class EnvironmentVariables {
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public TX_STRIKES_PAYLOAD_MAX_BATCH_SIZE = 10;
+
+  @IsNumber()
+  @Min(1)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public BALANCE_PROOF_MIN_DELTA_GWEI = 1_000_000_000; // 1 ETH
 }
 
 export function validate(config: Record<string, unknown>) {

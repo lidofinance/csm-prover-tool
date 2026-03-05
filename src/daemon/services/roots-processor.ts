@@ -30,23 +30,23 @@ export class RootsProcessor {
     };
     await this.rootsStack.push(rootSlot); // in case of revert we should reprocess the root
     {
-      await this.prover.handleBalanceChangesInEpoch(
-        blockRootToProcess,
-        blockInfoToProcess,
-        finalizedHeader,
-        this.keysIndexer.getAllKeys,
-      );
       await this.prover.handleSlashingsInBlock(blockInfoToProcess, finalizedHeader, this.keysIndexer.getKey);
-      await this.prover.handlePendingConsolidationsInEpoch(
-        blockInfoToProcess,
-        finalizedHeader,
-        this.keysIndexer.getKey,
-      );
       await this.prover.handleWithdrawalsInBlock(
         blockRootToProcess,
         blockInfoToProcess,
         finalizedHeader,
         this.keysIndexer.getKey,
+      );
+      await this.prover.handlePendingConsolidationsInEpoch(
+        blockInfoToProcess,
+        finalizedHeader,
+        this.keysIndexer.getKey,
+      );
+      await this.prover.handleBalanceChangesInEpoch(
+        blockRootToProcess,
+        blockInfoToProcess,
+        finalizedHeader,
+        this.keysIndexer.getAllKeys,
       );
     }
     const indexerIsTrusted = this.keysIndexer.isTrustedForEveryDuty(rootSlot.slotNumber);
