@@ -58,9 +58,9 @@ export interface State {
 @Injectable()
 export class Consensus extends BaseRestProvider implements OnModuleInit {
   // Max distinct states commonly needed in a single root-processing cycle:
-  // block state, parent state, finalized state, historical summary state,
-  // consolidation block state, consolidation summary state.
-  private readonly stateCache = new LruCache<StateId, State>(6, { shouldCache: isCacheableConsensusId });
+  // epoch current state, epoch previous state, parent state for pre-event proofs,
+  // finalized/recent state for historical proofs, and summary state.
+  private readonly stateCache = new LruCache<StateId, State>(5, { shouldCache: isCacheableConsensusId });
   private readonly blockInfoCache = new LruCache<BlockId, SupportedBlock>(16, { shouldCache: isCacheableConsensusId });
   private readonly beaconHeaderCache = new LruCache<BlockId, BlockHeaderResponse>(16, {
     shouldCache: isCacheableConsensusId,

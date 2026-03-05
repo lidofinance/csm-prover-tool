@@ -5,7 +5,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import { type AppLogger } from '../logger/app-logger.type.js';
 import { BadPerformersService } from './duties/bad-performers.service.js';
 import { BalancesService, type InvolvedKeys } from './duties/balances.service.js';
-import { ConsolidationsService } from './duties/consolidations.service.js';
 import { SlashingsService } from './duties/slashings.service.js';
 import { WithdrawalsService } from './duties/withdrawals.service.js';
 import type { FullKeyInfoByPubKeyFn, KeyInfoFn } from './types.js';
@@ -22,7 +21,6 @@ export class ProverService {
     protected readonly withdrawals: WithdrawalsService,
     protected readonly strikes: BadPerformersService,
     protected readonly slashings: SlashingsService,
-    protected readonly consolidations: ConsolidationsService,
     protected readonly balances: BalancesService,
   ) {}
 
@@ -99,25 +97,6 @@ export class ProverService {
 
     const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
     await this.handleBalanceChanges(blockHeader, finalizedHeader, getKeys, true);
-  }
-
-  public async handlePendingConsolidationsInEpoch(
-    blockInfo: SupportedBlock,
-    finalizedHeader: BlockHeaderResponse,
-    keyInfoFn: KeyInfoFn,
-  ): Promise<void> {
-    const isFirstBlockInEpoch = await this.isFirstBlockInEpoch(blockInfo);
-    if (!isFirstBlockInEpoch) {
-      this.logger.log('Skipping pending consolidations handling. Not the first block in epoch');
-      return;
-    }
-    const consolidations = await this.consolidations.getConsolidationsToProve(blockInfo, keyInfoFn);
-    const sentCount = await this.consolidations.sendConsolidationProofs(finalizedHeader, consolidations);
-    if (sentCount > 0) {
-      this.logger.log(`🏁 ${sentCount} Consolidation proof(s) sent`);
-    } else {
-      this.logger.log('No consolidation proof(s) were sent');
-    }
   }
 
   private async isFirstBlockInEpoch(blockInfo: SupportedBlock): Promise<boolean> {

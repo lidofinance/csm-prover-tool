@@ -37,11 +37,6 @@ export class RootsProcessor {
         finalizedHeader,
         this.keysIndexer.getKey,
       );
-      await this.prover.handlePendingConsolidationsInEpoch(
-        blockInfoToProcess,
-        finalizedHeader,
-        this.keysIndexer.getKey,
-      );
       await this.prover.handleBalanceChangesInEpoch(
         blockRootToProcess,
         blockInfoToProcess,
