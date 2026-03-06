@@ -196,6 +196,14 @@ export class EnvironmentVariables {
   @Min(1)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public BALANCE_PROOF_MIN_DELTA_GWEI = 1_000_000_000; // 1 ETH
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Transform(({ value }) => toIntArray(value), { toClassOnly: true })
+  public DAEMON_NODE_OPERATOR_IDS?: number[];
 }
 
 export function validate(config: Record<string, unknown>) {
@@ -238,4 +246,21 @@ const toBoolean = (value: any): boolean => {
     default:
       return false;
   }
+};
+
+const toIntArray = (value: unknown): number[] | undefined | unknown => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return [...new Set(trimmed.split(',').map((part) => Number(part.trim())))];
 };

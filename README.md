@@ -143,6 +143,7 @@ So, according to the algorithm, there are the following statements:
 | CL_API_RESPONSE_TIMEOUT_MS              | CL API response timeout in milliseconds           | no                     | 60_000                   |
 | CL_API_MAX_RETRIES                      | Maximum number of CL API retries                  | no                     | 3                        |
 | KEYSAPI_API_URLS                        | Comma-separated list of KeysAPI API URLs          | yes (daemon mode only) |                          |
+| DAEMON_NODE_OPERATOR_IDS               | Comma-separated list of node operator ids to prove in daemon mode only | no |                          |
 | KEYSAPI_API_RETRY_DELAY_MS              | Delay between KeysAPI API retries in milliseconds | no                     | 500                      |
 | KEYSAPI_API_RESPONSE_TIMEOUT_MS         | KeysAPI API response timeout in milliseconds      | no                     | 60_000                   |
 | KEYSAPI_API_MAX_RETRIES                 | Maximum number of KeysAPI API retries             | no                     | 3                        |

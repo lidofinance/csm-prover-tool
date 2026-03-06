@@ -32,6 +32,10 @@ export class DaemonService implements OnModuleInit {
 
   async onModuleInit() {
     this.logger.log('Working mode: DAEMON');
+    const filteredOperatorIds = this.config.get('DAEMON_NODE_OPERATOR_IDS');
+    if (filteredOperatorIds?.length) {
+      this.logger.warn(`Running for Node Operator IDs: ${filteredOperatorIds.join(', ')}`);
+    }
     const env = this.config.get('NODE_ENV');
     const version = buildInfo.version;
     const commit = buildInfo.commit;
