@@ -27,7 +27,7 @@ export class ProverService {
   public async handleBadPerformers(
     headHeader: BlockHeaderResponse,
     fullKeyInfoFn: FullKeyInfoByPubKeyFn,
-  ): Promise<void> {
+  ): Promise<number> {
     const headBlockInfo = await this.consensus.getBlockInfo(headHeader.root);
     const badPerformers = await this.strikes.getUnprovenNonWithdrawnBadPerformers(headBlockInfo, fullKeyInfoFn);
     const sentCount = await this.strikes.sendBadPerformanceProofs(badPerformers);
@@ -36,21 +36,23 @@ export class ProverService {
     } else {
       this.logger.log('No Bad performer Proof(s) were sent');
     }
+    return sentCount;
   }
 
   public async handleSlashingsInBlock(
     blockInfo: SupportedBlock,
     finalizedHeader: BlockHeaderResponse,
     keyInfoFn: KeyInfoFn,
-  ): Promise<void> {
+  ): Promise<number> {
     const slashings = await this.slashings.getUnprovenSlashings(blockInfo, keyInfoFn);
+    let balanceSentCount = 0;
     if (Object.keys(slashings).length > 0) {
       const parentRoot = toRootHex(blockInfo.parentRoot);
       this.logger.log(
         `Parent block [${parentRoot}] will be processed for possible balance increases before proving slashings`,
       );
       const parentHeader = await this.consensus.getBeaconHeader(parentRoot);
-      await this.handleBalanceChanges(parentHeader, finalizedHeader, () => slashings, false);
+      balanceSentCount = await this.handleBalanceChanges(parentHeader, finalizedHeader, () => slashings, false);
     }
     const sentCount = await this.slashings.sendSlashingProofs(finalizedHeader, slashings);
     if (sentCount > 0) {
@@ -58,6 +60,7 @@ export class ProverService {
     } else {
       this.logger.log('No slashing proof(s) were sent');
     }
+    return sentCount + balanceSentCount;
   }
 
   public async handleWithdrawalsInBlock(
@@ -65,15 +68,16 @@ export class ProverService {
     blockInfo: SupportedBlock,
     finalizedHeader: BlockHeaderResponse,
     keyInfoFn: KeyInfoFn,
-  ): Promise<void> {
+  ): Promise<number> {
     const withdrawals = await this.withdrawals.getUnprovenWithdrawals(blockInfo, keyInfoFn);
+    let balanceSentCount = 0;
     if (Object.keys(withdrawals).length > 0) {
       const parentRoot = toRootHex(blockInfo.parentRoot);
       this.logger.log(
         `Parent block [${parentRoot}] will be processed for possible balance increases before proving withdrawals`,
       );
       const parentHeader = await this.consensus.getBeaconHeader(parentRoot);
-      await this.handleBalanceChanges(parentHeader, finalizedHeader, () => withdrawals, false);
+      balanceSentCount = await this.handleBalanceChanges(parentHeader, finalizedHeader, () => withdrawals, false);
     }
     const sentCount = await this.withdrawals.sendWithdrawalProofs(blockRoot, blockInfo, finalizedHeader, withdrawals);
     if (sentCount > 0) {
@@ -81,6 +85,7 @@ export class ProverService {
     } else {
       this.logger.log('No Withdrawal Proof(s) were sent');
     }
+    return sentCount + balanceSentCount;
   }
 
   public async handleBalanceChangesInEpoch(
@@ -88,24 +93,24 @@ export class ProverService {
     blockInfo: SupportedBlock,
     finalizedHeader: BlockHeaderResponse,
     getKeys: () => InvolvedKeys,
-  ): Promise<void> {
+  ): Promise<number> {
     const isFirstBlockInEpoch = await this.isFirstBlockInEpoch(blockInfo);
     if (!isFirstBlockInEpoch) {
       this.logger.log('Skipping balance change proving. Not the first block in epoch');
-      return;
+      return 0;
     }
 
     const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
-    await this.handleBalanceChanges(blockHeader, finalizedHeader, getKeys, true);
+    return await this.handleBalanceChanges(blockHeader, finalizedHeader, getKeys, true);
   }
 
   public async handleBalanceChangesInBlock(
     blockRoot: RootHex,
     finalizedHeader: BlockHeaderResponse,
     getKeys: () => InvolvedKeys,
-  ): Promise<void> {
+  ): Promise<number> {
     const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
-    await this.handleBalanceChanges(blockHeader, finalizedHeader, getKeys, false);
+    return await this.handleBalanceChanges(blockHeader, finalizedHeader, getKeys, false);
   }
 
   private async isFirstBlockInEpoch(blockInfo: SupportedBlock): Promise<boolean> {
@@ -123,11 +128,11 @@ export class ProverService {
     finalizedHeader: BlockHeaderResponse,
     getKeys: () => InvolvedKeys,
     checkPreviousEpochDelta: boolean,
-  ): Promise<void> {
+  ): Promise<number> {
     const keyMap = getKeys();
     if (!Object.keys(keyMap).length) {
       this.logger.log('No keys for balance change proving');
-      return;
+      return 0;
     }
 
     const currentState = await this.consensus.getState(toRootHex(blockHeader.header.message.stateRoot));
@@ -139,7 +144,7 @@ export class ProverService {
       if (!previousEpochHeader) {
         this.logger.warn('Previous epoch anchor is not available. Epoch balance proving will be skipped');
         this.logger.log('No epoch balance change proof(s) were sent');
-        return;
+        return 0;
       }
       const previousEpochState = await this.consensus.getState(toRootHex(previousEpochHeader.header.message.stateRoot));
 
@@ -169,5 +174,6 @@ export class ProverService {
     } else {
       this.logger.log('No balance change proof(s) were sent');
     }
+    return sentCount;
   }
 }
