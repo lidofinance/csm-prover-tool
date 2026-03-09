@@ -5,7 +5,7 @@
 
 ## Description
 
-Tool for reporting Bad Performers and Withdrawals for Lido Community Staking Module
+Tool for reporting bad performers, withdrawals, slashings, and balance changes for Lido Community Staking-like modules (`CSM`, `Curated Module`)
 
 ### Build steps (for development)
 
@@ -20,7 +20,7 @@ $ yarn build
 
 ### Daemon working mode
 
-The tool is a daemon that listens to the CL and EL and reports bad performers, withdrawals, slashings, and balance changes to the Lido Community Staking Module.
+The tool is a daemon that listens to the CL and EL and reports bad performers, withdrawals, slashings, and balance changes to Lido Community Staking-like modules (`CSM`, `Curated Module`).
 
 <details>
   <summary>The algorithm is as follows</summary>
