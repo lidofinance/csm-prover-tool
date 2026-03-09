@@ -148,7 +148,7 @@ So, according to the algorithm, there are the following statements:
 | KEYSAPI_API_RESPONSE_TIMEOUT_MS         | KeysAPI API response timeout in milliseconds      | no                     | 60_000                   |
 | KEYSAPI_API_MAX_RETRIES                 | Maximum number of KeysAPI API retries             | no                     | 3                        |
 | START_ROOT                              | Start consensus layer block root for the daemon   | no                     |                          |
-| CSM_ADDRESS                             | Address of the CSM contract                       | yes                    |                          |
+| STAKING_MODULE_ADDRESS                  | Address of the staking module contract            | yes                    |                          |
 | VERIFIER_ADDRESS                        | Address of the verifier contract                  | yes                    |                          |
 | TX_SIGNER_PRIVATE_KEY                   | Private key of the transaction signer             | yes (if not dry run)   |                          |
 | TX_MIN_GAS_PRIORITY_FEES                | Minimum gas priority fees for the transaction     | no                     | 50_000_000 (0.05 gwei)   |

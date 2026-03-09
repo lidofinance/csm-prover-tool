@@ -45,7 +45,7 @@ export class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsString()
-  public CSM_ADDRESS: string;
+  public STAKING_MODULE_ADDRESS: string;
 
   @IsOptional()
   @IsNotEmpty()

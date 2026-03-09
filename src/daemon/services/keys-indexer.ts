@@ -200,7 +200,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
 
   public async initOrReadServiceData() {
     const defaultInfo: KeysIndexerServiceInfo = {
-      moduleAddress: this.config.get('CSM_ADDRESS'),
+      moduleAddress: this.config.get('STAKING_MODULE_ADDRESS'),
       moduleId: 0,
       storageStateSlot: 0,
       lastValidatorsCount: 0,
