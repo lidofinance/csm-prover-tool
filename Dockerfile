@@ -24,4 +24,11 @@ USER node
 HEALTHCHECK --interval=60s --timeout=10s --retries=3 \
   CMD sh -c "wget -nv -t1 --spider http://127.0.0.1:$HTTP_PORT/health" || exit 1
 
-CMD ["yarn", "start:prod"]
+CMD ["/bin/sh", "-c", "\
+  if [ -n \"$VAULT_SECRETS_PATH\" ] && [ -f \"$VAULT_SECRETS_PATH\" ]; then \
+    . \"$VAULT_SECRETS_PATH\"; \
+    echo \"Loaded secrets from $VAULT_SECRETS_PATH\"; \
+  else \
+    echo \"VAULT_SECRETS_PATH is not set or file not found, skipping\"; \
+  fi; \
+  exec yarn start:prod"]
