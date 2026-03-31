@@ -44,39 +44,17 @@ export class BalancesService {
     );
   }
 
-  public async getUnprovenBalanceChangeProofs(
-    currentState: State,
-    keys: InvolvedKeys,
-    previousState?: State,
-  ): Promise<InvolvedKeys> {
+  public async getUnprovenBalanceChangeProofs(currentState: State, keys: InvolvedKeys): Promise<InvolvedKeys> {
     const keysCount = Object.keys(keys).length;
     if (keysCount === 0) return {};
 
     const currentBalances = await this.getValidatorBalances(currentState);
     const currentExitEpochs = await this.getValidatorExitEpochs(currentState);
-    const previousBalances = previousState ? await this.getValidatorBalances(previousState) : undefined;
-    const previousExitEpochs = previousState ? await this.getValidatorExitEpochs(previousState) : undefined;
     const provable: InvolvedKeys = {};
-    const maxEffectiveBalanceGwei = BigInt(this.consensus.beaconConfig.MAX_EFFECTIVE_BALANCE_ELECTRA);
 
     for (const [valIndex, keyInfo] of Object.entries(keys)) {
-      const currentBalance = this.getBalanceOrThrow(currentBalances, valIndex, keysCount);
-      let balanceToProve = currentBalance;
-      let exitEpochToProve = this.getExitEpochOrThrow(currentExitEpochs, valIndex, keysCount);
-
-      if (previousBalances) {
-        const previousBalance = previousBalances[Number(valIndex)];
-        if (previousBalance === undefined) continue;
-        const isNegativeDelta = previousBalance > currentBalance;
-        const hasMaxEb = currentBalance >= maxEffectiveBalanceGwei;
-        if (!isNegativeDelta && !hasMaxEb) continue;
-        balanceToProve = previousBalance;
-        if (!previousExitEpochs) {
-          throw new Error('Previous validator exit epochs are missing');
-        }
-        exitEpochToProve = this.getExitEpochOrThrow(previousExitEpochs, valIndex, keysCount);
-      }
-
+      const balanceToProve = this.getBalanceOrThrow(currentBalances, valIndex, keysCount);
+      const exitEpochToProve = this.getExitEpochOrThrow(currentExitEpochs, valIndex, keysCount);
       const isProvable = await this.isProvableBalance(keyInfo, balanceToProve, exitEpochToProve);
       if (isProvable) {
         provable[valIndex] = keyInfo;
