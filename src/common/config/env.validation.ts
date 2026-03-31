@@ -195,7 +195,7 @@ export class EnvironmentVariables {
   @IsNumber()
   @Min(1)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public BALANCE_PROOF_MIN_DELTA_GWEI = 1_000_000_000; // 1 ETH
+  public BALANCE_PROOF_MIN_DELTA_GWEI = 512 * 1_000_000_000; // 512 ETH
 
   @IsOptional()
   @IsArray()
