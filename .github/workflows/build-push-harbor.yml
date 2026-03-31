@@ -2,17 +2,16 @@ name: Build and push csm-prover-tool to Harbor
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - develop
+
+permissions:
+  contents: read
 
 env:
   APP: csm-prover-tool
   REGISTRY: harbor.dev.k8s-dev.org
   REPOSITORY: team-csm
   REGISTRY_USER: robot$team-csm-rw
-  IMAGE_TAG: develop
-
+  IMAGE_TAG: dev
 
 jobs:
   build-and-push:
