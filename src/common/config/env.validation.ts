@@ -207,6 +207,13 @@ export class EnvironmentVariables {
 }
 
 export function validate(config: Record<string, unknown>) {
+  if (config.CSM_ADDRESS) {
+    console.warn('CSM_ADDRESS is deprecated, use STAKING_MODULE_ADDRESS instead');
+    if (!config.STAKING_MODULE_ADDRESS) {
+      config.STAKING_MODULE_ADDRESS = config.CSM_ADDRESS;
+    }
+  }
+
   const validatedConfig = plainToInstance(EnvironmentVariables, config);
 
   const validatorOptions = { skipMissingProperties: false };
