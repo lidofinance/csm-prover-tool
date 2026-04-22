@@ -34,6 +34,14 @@ export async function generateWithdrawalProof(
   }) as SingleProof;
 }
 
+export async function generatePendingConsolidationProof(
+  stateView: SupportedStateView,
+  consolidationOffset: number,
+): Promise<SingleProof> {
+  const gI = stateView.type.getPathInfo(['pendingConsolidations', consolidationOffset]).gindex;
+  return createProof(stateView.node, { type: ProofType.single, gindex: gI }) as SingleProof;
+}
+
 export async function generateBalanceProof(
   stateView: SupportedStateView,
   validatorIndex: number,

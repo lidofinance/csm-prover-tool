@@ -127,7 +127,8 @@ export class KeysIndexer implements OnApplicationBootstrap {
     return (
       this.isTrustedForBalanceChanges(slotNumber) ||
       this.isTrustedForSlashings(slotNumber) ||
-      this.isTrustedForFullWithdrawals(slotNumber)
+      this.isTrustedForFullWithdrawals(slotNumber) ||
+      this.isTrustedForConsolidations(slotNumber)
     );
   }
 
@@ -135,6 +136,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
     const trustedForBalanceChanges = this.isTrustedForBalanceChanges(slotNumber);
     const trustedForSlashings = this.isTrustedForSlashings(slotNumber);
     const trustedForFullWithdrawals = this.isTrustedForFullWithdrawals(slotNumber);
+    const trustedForConsolidations = this.isTrustedForConsolidations(slotNumber);
     if (!trustedForBalanceChanges)
       this.logger.warn(
         '⚠️ Current keys indexer data might not be ready to detect balance changes. ' +
@@ -150,7 +152,12 @@ export class KeysIndexer implements OnApplicationBootstrap {
         '⚠️ Current keys indexer data might not be ready to detect full withdrawal. ' +
           'The root will be processed later again',
       );
-    return trustedForBalanceChanges && trustedForSlashings && trustedForFullWithdrawals;
+    if (!trustedForConsolidations)
+      this.logger.warn(
+        '⚠️ Current keys indexer data might not be ready to detect consolidations. ' +
+          'The root will be processed later again',
+      );
+    return trustedForBalanceChanges && trustedForSlashings && trustedForFullWithdrawals && trustedForConsolidations;
   }
 
   public isTrustedForBalanceChanges(slotNumber: Slot): boolean {
@@ -190,6 +197,10 @@ export class KeysIndexer implements OnApplicationBootstrap {
     const safeDelay = this.consensus.epochToSlot(MIN_VALIDATOR_WITHDRAWABILITY_DELAY);
     if (this.info.data.storageStateSlot >= slotNumber) return true;
     return slotNumber - this.info.data.storageStateSlot <= safeDelay; // ~27 hours
+  }
+
+  private isTrustedForConsolidations(slotNumber: Slot): boolean {
+    return this.isTrustedForFullWithdrawals(slotNumber);
   }
 
   public isInitialized(): boolean {
