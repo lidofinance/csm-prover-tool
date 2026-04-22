@@ -16,8 +16,8 @@ export class CsmContract {
     protected readonly config: ConfigService,
     protected readonly execution: Execution,
   ) {
-    const address = this.config.get('CSM_ADDRESS');
-    this.logger.log(`CSModule address: ${address}`);
+    const address = this.config.get('STAKING_MODULE_ADDRESS');
+    this.logger.log(`Staking module address: ${address}`);
     this.contract = Csm__factory.connect(address, this.execution.provider);
   }
 

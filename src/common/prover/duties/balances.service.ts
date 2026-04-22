@@ -15,9 +15,6 @@ import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } fr
 
 export type InvolvedKeys = { [valIndex: string]: KeyInfo };
 
-const MIN_ACTIVATION_BALANCE_GWEI = 32_000_000_000n; // 32 ETH
-const MAX_EFFECTIVE_BALANCE_GWEI = 2_048_000_000_000n; // 2048 ETH
-
 @Injectable()
 export class BalancesService {
   constructor(
@@ -29,45 +26,36 @@ export class BalancesService {
     protected readonly verifier: VerifierContract,
   ) {}
 
-  public async isProvableBalance(keyInfo: KeyInfo, currentBalanceGwei: bigint): Promise<boolean> {
-    const onchainKeyAddedBalanceGwei = (await this.csm.getKeyAddedBalance(keyInfo)) / 1_000_000_000n;
-    if (currentBalanceGwei < MIN_ACTIVATION_BALANCE_GWEI) return false;
+  public async isProvableBalance(keyInfo: KeyInfo, balanceGwei: bigint, exitEpoch: bigint): Promise<boolean> {
+    const minActivationBalanceGwei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE);
+    const maxEffectiveBalanceGwei = BigInt(this.consensus.beaconConfig.MAX_EFFECTIVE_BALANCE_ELECTRA);
+    const keyConfirmedBalanceGwei = (await this.csm.getKeyAddedBalance(keyInfo)) / 1_000_000_000n;
+    const confirmedBalanceGwei = minActivationBalanceGwei + keyConfirmedBalanceGwei;
+    if (maxEffectiveBalanceGwei <= confirmedBalanceGwei) return false;
+    if (balanceGwei <= confirmedBalanceGwei) return false;
 
-    const cappedBalance =
-      currentBalanceGwei > MAX_EFFECTIVE_BALANCE_GWEI ? MAX_EFFECTIVE_BALANCE_GWEI : currentBalanceGwei;
-    const newKeyAddedBalanceGwei = cappedBalance - MIN_ACTIVATION_BALANCE_GWEI;
+    const balanceDeltaGwei = balanceGwei - confirmedBalanceGwei;
+    const farFutureEpoch = BigInt(this.consensus.beaconConfig.FAR_FUTURE_EPOCH);
 
     return (
-      newKeyAddedBalanceGwei - onchainKeyAddedBalanceGwei >= BigInt(this.config.get('BALANCE_PROOF_MIN_DELTA_GWEI'))
+      balanceDeltaGwei > BigInt(this.config.get('BALANCE_PROOF_MIN_DELTA_GWEI')) ||
+      exitEpoch !== farFutureEpoch ||
+      balanceGwei >= maxEffectiveBalanceGwei
     );
   }
 
-  public async getUnprovenBalanceChangeProofs(
-    currentState: State,
-    keys: InvolvedKeys,
-    previousState?: State,
-  ): Promise<InvolvedKeys> {
+  public async getUnprovenBalanceChangeProofs(currentState: State, keys: InvolvedKeys): Promise<InvolvedKeys> {
     const keysCount = Object.keys(keys).length;
     if (keysCount === 0) return {};
 
     const currentBalances = await this.getValidatorBalances(currentState);
-    const previousBalances = previousState ? await this.getValidatorBalances(previousState) : undefined;
+    const currentExitEpochs = await this.getValidatorExitEpochs(currentState);
     const provable: InvolvedKeys = {};
 
     for (const [valIndex, keyInfo] of Object.entries(keys)) {
-      const currentBalance = this.getBalanceOrThrow(currentBalances, valIndex, keysCount);
-      let balanceToProve = currentBalance;
-
-      if (previousBalances) {
-        const previousBalance = previousBalances[Number(valIndex)];
-        if (previousBalance === undefined) continue;
-        const isNegativeDelta = previousBalance > currentBalance;
-        const hasMaxEb = currentBalance >= MAX_EFFECTIVE_BALANCE_GWEI;
-        if (!isNegativeDelta && !hasMaxEb) continue;
-        balanceToProve = previousBalance;
-      }
-
-      const isProvable = await this.isProvableBalance(keyInfo, balanceToProve);
+      const balanceToProve = this.getBalanceOrThrow(currentBalances, valIndex, keysCount);
+      const exitEpochToProve = this.getExitEpochOrThrow(currentExitEpochs, valIndex, keysCount);
+      const isProvable = await this.isProvableBalance(keyInfo, balanceToProve, exitEpochToProve);
       if (isProvable) {
         provable[valIndex] = keyInfo;
       }
@@ -104,6 +92,10 @@ export class BalancesService {
     return await this.workers.getValidatorBalances({ state });
   }
 
+  private async getValidatorExitEpochs(state: State): Promise<bigint[]> {
+    return await this.workers.getValidatorExitEpochs({ state });
+  }
+
   private getBalanceOrThrow(balances: bigint[], valIndex: string, keysCount: number): bigint {
     const balance = balances[Number(valIndex)];
     if (balance !== undefined) return balance;
@@ -111,6 +103,17 @@ export class BalancesService {
     throw new Error(
       `Validator balance is missing for index ${valIndex}. ` +
         `State balances length: ${balances.length}. ` +
+        `Keys considered for proving: ${keysCount}.`,
+    );
+  }
+
+  private getExitEpochOrThrow(exitEpochs: bigint[], valIndex: string, keysCount: number): bigint {
+    const exitEpoch = exitEpochs[Number(valIndex)];
+    if (exitEpoch !== undefined) return exitEpoch;
+
+    throw new Error(
+      `Validator exit epoch is missing for index ${valIndex}. ` +
+        `State validators length: ${exitEpochs.length}. ` +
         `Keys considered for proving: ${keysCount}.`,
     );
   }

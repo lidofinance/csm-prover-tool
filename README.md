@@ -5,7 +5,7 @@
 
 ## Description
 
-Tool for reporting Bad Performers and Withdrawals for Lido Community Staking Module
+Tool for reporting bad performers, withdrawals, slashings, and balance changes for Lido Community Staking-like modules (`CSM`, `Curated Module`)
 
 ### Build steps (for development)
 
@@ -20,7 +20,7 @@ $ yarn build
 
 ### Daemon working mode
 
-The tool is a daemon that listens to the CL and EL and reports any bad performers and withdrawals to the Lido Community Staking Module.
+The tool is a daemon that listens to the CL and EL and reports bad performers, withdrawals, slashings, and balance changes to Lido Community Staking-like modules (`CSM`, `Curated Module`).
 
 <details>
   <summary>The algorithm is as follows</summary>
@@ -40,8 +40,9 @@ The tool is a daemon that listens to the CL and EL and reports any bad performer
    > - Get the block info from CL by the root
    > - If the current state of keys indexer is outdated (~15-27h behind from the block) to be trusted completely, add the block root to roots stack
    > - If the block has a slashing or withdrawal, report it to the CS Module
+   > - At the first block of each epoch, check and report additional balance changes
    > - If the current state of keys indexer is healthy enough to be trusted completely, remove the root from roots stack
-4. Build and send proofs to the CS Module contract if slashing or withdrawal was found.
+4. Build and send proofs to the CS Module contract when reportable events are found.
 
 So, according to the algorithm, there are the following statements:
 1. We always go sequentially by the finalized roots of blocks, taking the next one by the root of the previous one. In this way, we avoid missing any blocks.
@@ -87,8 +88,6 @@ So, according to the algorithm, there are the following statements:
    a. Using the docker compose
 
    ```bash
-   # Report slashing
-   $ docker compose run -it --rm slashing
    # Report withdrawal
    $ docker compose run -it --rm withdrawal
    # Report bad performer ejection
@@ -104,6 +103,18 @@ So, according to the algorithm, there are the following statements:
    $ yarn withdrawal
    # Report bad performer ejection
    $ yarn bad_performer
+   # Report balance change
+   $ yarn balance
+   ```
+
+   c. Generic CLI entrypoint (all proof modes)
+
+   ```bash
+   $ yarn prove <slashing|withdrawal|bad_performer|balance> \
+     --node-operator-id <id> \
+     --key-index <index> \
+     --validator-index <index> \
+     --cl-block <slot-or-root>
    ```
 
 #### Options to run CLI
@@ -114,7 +125,7 @@ So, according to the algorithm, there are the following statements:
 
 `--validator-index` - Validator index in the Consensus Layer
 
-`--cl-block` - Consensus Layer Block number (slot or root of block which contains the validator withdrawal or actual strikes tree)
+`--cl-block` - Consensus Layer block reference (slot or block root) used as proof context
 
 `--help` - Show help
 
@@ -132,11 +143,12 @@ So, according to the algorithm, there are the following statements:
 | CL_API_RESPONSE_TIMEOUT_MS              | CL API response timeout in milliseconds           | no                     | 60_000                   |
 | CL_API_MAX_RETRIES                      | Maximum number of CL API retries                  | no                     | 3                        |
 | KEYSAPI_API_URLS                        | Comma-separated list of KeysAPI API URLs          | yes (daemon mode only) |                          |
+| DAEMON_NODE_OPERATOR_IDS               | Comma-separated list of node operator ids to prove in daemon mode only | no |                          |
 | KEYSAPI_API_RETRY_DELAY_MS              | Delay between KeysAPI API retries in milliseconds | no                     | 500                      |
 | KEYSAPI_API_RESPONSE_TIMEOUT_MS         | KeysAPI API response timeout in milliseconds      | no                     | 60_000                   |
 | KEYSAPI_API_MAX_RETRIES                 | Maximum number of KeysAPI API retries             | no                     | 3                        |
 | START_ROOT                              | Start consensus layer block root for the daemon   | no                     |                          |
-| CSM_ADDRESS                             | Address of the CSM contract                       | yes                    |                          |
+| STAKING_MODULE_ADDRESS                  | Address of the staking module contract            | yes                    |                          |
 | VERIFIER_ADDRESS                        | Address of the verifier contract                  | yes                    |                          |
 | TX_SIGNER_PRIVATE_KEY                   | Private key of the transaction signer             | yes (if not dry run)   |                          |
 | TX_MIN_GAS_PRIORITY_FEES                | Minimum gas priority fees for the transaction     | no                     | 50_000_000 (0.05 gwei)   |

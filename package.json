@@ -21,6 +21,8 @@
     "withdrawal:debug": "yarn prove:debug withdrawal",
     "bad_performer": "yarn prove bad_performer",
     "bad_performer:debug": "yarn prove:debug bad_performer",
+    "balance": "yarn prove balance",
+    "balance:debug": "yarn prove:debug balance",
     "typechain": "typechain --node16-modules --target=ethers-v5 --out-dir src/common/contracts/types src/common/contracts/abi/*.json",
     "prebuild": "yarn typechain",
     "build": "yarn prebuild && nest build",

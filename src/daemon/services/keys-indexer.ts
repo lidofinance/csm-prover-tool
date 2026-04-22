@@ -5,6 +5,7 @@ import { Low } from 'lowdb';
 import { JSONFile } from 'lowdb/node';
 
 import { ConfigService } from '../../common/config/config.service.js';
+import { WorkingMode } from '../../common/config/env.validation.js';
 import { toRootHex } from '../../common/helpers/proofs.js';
 import { type AppLogger } from '../../common/logger/app-logger.type.js';
 import {
@@ -55,22 +56,29 @@ export class KeysIndexer implements OnApplicationBootstrap {
   }
 
   public getKey = (valIndex: number): KeyInfo | undefined => {
-    return this.storage.data[valIndex];
+    return this.filterKeyInfo(this.storage.data[valIndex]);
   };
 
   public getAllKeys = (): KeysIndexerServiceStorage => {
-    return this.storage.data;
+    const filtered: KeysIndexerServiceStorage = {};
+
+    for (const [valIndex, keyInfo] of Object.entries(this.storage.data)) {
+      if (!this.filterKeyInfo(keyInfo)) continue;
+      filtered[valIndex] = keyInfo;
+    }
+
+    return filtered;
   };
 
   public getFullKeyInfoByPubKey = (pubKey: string): FullKeyInfo | undefined => {
     for (const [validatorIndex, keyInfo] of Object.entries(this.storage.data)) {
       if (keyInfo.pubKey === pubKey) {
-        return {
+        return this.filterFullKeyInfo({
           operatorId: keyInfo.operatorId,
           keyIndex: keyInfo.keyIndex,
           pubKey,
           validatorIndex: Number(validatorIndex),
-        };
+        });
       }
     }
     return undefined;
@@ -156,6 +164,22 @@ export class KeysIndexer implements OnApplicationBootstrap {
     return this.isTrustedForFullWithdrawals(slotNumber);
   }
 
+  private filterKeyInfo(keyInfo: KeyInfo | undefined): KeyInfo | undefined {
+    if (!keyInfo || !this.isAllowedOperatorId(keyInfo.operatorId)) {
+      return undefined;
+    }
+
+    return keyInfo;
+  }
+
+  private filterFullKeyInfo(fullKeyInfo: FullKeyInfo | undefined): FullKeyInfo | undefined {
+    if (!fullKeyInfo || !this.isAllowedOperatorId(fullKeyInfo.operatorId)) {
+      return undefined;
+    }
+
+    return fullKeyInfo;
+  }
+
   private isTrustedForSlashings(slotNumber: Slot): boolean {
     // We are ok with outdated indexer for detection slashing
     // because of a bunch of delays between deposit and validator appearing
@@ -187,7 +211,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
 
   public async initOrReadServiceData() {
     const defaultInfo: KeysIndexerServiceInfo = {
-      moduleAddress: this.config.get('CSM_ADDRESS'),
+      moduleAddress: this.config.get('STAKING_MODULE_ADDRESS'),
       moduleId: 0,
       storageStateSlot: 0,
       lastValidatorsCount: 0,
@@ -315,5 +339,18 @@ export class KeysIndexer implements OnApplicationBootstrap {
         this.set(keysCount());
       },
     });
+  }
+
+  private isAllowedOperatorId(operatorId: number): boolean {
+    if (this.config.get('WORKING_MODE') !== WorkingMode.Daemon) {
+      return true;
+    }
+
+    const allowedOperatorIds = this.config.get('DAEMON_NODE_OPERATOR_IDS');
+    if (!allowedOperatorIds?.length) {
+      return true;
+    }
+
+    return allowedOperatorIds.includes(operatorId);
   }
 }

@@ -148,7 +148,17 @@ export class Execution {
       throw new DryRunError('Dry run mode is enabled. Transaction is prepared, but not sent', context);
     }
     if (this.isCLI()) {
-      const opts = await this.inquirerService.ask('tx-execution', {} as { sendingConfirmed: boolean });
+      const txSummary = [
+        `to=${populated.to ?? 'n/a'}`,
+        `nonce=${String(populated.nonce ?? 'n/a')}`,
+        `gasLimit=${String(populated.gasLimit ?? 'n/a')}`,
+        `maxFeePerGas=${String(populated.maxFeePerGas ?? 'n/a')}`,
+        `maxPriorityFeePerGas=${String(populated.maxPriorityFeePerGas ?? 'n/a')}`,
+      ].join(' | ');
+      const opts = await this.inquirerService.ask('tx-execution', {
+        sendingConfirmed: false,
+        txSummary,
+      } as { sendingConfirmed: boolean; txSummary: string });
       if (!opts.sendingConfirmed) {
         throw new UserCancellationError('Transaction is not sent due to user cancellation', context);
       }

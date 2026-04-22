@@ -15,7 +15,6 @@ import {
 } from './response.interface.js';
 import { ConfigService } from '../../config/config.service.js';
 import { LruCache } from '../../helpers/lru.js';
-import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { PrometheusService, TrackCLRequest } from '../../prometheus/index.js';
 import { BaseRestProvider, type RestResponse } from '../base/rest-provider.js';
@@ -37,6 +36,9 @@ type BeaconConfig = {
   SLOTS_PER_EPOCH: string;
   SECONDS_PER_SLOT: string;
   CAPELLA_FORK_EPOCH: string;
+  FAR_FUTURE_EPOCH: string;
+  MAX_EFFECTIVE_BALANCE_ELECTRA: string;
+  MIN_ACTIVATION_BALANCE: string;
   ETH1_FOLLOW_DISTANCE: string;
   EPOCHS_PER_ETH1_VOTING_PERIOD: string;
   SLOTS_PER_HISTORICAL_ROOT: string;
@@ -169,35 +171,6 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
 
   public async getState(stateId: StateId, signal?: AbortSignal): Promise<State> {
     return await this.stateCache.getOrFetch(stateId, async () => this.fetchState(stateId, signal));
-  }
-
-  public async getFirstNonMissedHeaderInPreviousEpoch(
-    fromHeader: BlockHeaderResponse,
-  ): Promise<BlockHeaderResponse | null> {
-    const currentSlot = Number(fromHeader.header.message.slot);
-    const currentEpoch = this.slotToEpoch(currentSlot);
-    if (currentEpoch === 0) return null;
-
-    const previousEpochStartSlot = this.epochToSlot(currentEpoch - 1);
-    const previousEpochEndSlot = this.epochToSlot(currentEpoch) - 1;
-
-    let cursor: BlockHeaderResponse | null = fromHeader;
-    let earliestInPreviousEpoch: BlockHeaderResponse | null = null;
-
-    while (cursor) {
-      const slot = Number(cursor.header.message.slot);
-
-      if (slot < previousEpochStartSlot) break;
-      if (slot <= previousEpochEndSlot) {
-        earliestInPreviousEpoch = cursor;
-      }
-      if (slot === 0) break;
-
-      const parentRoot = toRootHex(cursor.header.message.parentRoot);
-      cursor = await this.getBeaconHeader(parentRoot);
-    }
-
-    return earliestInPreviousEpoch;
   }
 
   private async fetchState(stateId: StateId, signal?: AbortSignal): Promise<State> {

@@ -11,7 +11,7 @@ export type GetValidatorExitEpochsArgs = {
 };
 
 export type GetValidatorExitEpochsResult = {
-  valExitEpochs: number[];
+  valExitEpochs: bigint[];
 };
 
 async function getValidatorExitEpochs(): Promise<GetValidatorExitEpochsResult> {
@@ -30,11 +30,11 @@ async function getValidatorExitEpochs(): Promise<GetValidatorExitEpochsResult> {
     0,
     totalValLength,
   );
-  const valExitEpochs = [];
+  const valExitEpochs: bigint[] = [];
   for (let i = 0; i < totalValLength; i++) {
     const node = iterator.next().value;
     const v = stateView.validators.type.elementType.tree_toValue(node);
-    valExitEpochs.push(v.exitEpoch);
+    valExitEpochs.push(BigInt(v.exitEpoch));
   }
   iterator.return && iterator.return();
   return { valExitEpochs };
