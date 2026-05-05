@@ -10,6 +10,7 @@ import type {
   SupportedValidatorView,
   SupportedWithdrawal,
 } from '../providers/consensus/forks.js';
+import { epochToBigInt } from '../providers/consensus/epoch.js';
 import type { BlockHeaderResponse } from '../providers/consensus/response.interface.js';
 
 export async function generateValidatorProof(stateView: SupportedStateView, valIndex: number): Promise<SingleProof> {
@@ -118,10 +119,10 @@ export function toValidatorStruct(validator: SupportedValidatorView): ValidatorS
     withdrawalCredentials: toHex(validator.withdrawalCredentials),
     effectiveBalance: BigInt(validator.effectiveBalance),
     slashed: Boolean(validator.slashed),
-    activationEligibilityEpoch: BigInt(validator.activationEligibilityEpoch),
-    activationEpoch: BigInt(validator.activationEpoch),
-    exitEpoch: BigInt(validator.exitEpoch),
-    withdrawableEpoch: BigInt(validator.withdrawableEpoch),
+    activationEligibilityEpoch: epochToBigInt(validator.activationEligibilityEpoch),
+    activationEpoch: epochToBigInt(validator.activationEpoch),
+    exitEpoch: epochToBigInt(validator.exitEpoch),
+    withdrawableEpoch: epochToBigInt(validator.withdrawableEpoch),
   };
 }
 

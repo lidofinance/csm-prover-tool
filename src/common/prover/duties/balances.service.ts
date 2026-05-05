@@ -7,6 +7,7 @@ import type { IVerifier } from '../../contracts/types/Verifier.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
 import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
+import { FAR_FUTURE_EPOCH } from '../../providers/consensus/epoch.js';
 import { Consensus, type State } from '../../providers/consensus/consensus.js';
 import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
 import { WorkersService } from '../../workers/workers.service.js';
@@ -35,11 +36,9 @@ export class BalancesService {
     if (balanceGwei <= confirmedBalanceGwei) return false;
 
     const balanceDeltaGwei = balanceGwei - confirmedBalanceGwei;
-    const farFutureEpoch = BigInt(this.consensus.beaconConfig.FAR_FUTURE_EPOCH);
-
     return (
       balanceDeltaGwei > BigInt(this.config.get('BALANCE_PROOF_MIN_DELTA_GWEI')) ||
-      exitEpoch !== farFutureEpoch ||
+      exitEpoch !== FAR_FUTURE_EPOCH ||
       balanceGwei >= maxEffectiveBalanceGwei
     );
   }
