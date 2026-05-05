@@ -36,6 +36,6 @@ export class AccountingContract {
   }
 
   public async getFeeDistributorAddress(): Promise<string> {
-    return await this.contract.feeDistributor();
+    return await this.contract.FEE_DISTRIBUTOR();
   }
 }

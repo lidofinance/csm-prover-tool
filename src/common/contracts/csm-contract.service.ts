@@ -33,7 +33,7 @@ export class CsmContract {
   }
 
   public async getKeyAddedBalance(keyInfo: KeyInfo): Promise<bigint> {
-    const balance = await this.contract.getKeyAddedBalance(keyInfo.operatorId, keyInfo.keyIndex);
+    const [balance] = await this.contract.getKeyConfirmedBalances(keyInfo.operatorId, keyInfo.keyIndex, 1);
     return balance.toBigInt();
   }
 
