@@ -127,6 +127,11 @@ export class ProverService {
     finalizedHeader: BlockHeaderResponse,
     getKeys: () => InvolvedKeys,
   ): Promise<number> {
+    if (!(await this.balances.canReportValidatorBalance())) {
+      this.logger.log('Skipping balance change proving. Top-up queue is disabled');
+      return 0;
+    }
+
     const keyMap = getKeys();
     if (!Object.keys(keyMap).length) {
       this.logger.log('No keys for balance change proving');

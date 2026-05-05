@@ -4,13 +4,13 @@ import { ProofType, type SingleProof, Tree, concatGindices, createProof } from '
 import type { RootHex } from '@lodestar/types';
 
 import type { BeaconBlockHeaderStruct, ValidatorStruct, WithdrawalStruct } from '../contracts/types/Verifier.js';
+import { epochToBigInt } from '../providers/consensus/epoch.js';
 import type {
   SupportedBlockView,
   SupportedStateView,
   SupportedValidatorView,
   SupportedWithdrawal,
 } from '../providers/consensus/forks.js';
-import { epochToBigInt } from '../providers/consensus/epoch.js';
 import type { BlockHeaderResponse } from '../providers/consensus/response.interface.js';
 
 export async function generateValidatorProof(stateView: SupportedStateView, valIndex: number): Promise<SingleProof> {

@@ -7,8 +7,8 @@ import type { IVerifier } from '../../contracts/types/Verifier.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
 import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
-import { FAR_FUTURE_EPOCH } from '../../providers/consensus/epoch.js';
 import { Consensus, type State } from '../../providers/consensus/consensus.js';
+import { FAR_FUTURE_EPOCH } from '../../providers/consensus/epoch.js';
 import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo } from '../types.js';
@@ -26,6 +26,10 @@ export class BalancesService {
     protected readonly csm: CsmContract,
     protected readonly verifier: VerifierContract,
   ) {}
+
+  public async canReportValidatorBalance(): Promise<boolean> {
+    return await this.csm.canReportValidatorBalance();
+  }
 
   public async isProvableBalance(keyInfo: KeyInfo, balanceGwei: bigint, exitEpoch: bigint): Promise<boolean> {
     const minActivationBalanceGwei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE);
