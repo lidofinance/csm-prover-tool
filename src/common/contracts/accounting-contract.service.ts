@@ -1,11 +1,10 @@
-import { BlockTag } from '@ethersproject/abstract-provider';
+import { type BlockTag } from '@ethersproject/abstract-provider';
 import { Injectable } from '@nestjs/common';
 import { LRUCache } from 'lru-cache';
 
-import { CsmContract } from './csm-contract.service';
-import { Accounting, Accounting__factory } from './types';
-import { ConfigService } from '../config/config.service';
-import { Execution } from '../providers/execution/execution';
+import { CsmContract } from './csm-contract.service.js';
+import { type Accounting, Accounting__factory } from './types/index.js';
+import { Execution } from '../providers/execution/execution.js';
 
 @Injectable()
 export class AccountingContract {
@@ -13,7 +12,6 @@ export class AccountingContract {
   private bondCurveIdCache = new LRUCache<string, number>({ max: 128 });
 
   constructor(
-    protected readonly config: ConfigService,
     protected readonly execution: Execution,
     protected readonly csm: CsmContract,
   ) {}

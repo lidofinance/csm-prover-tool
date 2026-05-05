@@ -1,26 +1,26 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 
-import * as buildInfo from 'build-info';
-
-import { KeysIndexer } from './services/keys-indexer';
-import { RootsProcessor } from './services/roots-processor';
-import { RootsProvider } from './services/roots-provider';
-import sleep from './utils/sleep';
-import { ConfigService } from '../common/config/config.service';
-import { SECOND_MS } from '../common/config/env.validation';
-import { APP_NAME, PrometheusService, TrackTask } from '../common/prometheus';
-import { ProverService } from '../common/prover/prover.service';
-import { Consensus } from '../common/providers/consensus/consensus';
-import { BlockHeaderResponse } from '../common/providers/consensus/response.interface';
-import { SingletonTask } from '../common/utils/singleton-task.decorator';
+import buildInfo from '../build-info.js';
+import { KeysIndexer } from './services/keys-indexer.js';
+import { RootsProcessor } from './services/roots-processor.js';
+import { RootsProvider } from './services/roots-provider.js';
+import { SingletonTask } from './utils/singleton-task.decorator.js';
+import sleep from './utils/sleep.js';
+import { ConfigService } from '../common/config/config.service.js';
+import { SECOND_MS } from '../common/config/env.validation.js';
+import { type AppLogger } from '../common/logger/app-logger.type.js';
+import { APP_NAME, PrometheusService, TrackTask } from '../common/prometheus/index.js';
+import { ProverService } from '../common/prover/prover.service.js';
+import { Consensus } from '../common/providers/consensus/consensus.js';
+import { type BlockHeaderResponse } from '../common/providers/consensus/response.interface.js';
 
 @Injectable()
 export class DaemonService implements OnModuleInit {
   private lastFinalizedHeader: BlockHeaderResponse | null = null;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly prometheus: PrometheusService,
     protected readonly consensus: Consensus,
@@ -32,6 +32,10 @@ export class DaemonService implements OnModuleInit {
 
   async onModuleInit() {
     this.logger.log('Working mode: DAEMON');
+    const filteredOperatorIds = this.config.get('DAEMON_NODE_OPERATOR_IDS');
+    if (filteredOperatorIds?.length) {
+      this.logger.warn(`Running for Node Operator IDs: ${filteredOperatorIds.join(', ')}`);
+    }
     const env = this.config.get('NODE_ENV');
     const version = buildInfo.version;
     const commit = buildInfo.commit;
@@ -41,7 +45,7 @@ export class DaemonService implements OnModuleInit {
     this.prometheus.buildInfo.labels({ env, name, version, commit, branch }).inc();
   }
 
-  public async loop() {
+  public async loop(): Promise<never> {
     while (true) {
       try {
         if (!this.keysIndexer.isInitialized()) await this.keysIndexer.initOrReadServiceData();
@@ -64,6 +68,7 @@ export class DaemonService implements OnModuleInit {
       this.updateKeysIndexer(finalizedHeader).catch((e) => this.logger.error(e));
     }
 
+    // TODO: what if no finality?
     if (isFinalizedChanged) {
       this.processAnyHeadRoot().catch((e) => this.logger.error(e));
     }

@@ -15,7 +15,7 @@ import {
   validateSync,
 } from 'class-validator';
 
-import { Environment, LogFormat, LogLevel } from './interfaces';
+import { Environment, LogFormat, LogLevel } from './interfaces/environment.interface.js';
 
 export enum Network {
   Mainnet = 1,
@@ -45,7 +45,7 @@ export class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsString()
-  public CSM_ADDRESS: string;
+  public STAKING_MODULE_ADDRESS: string;
 
   @IsOptional()
   @IsNotEmpty()
@@ -191,9 +191,29 @@ export class EnvironmentVariables {
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public TX_STRIKES_PAYLOAD_MAX_BATCH_SIZE = 10;
+
+  @IsNumber()
+  @Min(1)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public BALANCE_PROOF_MIN_DELTA_GWEI = 512 * 1_000_000_000; // 512 ETH
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Transform(({ value }) => toIntArray(value), { toClassOnly: true })
+  public DAEMON_NODE_OPERATOR_IDS?: number[];
 }
 
 export function validate(config: Record<string, unknown>) {
+  if (config.CSM_ADDRESS) {
+    console.warn('CSM_ADDRESS is deprecated, use STAKING_MODULE_ADDRESS instead');
+    if (!config.STAKING_MODULE_ADDRESS) {
+      config.STAKING_MODULE_ADDRESS = config.CSM_ADDRESS;
+    }
+  }
+
   const validatedConfig = plainToInstance(EnvironmentVariables, config);
 
   const validatorOptions = { skipMissingProperties: false };
@@ -233,4 +253,21 @@ const toBoolean = (value: any): boolean => {
     default:
       return false;
   }
+};
+
+const toIntArray = (value: unknown): number[] | undefined | unknown => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return [...new Set(trimmed.split(',').map((part) => Number(part.trim())))];
 };

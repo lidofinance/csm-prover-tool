@@ -1,19 +1,21 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 
-import { ConfigService } from '../../config/config.service';
-import { WorkingMode } from '../../config/env.validation';
-import { AccountingContract } from '../../contracts/accounting-contract.service';
-import { CsmContract } from '../../contracts/csm-contract.service';
-import { ExitPenaltiesContract } from '../../contracts/exit-penalties-contract.service';
-import { ParametersRegistryContract } from '../../contracts/parameters-registry-contract.service';
-import { StrikesContract } from '../../contracts/strikes-contract.service';
-import { ICSStrikes } from '../../contracts/types/Strikes';
-import { toHex } from '../../helpers/proofs';
-import { Consensus, SupportedBlock } from '../../providers/consensus/consensus';
-import { Ipfs } from '../../providers/ipfs/ipfs';
-import { FullKeyInfo, FullKeyInfoByPubKeyFn } from '../types';
+import { ConfigService } from '../../config/config.service.js';
+import { WorkingMode } from '../../config/env.validation.js';
+import { AccountingContract } from '../../contracts/accounting-contract.service.js';
+import { CsmContract } from '../../contracts/csm-contract.service.js';
+import { ExitPenaltiesContract } from '../../contracts/exit-penalties-contract.service.js';
+import { ParametersRegistryContract } from '../../contracts/parameters-registry-contract.service.js';
+import { StrikesContract } from '../../contracts/strikes-contract.service.js';
+import type { ICSStrikes } from '../../contracts/types/Strikes.js';
+import { toHex } from '../../helpers/proofs.js';
+import { type AppLogger } from '../../logger/app-logger.type.js';
+import { Consensus } from '../../providers/consensus/consensus.js';
+import type { SupportedBlock } from '../../providers/consensus/forks.js';
+import { Ipfs } from '../../providers/ipfs/ipfs.js';
+import type { FullKeyInfo, FullKeyInfoByPubKeyFn } from '../types.js';
 
 export type InvolvedKeysWithBadPerformance = (FullKeyInfo & { leafIndex: number; strikesData: number[] })[];
 
@@ -22,7 +24,7 @@ type StrikesTreeLeaf = [number, string, number[]]; // [nodeOperatorId, pubKey, s
 @Injectable()
 export class BadPerformersService {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly consensus: Consensus,
     protected readonly ipfs: Ipfs,
@@ -48,7 +50,7 @@ export class BadPerformersService {
     if (!badPerfKeys) return [];
     const unproven = await this.getUnprovenKeys(headBlockInfo, badPerfKeys);
     if (!unproven) return [];
-    const unprovenNonWithdrawn = await this.getNonWithdrawnKeys(headBlockInfo, unproven);
+    const unprovenNonWithdrawn = await this.getNonWithdrawnKeys(unproven);
     if (!unprovenNonWithdrawn) return [];
     return unprovenNonWithdrawn;
   }
@@ -274,16 +276,14 @@ export class BadPerformersService {
   }
 
   private async getNonWithdrawnKeys(
-    headBlockInfo: SupportedBlock,
     keys: InvolvedKeysWithBadPerformance,
   ): Promise<InvolvedKeysWithBadPerformance | undefined> {
-    const latestBlockHash = toHex(headBlockInfo.body.executionPayload.blockHash);
     const nonWithdrawn: InvolvedKeysWithBadPerformance = [];
 
     this.logger.log('🔍 Searching for non-withdrawn bad performers');
 
     for (const key of keys) {
-      const withdrawalProved = await this.csm.isWithdrawalProved(latestBlockHash, key);
+      const withdrawalProved = await this.csm.isWithdrawalProved(key);
       if (withdrawalProved) {
         this.logger.warn(
           `Validator ${key.validatorIndex} already reported as withdrawn. No need to prove as a bad performer`,

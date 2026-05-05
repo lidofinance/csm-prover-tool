@@ -1,22 +1,26 @@
-import { Low } from '@huanshiwushuang/lowdb';
-import { JSONFile } from '@huanshiwushuang/lowdb/node';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, OnApplicationBootstrap } from '@nestjs/common';
+import type { RootHex, Slot } from '@lodestar/types';
+import { Inject, Injectable, type OnApplicationBootstrap } from '@nestjs/common';
+import { Low } from 'lowdb';
+import { JSONFile } from 'lowdb/node';
 
-import { ConfigService } from '../../common/config/config.service';
+import { ConfigService } from '../../common/config/config.service.js';
+import { WorkingMode } from '../../common/config/env.validation.js';
+import { toRootHex } from '../../common/helpers/proofs.js';
+import { type AppLogger } from '../../common/logger/app-logger.type.js';
 import {
   METRIC_KEYS_CSM_VALIDATORS_COUNT,
   METRIC_KEYS_INDEXER_ALL_VALIDATORS_COUNT,
   METRIC_KEYS_INDEXER_STORAGE_STATE_SLOT,
   PrometheusService,
-} from '../../common/prometheus';
-import { FullKeyInfo, KeyInfo } from '../../common/prover/types';
-import { Consensus, State } from '../../common/providers/consensus/consensus';
-import { BlockHeaderResponse, RootHex, Slot } from '../../common/providers/consensus/response.interface';
-import { Keysapi } from '../../common/providers/keysapi/keysapi';
-import { Key, Module } from '../../common/providers/keysapi/response.interface';
-import { WorkersService } from '../../common/workers/workers.service';
-import sleep from '../utils/sleep';
+} from '../../common/prometheus/index.js';
+import type { FullKeyInfo, KeyInfo } from '../../common/prover/types.js';
+import { Consensus, type State } from '../../common/providers/consensus/consensus.js';
+import type { BlockHeaderResponse } from '../../common/providers/consensus/response.interface.js';
+import { Keysapi } from '../../common/providers/keysapi/keysapi.js';
+import type { Key, Module } from '../../common/providers/keysapi/response.interface.js';
+import { WorkersService } from '../../common/workers/workers.service.js';
+import sleep from '../utils/sleep.js';
 
 type KeysIndexerServiceInfo = {
   moduleAddress: string;
@@ -26,7 +30,7 @@ type KeysIndexerServiceInfo = {
 };
 
 type KeysIndexerServiceStorage = {
-  [valIndex: number]: KeyInfo;
+  [valIndex: string]: KeyInfo;
 };
 
 export class ModuleNotFoundError extends Error {}
@@ -39,7 +43,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
   private storage: Low<KeysIndexerServiceStorage>;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly prometheus: PrometheusService,
     protected readonly workers: WorkersService,
@@ -52,18 +56,29 @@ export class KeysIndexer implements OnApplicationBootstrap {
   }
 
   public getKey = (valIndex: number): KeyInfo | undefined => {
-    return this.storage.data[valIndex];
+    return this.filterKeyInfo(this.storage.data[valIndex]);
+  };
+
+  public getAllKeys = (): KeysIndexerServiceStorage => {
+    const filtered: KeysIndexerServiceStorage = {};
+
+    for (const [valIndex, keyInfo] of Object.entries(this.storage.data)) {
+      if (!this.filterKeyInfo(keyInfo)) continue;
+      filtered[valIndex] = keyInfo;
+    }
+
+    return filtered;
   };
 
   public getFullKeyInfoByPubKey = (pubKey: string): FullKeyInfo | undefined => {
     for (const [validatorIndex, keyInfo] of Object.entries(this.storage.data)) {
       if (keyInfo.pubKey === pubKey) {
-        return {
+        return this.filterFullKeyInfo({
           operatorId: keyInfo.operatorId,
           keyIndex: keyInfo.keyIndex,
           pubKey,
           validatorIndex: Number(validatorIndex),
-        };
+        });
       }
     }
     return undefined;
@@ -81,7 +96,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
 
   public async update(finalizedHeader: BlockHeaderResponse): Promise<void> {
     const slot = Number(finalizedHeader.header.message.slot);
-    const stateRoot = finalizedHeader.header.message.state_root;
+    const stateRoot = toRootHex(finalizedHeader.header.message.stateRoot);
     // We shouldn't wait for task to finish
     // to avoid block processing if indexing fails or stuck
     await this.baseRun(
@@ -109,17 +124,63 @@ export class KeysIndexer implements OnApplicationBootstrap {
   }
 
   public isTrustedForAnyDuty(slotNumber: Slot): boolean {
-    return this.isTrustedForFullWithdrawals(slotNumber);
+    return (
+      this.isTrustedForBalanceChanges(slotNumber) ||
+      this.isTrustedForSlashings(slotNumber) ||
+      this.isTrustedForFullWithdrawals(slotNumber)
+    );
   }
 
   public isTrustedForEveryDuty(slotNumber: Slot): boolean {
+    const trustedForBalanceChanges = this.isTrustedForBalanceChanges(slotNumber);
+    const trustedForSlashings = this.isTrustedForSlashings(slotNumber);
     const trustedForFullWithdrawals = this.isTrustedForFullWithdrawals(slotNumber);
+    if (!trustedForBalanceChanges)
+      this.logger.warn(
+        '⚠️ Current keys indexer data might not be ready to detect balance changes. ' +
+          'The root will be processed later again',
+      );
+    if (!trustedForSlashings)
+      this.logger.warn(
+        '🚨 Current keys indexer data might not be ready to detect slashing. ' +
+          'The root will be processed later again',
+      );
     if (!trustedForFullWithdrawals)
       this.logger.warn(
         '⚠️ Current keys indexer data might not be ready to detect full withdrawal. ' +
           'The root will be processed later again',
       );
-    return trustedForFullWithdrawals;
+    return trustedForBalanceChanges && trustedForSlashings && trustedForFullWithdrawals;
+  }
+
+  public isTrustedForBalanceChanges(slotNumber: Slot): boolean {
+    return this.isTrustedForFullWithdrawals(slotNumber);
+  }
+
+  private filterKeyInfo(keyInfo: KeyInfo | undefined): KeyInfo | undefined {
+    if (!keyInfo || !this.isAllowedOperatorId(keyInfo.operatorId)) {
+      return undefined;
+    }
+
+    return keyInfo;
+  }
+
+  private filterFullKeyInfo(fullKeyInfo: FullKeyInfo | undefined): FullKeyInfo | undefined {
+    if (!fullKeyInfo || !this.isAllowedOperatorId(fullKeyInfo.operatorId)) {
+      return undefined;
+    }
+
+    return fullKeyInfo;
+  }
+
+  private isTrustedForSlashings(slotNumber: Slot): boolean {
+    // We are ok with outdated indexer for detection slashing
+    // because of a bunch of delays between deposit and validator appearing
+    const ETH1_FOLLOW_DISTANCE = Number(this.consensus.beaconConfig.ETH1_FOLLOW_DISTANCE); // ~8 hours
+    const EPOCHS_PER_ETH1_VOTING_PERIOD = Number(this.consensus.beaconConfig.EPOCHS_PER_ETH1_VOTING_PERIOD); // ~6.8 hours
+    const safeDelay = ETH1_FOLLOW_DISTANCE + this.consensus.epochToSlot(EPOCHS_PER_ETH1_VOTING_PERIOD);
+    if (this.info.data.storageStateSlot >= slotNumber) return true;
+    return slotNumber - this.info.data.storageStateSlot <= safeDelay; // ~14.8 hours
   }
 
   private isTrustedForFullWithdrawals(slotNumber: Slot): boolean {
@@ -139,7 +200,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
 
   public async initOrReadServiceData() {
     const defaultInfo: KeysIndexerServiceInfo = {
-      moduleAddress: this.config.get('CSM_ADDRESS'),
+      moduleAddress: this.config.get('STAKING_MODULE_ADDRESS'),
       moduleId: 0,
       storageStateSlot: 0,
       lastValidatorsCount: 0,
@@ -177,7 +238,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
       this.logger.log(`Init keys data`);
       const finalized = await this.consensus.getBeaconHeader('finalized');
       const finalizedSlot = Number(finalized.header.message.slot);
-      const stateRoot = finalized.header.message.state_root;
+      const stateRoot = toRootHex(finalized.header.message.stateRoot);
       await this.baseRun(
         stateRoot,
         finalizedSlot,
@@ -267,5 +328,18 @@ export class KeysIndexer implements OnApplicationBootstrap {
         this.set(keysCount());
       },
     });
+  }
+
+  private isAllowedOperatorId(operatorId: number): boolean {
+    if (this.config.get('WORKING_MODE') !== WorkingMode.Daemon) {
+      return true;
+    }
+
+    const allowedOperatorIds = this.config.get('DAEMON_NODE_OPERATOR_IDS');
+    if (!allowedOperatorIds?.length) {
+      return true;
+    }
+
+    return allowedOperatorIds.includes(operatorId);
   }
 }

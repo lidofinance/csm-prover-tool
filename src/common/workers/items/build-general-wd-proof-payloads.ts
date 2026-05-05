@@ -1,15 +1,20 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type { ssz as sszType } from '@lodestar/types';
-
-import { generateValidatorProof, generateWithdrawalProof, toHex, verifyProof } from '../../helpers/proofs';
-import { InvolvedKeysWithWithdrawal } from '../../prover/duties/withdrawals.service';
-import { WithdrawalsProofPayload } from '../../prover/types';
-import { State, SupportedBlock } from '../../providers/consensus/consensus';
-import { BlockHeaderResponse } from '../../providers/consensus/response.interface';
-import { WorkerLogger } from '../workers.service';
-
-let ssz: typeof sszType;
+import type { IVerifier } from '../../contracts/types/Verifier.js';
+import {
+  generateValidatorProof,
+  generateWithdrawalProof,
+  toBeaconHeaderStruct,
+  toHex,
+  toValidatorStruct,
+  toWithdrawalStruct,
+  verifyProof,
+} from '../../helpers/proofs.js';
+import type { InvolvedKeysWithWithdrawal } from '../../prover/duties/withdrawals.service.js';
+import type { State } from '../../providers/consensus/consensus.js';
+import { type SupportedBlock, getSsz } from '../../providers/consensus/forks.js';
+import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { WorkerLogger } from '../worker-logger.js';
 
 export type BuildGeneralWithdrawalProofArgs = {
   currentHeader: BlockHeaderResponse;
@@ -20,16 +25,14 @@ export type BuildGeneralWithdrawalProofArgs = {
   epoch: number;
 };
 
-async function buildGeneralWithdrawalsProofPayloads(): Promise<WithdrawalsProofPayload[]> {
-  ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
+async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.ProcessWithdrawalInputStruct[]> {
   const { currentHeader, nextHeaderTimestamp, state, currentBlock, withdrawals, epoch } =
     workerData as BuildGeneralWithdrawalProofArgs;
   //
   // Get views
   //
-  const stateView = ssz[state.forkName].BeaconState.deserializeToView(state.bodyBytes);
-  // @ts-expect-error: thinks state can have different fork with currentBlock, but it's not possible
-  const currentBlockView = ssz[state.forkName].BeaconBlock.toView(currentBlock);
+  const stateView = getSsz(state.forkName).BeaconState.deserializeToView(state.bodyBytes);
+  const currentBlockView = getSsz(state.forkName).BeaconBlock.toView(currentBlock);
   //
   //
   //
@@ -68,32 +71,21 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<WithdrawalsProofP
         .hashTreeRoot(),
     );
     payloads.push({
-      keyIndex: keyWithWithdrawalInfo.keyIndex,
-      nodeOperatorId: keyWithWithdrawalInfo.operatorId,
-      beaconBlock: {
-        header: {
-          slot: Number(currentHeader.header.message.slot),
-          proposerIndex: Number(currentHeader.header.message.proposer_index),
-          parentRoot: currentHeader.header.message.parent_root,
-          stateRoot: currentHeader.header.message.state_root,
-          bodyRoot: currentHeader.header.message.body_root,
-        },
-        rootsTimestamp: nextHeaderTimestamp,
+      withdrawal: {
+        offset: Number(keyWithWithdrawalInfo.withdrawal.offset),
+        object: toWithdrawalStruct(keyWithWithdrawalInfo.withdrawal),
+        proof: withdrawalProof.witnesses.map(toHex),
       },
-      witness: {
-        withdrawalOffset: Number(keyWithWithdrawalInfo.withdrawal.offset),
-        withdrawalIndex: Number(keyWithWithdrawalInfo.withdrawal.index),
-        validatorIndex: Number(keyWithWithdrawalInfo.withdrawal.validatorIndex),
-        amount: Number(keyWithWithdrawalInfo.withdrawal.amount),
-        withdrawalCredentials: toHex(validator.withdrawalCredentials),
-        effectiveBalance: validator.effectiveBalance,
-        slashed: Boolean(validator.slashed),
-        activationEligibilityEpoch: validator.activationEligibilityEpoch,
-        activationEpoch: validator.activationEpoch,
-        exitEpoch: validator.exitEpoch,
-        withdrawableEpoch: validator.withdrawableEpoch,
-        withdrawalProof: withdrawalProof.witnesses.map(toHex),
-        validatorProof: validatorProof.witnesses.map(toHex),
+      validator: {
+        index: Number(valIndex),
+        nodeOperatorId: keyWithWithdrawalInfo.operatorId,
+        keyIndex: keyWithWithdrawalInfo.keyIndex,
+        object: toValidatorStruct(validator),
+        proof: validatorProof.witnesses.map(toHex),
+      },
+      withdrawalBlock: {
+        header: toBeaconHeaderStruct(currentHeader),
+        rootsTimestamp: nextHeaderTimestamp,
       },
     });
   }
@@ -103,6 +95,6 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<WithdrawalsProofP
 buildGeneralWithdrawalsProofPayloads()
   .then((v) => parentPort?.postMessage(v))
   .catch((e) => {
-    console.error(e);
+    WorkerLogger.error(e instanceof Error ? (e.stack ?? e.message) : String(e));
     throw e;
   });

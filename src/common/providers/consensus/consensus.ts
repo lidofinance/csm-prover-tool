@@ -1,41 +1,74 @@
-import type { ValueOfFields } from '@chainsafe/ssz/lib/view/container';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import type { ssz as sszType } from '@lodestar/types';
-import { Inject, Injectable, LoggerService, OnModuleInit, Optional } from '@nestjs/common';
-import { promise as spinnerFor } from 'ora-classic';
-import { IncomingHttpHeaders } from 'undici/types/header';
-import BodyReadable from 'undici/types/readable';
+import { type RootHex, ssz } from '@lodestar/types';
+import { Inject, Injectable, type OnModuleInit, Optional } from '@nestjs/common';
+import { oraPromise as spinnerFor } from 'ora';
 
-import { BeaconConfig, BlockHeaderResponse, BlockId, GenesisResponse, RootHex, StateId } from './response.interface';
-import { ConfigService } from '../../config/config.service';
-import { PrometheusService, TrackCLRequest } from '../../prometheus';
-import { DownloadProgress } from '../../utils/download-progress/download-progress';
-import { BaseRestProvider } from '../base/rest-provider';
-import { RequestOptions } from '../base/utils/func';
+import { DownloadProgress } from './download-progress.js';
+import { type SupportedBlock, type SupportedForkKey, getSsz, parseFork } from './forks.js';
+import {
+  type BeaconHeadersByParentRootResponse,
+  type BlockHeaderResponse,
+  type BlockId,
+  type StateId,
+  isDynamicBlockId,
+  isDynamicStateId,
+} from './response.interface.js';
+import { ConfigService } from '../../config/config.service.js';
+import { LruCache } from '../../helpers/lru.js';
+import { type AppLogger } from '../../logger/app-logger.type.js';
+import { PrometheusService, TrackCLRequest } from '../../prometheus/index.js';
+import { BaseRestProvider, type RestResponse } from '../base/rest-provider.js';
+import { type RequestOptions } from '../base/utils/func.js';
 
-let ssz: typeof sszType;
-
-export const SupportedFork = {
-  capella: 'capella',
-  deneb: 'deneb',
-  electra: 'electra',
-  fulu: 'fulu',
+type BlockHeaderResponseJson = {
+  root: RootHex;
+  canonical: boolean;
+  header: unknown;
 };
 
-export type SupportedBlock = {
-  [K in keyof typeof SupportedFork]: ValueOfFields<(typeof ssz)[K]['BeaconBlock']['fields']>;
-}[keyof typeof SupportedFork];
-export type SupportedWithdrawal = {
-  [K in keyof typeof SupportedFork]: ValueOfFields<(typeof ssz)[K]['Withdrawal']['fields']>;
-}[keyof typeof SupportedFork];
+type GenesisResponse = {
+  genesis_time: string;
+  genesis_validators_root: string;
+  genesis_fork_version: string;
+};
+
+type BeaconConfig = {
+  SLOTS_PER_EPOCH: string;
+  SECONDS_PER_SLOT: string;
+  CAPELLA_FORK_EPOCH: string;
+  FAR_FUTURE_EPOCH: string;
+  MAX_EFFECTIVE_BALANCE_ELECTRA: string;
+  MIN_ACTIVATION_BALANCE: string;
+  ETH1_FOLLOW_DISTANCE: string;
+  EPOCHS_PER_ETH1_VOTING_PERIOD: string;
+  SLOTS_PER_HISTORICAL_ROOT: string;
+  MIN_VALIDATOR_WITHDRAWABILITY_DELAY: string;
+};
+
+const isCacheableConsensusId = (id: string | number): boolean => {
+  if (typeof id === 'number') return true;
+  if (isDynamicBlockId(id)) return false;
+  if (isDynamicStateId(id)) return false;
+  return true;
+};
 
 export interface State {
   bodyBytes: Uint8Array;
-  forkName: keyof typeof SupportedFork;
+  forkName: SupportedForkKey;
 }
 
 @Injectable()
 export class Consensus extends BaseRestProvider implements OnModuleInit {
+  // Max distinct states commonly needed in a single root-processing cycle:
+  // epoch current state, epoch previous state, parent state for pre-event proofs,
+  // finalized/recent state for historical proofs, and summary state.
+  private readonly stateCache = new LruCache<StateId, State>(5, { shouldCache: isCacheableConsensusId });
+  private readonly blockInfoCache = new LruCache<BlockId, SupportedBlock>(16, { shouldCache: isCacheableConsensusId });
+  private readonly beaconHeaderCache = new LruCache<BlockId, BlockHeaderResponse>(16, {
+    shouldCache: isCacheableConsensusId,
+  });
+  private readonly childHeadersCache = new LruCache<RootHex, BeaconHeadersByParentRootResponse>(16);
+
   private readonly endpoints = {
     config: 'eth/v1/config/spec',
     version: 'eth/v1/node/version',
@@ -50,7 +83,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   public beaconConfig: BeaconConfig;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     @Optional() protected readonly prometheus: PrometheusService,
     @Optional() protected readonly progress: DownloadProgress,
     protected readonly config: ConfigService,
@@ -70,7 +103,6 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     const genesis = await this.getGenesis();
     this.genesisTimestamp = Number(genesis.genesis_time);
     this.beaconConfig = await this.getConfig();
-    ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
   }
 
   public slotToTimestamp(slot: number): number {
@@ -98,35 +130,50 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   }
 
   public async getBlockInfo(blockId: BlockId): Promise<SupportedBlock> {
-    const { body, headers } = await this.retryRequest((baseUrl) =>
-      this.baseGet(baseUrl, this.endpoints.blockInfo(blockId)),
-    );
-    const forkName = headers['eth-consensus-version'] as string;
-    if (!(forkName in SupportedFork)) {
-      throw new Error(`Fork name [${forkName}] is not supported`);
-    }
-    const jsonBody = (await body.json()) as { data: { message: JSON } };
-    return ssz[forkName as keyof typeof SupportedFork].BeaconBlock.fromJson(jsonBody.data.message);
+    return await this.blockInfoCache.getOrFetch(blockId, async () => {
+      const { body, headers } = await this.retryRequest((baseUrl) =>
+        this.baseGet(baseUrl, this.endpoints.blockInfo(blockId)),
+      );
+      const forkName = parseFork(headers['eth-consensus-version'] as string);
+      const jsonBody = (await body.json()) as { data: { message: JSON } };
+      return getSsz(forkName).BeaconBlock.fromJson(jsonBody.data.message);
+    });
   }
 
   public async getBeaconHeader(blockId: BlockId): Promise<BlockHeaderResponse> {
-    // TODO: change to ssz type in case of header struct update
-    const { body } = await this.retryRequest((baseUrl) => this.baseGet(baseUrl, this.endpoints.beaconHeader(blockId)));
-    const jsonBody = (await body.json()) as { data: BlockHeaderResponse };
-    return jsonBody.data;
+    return await this.beaconHeaderCache.getOrFetch(blockId, async () => {
+      const { body } = await this.retryRequest((baseUrl) =>
+        this.baseGet(baseUrl, this.endpoints.beaconHeader(blockId)),
+      );
+      const jsonBody = (await body.json()) as { data: BlockHeaderResponseJson };
+      return {
+        ...jsonBody.data,
+        header: ssz.phase0.SignedBeaconBlockHeader.fromJson(jsonBody.data.header),
+      };
+    });
   }
 
-  public async getBeaconHeadersByParentRoot(
-    parentRoot: RootHex,
-  ): Promise<{ finalized: boolean; data: BlockHeaderResponse[] }> {
-    // TODO: change to ssz type in case of header struct update
-    const { body } = await this.retryRequest((baseUrl) =>
-      this.baseGet(baseUrl, this.endpoints.beaconHeadersByParentRoot(parentRoot)),
-    );
-    return (await body.json()) as { finalized: boolean; data: BlockHeaderResponse[] };
+  public async getBeaconHeadersByParentRoot(parentRoot: RootHex): Promise<BeaconHeadersByParentRootResponse> {
+    return await this.childHeadersCache.getOrFetch(parentRoot, async () => {
+      const { body } = await this.retryRequest((baseUrl) =>
+        this.baseGet(baseUrl, this.endpoints.beaconHeadersByParentRoot(parentRoot)),
+      );
+      const jsonBody = (await body.json()) as { finalized: boolean; data: BlockHeaderResponseJson[] };
+      return {
+        finalized: jsonBody.finalized,
+        data: jsonBody.data.map((item) => ({
+          ...item,
+          header: ssz.phase0.SignedBeaconBlockHeader.fromJson(item.header),
+        })),
+      };
+    });
   }
 
   public async getState(stateId: StateId, signal?: AbortSignal): Promise<State> {
+    return await this.stateCache.getOrFetch(stateId, async () => this.fetchState(stateId, signal));
+  }
+
+  private async fetchState(stateId: StateId, signal?: AbortSignal): Promise<State> {
     const requestPromise = this.retryRequest(async (baseUrl) =>
       this.baseGet(baseUrl, this.endpoints.state(stateId), {
         signal,
@@ -140,20 +187,13 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     }
     const { body, headers } = await requestPromise;
     this.progress?.show('State downloading', { body, headers });
-    const forkName = headers['eth-consensus-version'] as string;
-    if (!(forkName in SupportedFork)) {
-      throw new Error(`Fork name [${forkName}] is not supported`);
-    }
+    const forkName = parseFork(headers['eth-consensus-version'] as string);
     const bodyBytes = await body.bytes();
-    return { bodyBytes, forkName: forkName as keyof typeof SupportedFork };
+    return { bodyBytes, forkName };
   }
 
   @TrackCLRequest
-  protected baseGet(
-    baseUrl: string,
-    endpoint: string,
-    options?: RequestOptions,
-  ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
+  protected baseGet(baseUrl: string, endpoint: string, options?: RequestOptions): Promise<RestResponse> {
     return super.baseGet(baseUrl, endpoint, options);
   }
 }

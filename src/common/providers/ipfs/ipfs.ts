@@ -1,13 +1,12 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, Optional } from '@nestjs/common';
-import { IncomingHttpHeaders } from 'undici/types/header';
-import BodyReadable from 'undici/types/readable';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 
-import { ConfigService } from '../../config/config.service';
-import { MINUTE_MS, SECOND_MS } from '../../config/env.validation';
-import { PrometheusService, TrackIPFSRequest } from '../../prometheus';
-import { BaseRestProvider } from '../base/rest-provider';
-import { RequestOptions } from '../base/utils/func';
+import { ConfigService } from '../../config/config.service.js';
+import { MINUTE_MS, SECOND_MS } from '../../config/env.validation.js';
+import { type AppLogger } from '../../logger/app-logger.type.js';
+import { PrometheusService, TrackIPFSRequest } from '../../prometheus/index.js';
+import { BaseRestProvider, type RestResponse } from '../base/rest-provider.js';
+import { type RequestOptions } from '../base/utils/func.js';
 
 @Injectable()
 export class Ipfs extends BaseRestProvider {
@@ -16,7 +15,7 @@ export class Ipfs extends BaseRestProvider {
   };
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     @Optional() protected readonly prometheus: PrometheusService,
     protected readonly config: ConfigService,
   ) {
@@ -39,11 +38,7 @@ export class Ipfs extends BaseRestProvider {
   }
 
   @TrackIPFSRequest
-  protected baseGet(
-    baseUrl: string,
-    endpoint: string,
-    options?: RequestOptions,
-  ): Promise<{ body: BodyReadable; headers: IncomingHttpHeaders }> {
+  protected baseGet(baseUrl: string, endpoint: string, options?: RequestOptions): Promise<RestResponse> {
     return super.baseGet(baseUrl, endpoint, options);
   }
 }

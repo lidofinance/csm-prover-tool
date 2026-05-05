@@ -1,9 +1,9 @@
 import { LoggerModule as Logger, jsonTransport, simpleTransport } from '@lido-nestjs/logger';
 import { Module } from '@nestjs/common';
 
-import { ConfigModule } from '../config/config.module';
-import { ConfigService } from '../config/config.service';
-import { LogFormat } from '../config/interfaces';
+import { ConfigModule } from '../config/config.module.js';
+import { ConfigService } from '../config/config.service.js';
+import { LogFormat } from '../config/interfaces/environment.interface.js';
 
 @Module({
   imports: [

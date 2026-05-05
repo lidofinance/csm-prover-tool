@@ -1,23 +1,23 @@
-import { BlockTag } from '@ethersproject/abstract-provider';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
-import { Csm, Csm__factory } from './types';
-import { ConfigService } from '../config/config.service';
-import { KeyInfo } from '../prover/types';
-import { Execution } from '../providers/execution/execution';
+import { type Csm, Csm__factory } from './types/index.js';
+import { ConfigService } from '../config/config.service.js';
+import { type AppLogger } from '../logger/app-logger.type.js';
+import type { KeyInfo } from '../prover/types.js';
+import { Execution } from '../providers/execution/execution.js';
 
 @Injectable()
 export class CsmContract {
   private contract: Csm;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly execution: Execution,
   ) {
-    const address = this.config.get('CSM_ADDRESS');
-    this.logger.log(`CSModule address: ${address}`);
+    const address = this.config.get('STAKING_MODULE_ADDRESS');
+    this.logger.log(`Staking module address: ${address}`);
     this.contract = Csm__factory.connect(address, this.execution.provider);
   }
 
@@ -32,8 +32,17 @@ export class CsmContract {
     }
   }
 
-  public async isWithdrawalProved(blockTag: BlockTag, keyInfo: KeyInfo): Promise<boolean> {
-    return await this.contract.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex, { blockTag });
+  public async getKeyAddedBalance(keyInfo: KeyInfo): Promise<bigint> {
+    const balance = await this.contract.getKeyAddedBalance(keyInfo.operatorId, keyInfo.keyIndex);
+    return balance.toBigInt();
+  }
+
+  public async isWithdrawalProved(keyInfo: KeyInfo): Promise<boolean> {
+    return await this.contract.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex);
+  }
+
+  public async isSlashingProved(keyInfo: KeyInfo): Promise<boolean> {
+    return await this.contract.isValidatorSlashed(keyInfo.operatorId, keyInfo.keyIndex);
   }
 
   public async getNodeOperatorKey(nodeOperatorId: string | number, keyIndex: string | number): Promise<string> {
@@ -41,7 +50,7 @@ export class CsmContract {
   }
 
   public async getAccountingAddress(): Promise<string> {
-    return await this.contract.accounting();
+    return await this.contract.ACCOUNTING();
   }
 
   public async getParamsAddress(): Promise<string> {

@@ -1,17 +1,17 @@
-import { Low } from '@huanshiwushuang/lowdb';
-import { JSONFile } from '@huanshiwushuang/lowdb/node';
-import { Injectable, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
+import type { RootHex } from '@lodestar/types';
+import { Injectable, type OnApplicationBootstrap, type OnModuleInit } from '@nestjs/common';
+import { Low } from 'lowdb';
+import { JSONFile } from 'lowdb/node';
 
-import { KeysIndexer } from './keys-indexer';
+import { KeysIndexer } from './keys-indexer.js';
 import {
   METRIC_DATA_ACTUALITY,
   METRIC_LAST_PROCESSED_SLOT_NUMBER,
   METRIC_ROOTS_STACK_OLDEST_SLOT,
   METRIC_ROOTS_STACK_SIZE,
   PrometheusService,
-} from '../../common/prometheus';
-import { Consensus } from '../../common/providers/consensus/consensus';
-import { RootHex } from '../../common/providers/consensus/response.interface';
+} from '../../common/prometheus/index.js';
+import { Consensus } from '../../common/providers/consensus/consensus.js';
 
 export type RootSlot = { blockRoot: RootHex; slotNumber: number };
 

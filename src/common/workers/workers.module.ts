@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 
-import { WorkersService } from './workers.service';
+import { WorkersService } from './workers.service.js';
 
 @Module({
   imports: [],

@@ -1,15 +1,16 @@
-import { TransactionResponse } from '@ethersproject/abstract-provider';
+import { type TransactionResponse } from '@ethersproject/abstract-provider';
 import { MAX_BLOCKCOUNT, SimpleFallbackJsonRpcBatchProvider } from '@lido-nestjs/execution';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, Optional } from '@nestjs/common';
-import { PopulatedTransaction, Wallet, utils } from 'ethers';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { type PopulatedTransaction, Wallet, utils } from 'ethers';
 import { InquirerService } from 'nest-commander';
-import { promise as spinnerFor } from 'ora-classic';
+import { oraPromise as spinnerFor } from 'ora';
 
-import { bigIntMax, bigIntMin, percentile } from './utils/common';
-import { ConfigService } from '../../config/config.service';
-import { WorkingMode } from '../../config/env.validation';
-import { PrometheusService } from '../../prometheus/prometheus.service';
+import { bigIntMax, bigIntMin, percentile } from './utils/common.js';
+import { ConfigService } from '../../config/config.service.js';
+import { WorkingMode } from '../../config/env.validation.js';
+import { type AppLogger } from '../../logger/app-logger.type.js';
+import { PrometheusService } from '../../prometheus/index.js';
 
 export enum TransactionStatus {
   confirmed = 'confirmed',
@@ -42,7 +43,7 @@ export class Execution {
   private lastFeeHistoryBlockNumber = 0;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     @Optional() protected readonly prometheus: PrometheusService,
     @Optional() protected readonly inquirerService: InquirerService,
@@ -147,7 +148,17 @@ export class Execution {
       throw new DryRunError('Dry run mode is enabled. Transaction is prepared, but not sent', context);
     }
     if (this.isCLI()) {
-      const opts = await this.inquirerService.ask('tx-execution', {} as { sendingConfirmed: boolean });
+      const txSummary = [
+        `to=${populated.to ?? 'n/a'}`,
+        `nonce=${String(populated.nonce ?? 'n/a')}`,
+        `gasLimit=${String(populated.gasLimit ?? 'n/a')}`,
+        `maxFeePerGas=${String(populated.maxFeePerGas ?? 'n/a')}`,
+        `maxPriorityFeePerGas=${String(populated.maxPriorityFeePerGas ?? 'n/a')}`,
+      ].join(' | ');
+      const opts = await this.inquirerService.ask('tx-execution', {
+        sendingConfirmed: false,
+        txSummary,
+      } as { sendingConfirmed: boolean; txSummary: string });
       if (!opts.sendingConfirmed) {
         throw new UserCancellationError('Transaction is not sent due to user cancellation', context);
       }

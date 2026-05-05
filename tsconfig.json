@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
-    "declaration": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
@@ -9,11 +9,6 @@
     "target": "ESNext",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./src",
-    "paths": {
-      // https://www.typescriptlang.org/docs/handbook/module-resolution.html#path-mapping
-      "build-info": ["../build-info.json"],
-    },
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,

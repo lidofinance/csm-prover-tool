@@ -1,4 +1,4 @@
-import { LoggerService } from '@nestjs/common';
+import type { AppLogger } from '../../../logger/app-logger.type.js';
 
 export interface RequestPolicy {
   timeout: number;
@@ -25,7 +25,7 @@ export const sleep = (delayMs: number) => {
 };
 
 export const retrier = (
-  logger: LoggerService,
+  logger: AppLogger,
   defaultMaxRetryCount = 3,
   defaultMinBackoffMs = 1000,
   defaultMaxBackoffMs = 60000,
@@ -63,10 +63,6 @@ function normalize(strArray: string[]) {
     return '';
   }
 
-  if (typeof strArray[0] !== 'string') {
-    throw new TypeError('Url must be a string. Received ' + strArray[0]);
-  }
-
   // If the first part is a plain protocol, we combine it with the next part.
   if (strArray[0].match(/^[^/:]+:\/*$/) && strArray.length > 1) {
     const first = strArray.shift();
@@ -82,10 +78,6 @@ function normalize(strArray: string[]) {
 
   for (let i = 0; i < strArray.length; i++) {
     let component = strArray[i];
-
-    if (typeof component !== 'string') {
-      throw new TypeError('Url must be a string. Received ' + component);
-    }
 
     if (component === '') {
       continue;

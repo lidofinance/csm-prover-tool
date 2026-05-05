@@ -1,15 +1,17 @@
 import { Module } from '@nestjs/common';
 
-import { WithdrawalsService } from './duties/withdrawals.service';
-import { ProverService } from './prover.service';
-import { ContractsModule } from '../contracts/contracts.module';
-import { ProvidersModule } from '../providers/providers.module';
-import { WorkersModule } from '../workers/workers.module';
-import { BadPerformersService } from './duties/bad-performers.service';
+import { BadPerformersService } from './duties/bad-performers.service.js';
+import { BalancesService } from './duties/balances.service.js';
+import { ProverService } from './prover.service.js';
+import { ContractsModule } from '../contracts/contracts.module.js';
+import { ProvidersModule } from '../providers/providers.module.js';
+import { WorkersModule } from '../workers/workers.module.js';
+import { SlashingsService } from './duties/slashings.service.js';
+import { WithdrawalsService } from './duties/withdrawals.service.js';
 
 @Module({
   imports: [ProvidersModule, ContractsModule, WorkersModule],
-  providers: [ProverService, WithdrawalsService, BadPerformersService],
+  providers: [ProverService, SlashingsService, WithdrawalsService, BadPerformersService, BalancesService],
   exports: [ProverService],
 })
 export class ProverModule {}
