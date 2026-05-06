@@ -15,7 +15,10 @@ const BOOTSTRAP_LOGGER_OPTIONS = {
   logger: ['error'] as LogLevel[],
 };
 
-function attachProcessExitHandlers(): void {
+// CLI mode keeps simple `process.exit()` handlers. Daemon mode does NOT — it
+// relies on `app.enableShutdownHooks()` so Nest can call our
+// `OnApplicationShutdown` hook and let the loop exit cooperatively.
+function attachCliExitHandlers(): void {
   process
     .on('SIGINT', () => process.exit()) // CTRL+C
     .on('SIGQUIT', () => process.exit()) // Keyboard quit
@@ -23,10 +26,9 @@ function attachProcessExitHandlers(): void {
 }
 
 async function bootstrap() {
-  attachProcessExitHandlers();
-
   switch (process.env.WORKING_MODE) {
     case WorkingMode.CLI:
+      attachCliExitHandlers();
       await bootstrapCLI();
       break;
     case WorkingMode.Daemon:
@@ -57,6 +59,7 @@ async function bootstrapDaemon() {
     () => NestFactory.create(DaemonModule, BOOTSTRAP_LOGGER_OPTIONS),
     async (app) => {
       const configService: ConfigService = app.get(ConfigService);
+      app.enableShutdownHooks();
       await app.listen(configService.get('HTTP_PORT'), '0.0.0.0');
       app.get(DaemonService).loop().then();
     },

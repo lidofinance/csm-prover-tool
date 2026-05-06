@@ -122,8 +122,8 @@ export class KeysIndexer implements OnApplicationBootstrap {
     this.logger.log(`Staking module validators count: ${Object.keys(this.storage.data).length}`);
     this.info.data.storageStateSlot = finalizedSlot;
     this.info.data.lastValidatorsCount = totalValLength;
-    await this.info.write();
     await this.storage.write();
+    await this.info.write();
   }
 
   public isTrustedForAnyDuty(slotNumber: Slot): boolean {

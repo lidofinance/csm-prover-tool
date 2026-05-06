@@ -46,7 +46,10 @@ export class RootsStack implements OnModuleInit, OnApplicationBootstrap {
   }
 
   public getNextEligible(): RootSlot | undefined {
-    for (const slot of Object.keys(this.storage.data).map(Number).sort()) {
+    const sortedSlots = Object.keys(this.storage.data)
+      .map(Number)
+      .sort((a, b) => a - b);
+    for (const slot of sortedSlots) {
       if (this.keysIndexer.isTrustedForAnyDuty(slot)) {
         return { blockRoot: this.storage.data[slot], slotNumber: slot };
       }

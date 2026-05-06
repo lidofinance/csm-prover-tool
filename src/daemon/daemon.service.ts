@@ -1,5 +1,5 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common';
 
 import buildInfo from '../build-info.js';
 import { KeysIndexer } from './services/keys-indexer.js';
@@ -16,8 +16,9 @@ import { Consensus } from '../common/providers/consensus/consensus.js';
 import { type BlockHeaderResponse } from '../common/providers/consensus/response.interface.js';
 
 @Injectable()
-export class DaemonService implements OnModuleInit {
+export class DaemonService implements OnModuleInit, OnApplicationShutdown {
   private lastFinalizedHeader: BlockHeaderResponse | null = null;
+  private stopped = false;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
@@ -45,15 +46,24 @@ export class DaemonService implements OnModuleInit {
     this.prometheus.buildInfo.labels({ env, name, version, commit, branch }).inc();
   }
 
-  public async loop(): Promise<never> {
-    while (true) {
+  // Triggered by Nest on SIGTERM/SIGINT when `app.enableShutdownHooks()` is on.
+  // We just flip the flag — the loop exits at the next iteration boundary, and
+  // any in-flight unawaited tasks (processNextRoot, etc.) keep running on
+  // pending I/O, which keeps Node alive until they finish naturally.
+  public onApplicationShutdown(signal?: string): void {
+    this.logger.log(`🛑 Shutdown requested${signal ? ` (signal: ${signal})` : ''}. Stopping daemon loop.`);
+    this.stopped = true;
+  }
+
+  public async loop(): Promise<void> {
+    while (!this.stopped) {
       try {
         if (!this.keysIndexer.isInitialized()) await this.keysIndexer.initOrReadServiceData();
         await this.baseRun();
       } catch (e) {
         this.logger.error(e);
       } finally {
-        await sleep(SECOND_MS);
+        if (!this.stopped) await sleep(SECOND_MS);
       }
     }
   }
