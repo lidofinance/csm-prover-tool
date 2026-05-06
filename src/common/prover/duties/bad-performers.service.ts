@@ -9,7 +9,7 @@ import { CsmContract } from '../../contracts/csm-contract.service.js';
 import { ExitPenaltiesContract } from '../../contracts/exit-penalties-contract.service.js';
 import { ParametersRegistryContract } from '../../contracts/parameters-registry-contract.service.js';
 import { StrikesContract } from '../../contracts/strikes-contract.service.js';
-import type { ICSStrikes } from '../../contracts/types/Strikes.js';
+import type { IValidatorStrikes } from '../../contracts/types/Strikes.js';
 import { toHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus } from '../../providers/consensus/consensus.js';
@@ -126,7 +126,7 @@ export class BadPerformersService {
   private buildKeyStrikesPayload(
     leaves: StrikesTreeLeaf[],
     batch: InvolvedKeysWithBadPerformance,
-  ): ICSStrikes.KeyStrikesStruct[] {
+  ): IValidatorStrikes.KeyStrikesStruct[] {
     return leaves.map((leaf) => {
       const [nodeOperatorId, pubKey, data] = leaf;
       const keyInfo = batch.find((key) => key.pubKey === pubKey);

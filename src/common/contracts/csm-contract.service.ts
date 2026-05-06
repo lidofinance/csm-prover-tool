@@ -32,8 +32,19 @@ export class CsmContract {
     }
   }
 
+  public async canProveBalanceChanges(): Promise<boolean> {
+    try {
+      const topUpQueue = await this.contract.getTopUpQueue();
+      return topUpQueue.enabled;
+    } catch (e) {
+      // TODO: replace this with an explicit module capability/version handler.
+      if (e.code !== 'CALL_EXCEPTION' || e.data !== '0x') throw e;
+      return true;
+    }
+  }
+
   public async getKeyAddedBalance(keyInfo: KeyInfo): Promise<bigint> {
-    const balance = await this.contract.getKeyAddedBalance(keyInfo.operatorId, keyInfo.keyIndex);
+    const [balance] = await this.contract.getKeyConfirmedBalances(keyInfo.operatorId, keyInfo.keyIndex, 1);
     return balance.toBigInt();
   }
 
