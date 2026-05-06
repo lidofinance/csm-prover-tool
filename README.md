@@ -1,7 +1,7 @@
 <p align="center">
   <img src="logo.png" width="120" alt="CSM Logo"/>
 </p>
-<h1 align="center"> CSM Prover Tool </h1>
+<h1 align="center"> Lido Staking Module Prover Tool </h1>
 
 ## Description
 
