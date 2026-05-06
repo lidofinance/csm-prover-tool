@@ -8,7 +8,7 @@ import type { KeyInfo } from '../prover/types.js';
 import { Execution } from '../providers/execution/execution.js';
 
 @Injectable()
-export class CsmContract {
+export class StakingModuleContract {
   private contract: Csm;
 
   constructor(

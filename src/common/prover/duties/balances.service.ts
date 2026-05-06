@@ -2,7 +2,7 @@ import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { ConfigService } from '../../config/config.service.js';
-import { CsmContract } from '../../contracts/csm-contract.service.js';
+import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
 import type { IVerifier } from '../../contracts/types/Verifier.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
 import { toRootHex } from '../../helpers/proofs.js';
@@ -23,14 +23,14 @@ export class BalancesService {
     protected readonly config: ConfigService,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
-    protected readonly csm: CsmContract,
+    protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
   ) {}
 
   public async isProvableBalance(keyInfo: KeyInfo, balanceGwei: bigint, exitEpoch: bigint): Promise<boolean> {
     const minActivationBalanceGwei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE);
     const maxEffectiveBalanceGwei = BigInt(this.consensus.beaconConfig.MAX_EFFECTIVE_BALANCE_ELECTRA);
-    const keyConfirmedBalanceGwei = (await this.csm.getKeyAddedBalance(keyInfo)) / 1_000_000_000n;
+    const keyConfirmedBalanceGwei = (await this.stakingModule.getKeyAddedBalance(keyInfo)) / 1_000_000_000n;
     const confirmedBalanceGwei = minActivationBalanceGwei + keyConfirmedBalanceGwei;
     if (maxEffectiveBalanceGwei <= confirmedBalanceGwei) return false;
     if (balanceGwei <= confirmedBalanceGwei) return false;

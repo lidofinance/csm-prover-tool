@@ -2,7 +2,7 @@ import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import type { RootHex } from '@lodestar/types';
 import { Inject, Injectable } from '@nestjs/common';
 
-import { CsmContract } from '../../contracts/csm-contract.service.js';
+import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
 import type { IVerifier } from '../../contracts/types/Verifier.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
 import { toRootHex } from '../../helpers/proofs.js';
@@ -26,7 +26,7 @@ export class WithdrawalsService {
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
-    protected readonly csm: CsmContract,
+    protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
   ) {}
 
@@ -38,7 +38,7 @@ export class WithdrawalsService {
     if (!Object.keys(withdrawals).length) return {};
     const unproven: InvolvedKeysWithWithdrawal = {};
     for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
-      const proved = await this.csm.isWithdrawalProved(keyWithWithdrawalInfo);
+      const proved = await this.stakingModule.isWithdrawalProved(keyWithWithdrawalInfo);
       if (!proved) unproven[valIndex] = keyWithWithdrawalInfo;
     }
     const unprovenCount = Object.keys(unproven).length;

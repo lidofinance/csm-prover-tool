@@ -1,7 +1,7 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
 
-import { CsmContract } from '../../contracts/csm-contract.service.js';
+import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
 import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
@@ -19,7 +19,7 @@ export class SlashingsService {
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
-    protected readonly csm: CsmContract,
+    protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
   ) {}
 
@@ -31,7 +31,7 @@ export class SlashingsService {
     if (!Object.keys(slashings).length) return {};
     const unproven: InvolvedKeys = {};
     for (const [valIndex, keyInfo] of Object.entries(slashings)) {
-      const proved = await this.csm.isSlashingProved(keyInfo);
+      const proved = await this.stakingModule.isSlashingProved(keyInfo);
       if (!proved) unproven[valIndex] = keyInfo;
     }
     const unprovenCount = Object.keys(unproven).length;

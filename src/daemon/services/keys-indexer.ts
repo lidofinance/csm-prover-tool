@@ -253,10 +253,10 @@ export class KeysIndexer implements OnApplicationBootstrap {
   }
 
   private async initStorage(state: State, finalizedSlot: Slot): Promise<number> {
-    const csmKeys = await this.keysapi.getModuleKeys(this.info.data.moduleId);
-    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
+    const stakingModuleKeys = await this.keysapi.getModuleKeys(this.info.data.moduleId);
+    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), stakingModuleKeys.meta);
     const keysMap = new Map<string, { operatorIndex: number; index: number }>();
-    csmKeys.data.keys.forEach((k: Key) => keysMap.set(k.key, { ...k }));
+    stakingModuleKeys.data.keys.forEach((k: Key) => keysMap.set(k.key, { ...k }));
     const { totalValLength, valKeys } = await this.workers.getNewValidatorKeys({
       state,
       lastValidatorsCount: 0,
@@ -288,18 +288,18 @@ export class KeysIndexer implements OnApplicationBootstrap {
       return totalValLength;
     }
     this.logger.log(`New appeared validators count: ${newValKeys.length}`);
-    const csmKeys = await this.keysapi.findModuleKeys(this.info.data.moduleId, newValKeys);
-    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
-    this.logger.log(`New appeared CSM validators count: ${csmKeys.data.keys.length}`);
+    const stakingModuleKeys = await this.keysapi.findModuleKeys(this.info.data.moduleId, newValKeys);
+    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), stakingModuleKeys.meta);
+    this.logger.log(`New appeared staking module validators count: ${stakingModuleKeys.data.keys.length}`);
     const valKeysLength = newValKeys.length;
-    for (const csmKey of csmKeys.data.keys) {
+    for (const stakingModuleKey of stakingModuleKeys.data.keys) {
       for (let i = 0; i < valKeysLength; i++) {
-        if (newValKeys[i] != csmKey.key || !csmKey.used) continue;
+        if (newValKeys[i] != stakingModuleKey.key || !stakingModuleKey.used) continue;
         const index = i + this.info.data.lastValidatorsCount;
         this.storage.data[index] = {
-          operatorId: csmKey.operatorIndex,
-          keyIndex: csmKey.index,
-          pubKey: csmKey.key,
+          operatorId: stakingModuleKey.operatorIndex,
+          keyIndex: stakingModuleKey.index,
+          pubKey: stakingModuleKey.key,
         };
       }
     }

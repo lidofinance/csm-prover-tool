@@ -4,7 +4,7 @@ import { Command as Commander } from 'commander';
 import { Command, CommandRunner, InjectCommander, InquirerService, Option } from 'nest-commander';
 
 import { ConfigService } from '../../common/config/config.service.js';
-import { CsmContract } from '../../common/contracts/csm-contract.service.js';
+import { StakingModuleContract } from '../../common/contracts/staking-module-contract.service.js';
 import { type AppLogger } from '../../common/logger/app-logger.type.js';
 import { ProverService } from '../../common/prover/prover.service.js';
 import type { FullKeyInfoByPubKeyFn, KeyInfoFn } from '../../common/prover/types.js';
@@ -46,7 +46,7 @@ export class ProveCommand extends CommandRunner {
     @InjectCommander() private readonly commander: Commander,
     protected readonly inquirerService: InquirerService,
     protected readonly config: ConfigService,
-    protected readonly csm: CsmContract,
+    protected readonly stakingModule: StakingModuleContract,
     protected readonly consensus: Consensus,
     protected readonly prover: ProverService,
   ) {
@@ -60,7 +60,7 @@ export class ProveCommand extends CommandRunner {
       this.options = await this.inquirerService.ask('proof-input', { ...options, proofType });
       this.logger.debug!(this.options);
 
-      this.pubkey = await this.csm.getNodeOperatorKey(this.options.nodeOperatorId, this.options.keyIndex);
+      this.pubkey = await this.stakingModule.getNodeOperatorKey(this.options.nodeOperatorId, this.options.keyIndex);
       this.logger.debug!(`Validator public key: ${this.pubkey}`);
 
       const finalizedHeader = await this.consensus.getBeaconHeader('finalized');
@@ -91,7 +91,7 @@ export class ProveCommand extends CommandRunner {
           break;
         case 'balance':
           this.ensureClBlock(this.options.clBlock);
-          if (!(await this.csm.canProveBalanceChanges())) {
+          if (!(await this.stakingModule.canProveBalanceChanges())) {
             throw new Error('Balance change proving is not supported for this module');
           }
           const { root: balanceBlockRoot } = await this.consensus.getBeaconHeader(this.options.clBlock);
@@ -115,7 +115,7 @@ export class ProveCommand extends CommandRunner {
 
   @Option({
     flags: '--node-operator-id <nodeOperatorId>',
-    description: 'Node Operator ID from the CSM',
+    description: 'Node Operator ID from the staking module',
   })
   parseNodeOperatorId(val: string) {
     return validateNodeOperatorId(val);
@@ -123,7 +123,7 @@ export class ProveCommand extends CommandRunner {
 
   @Option({
     flags: '--key-index <keyIndex>',
-    description: 'Key Index from the CSM',
+    description: 'Key Index from the staking module',
   })
   parseKeyIndex(val: string) {
     return validateKeyIndex(val);
