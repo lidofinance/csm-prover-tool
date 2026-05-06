@@ -67,7 +67,12 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   private readonly beaconHeaderCache = new LruCache<BlockId, BlockHeaderResponse>(16, {
     shouldCache: isCacheableConsensusId,
   });
-  private readonly childHeadersCache = new LruCache<RootHex, BeaconHeadersByParentRootResponse>(16);
+  // Only cache fully-populated, finalized responses. A `{finalized: false}` or
+  // empty response means "no canonical child known yet" — caching that would
+  // permanently shadow the eventual real answer.
+  private readonly childHeadersCache = new LruCache<RootHex, BeaconHeadersByParentRootResponse>(16, {
+    shouldCacheValue: (resp) => resp.finalized && resp.data.length > 0,
+  });
 
   private readonly endpoints = {
     config: 'eth/v1/config/spec',
@@ -163,13 +168,21 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
         this.baseGet(baseUrl, this.endpoints.beaconHeadersByParentRoot(parentRoot)),
       );
       const jsonBody = (await body.json()) as { finalized: boolean; data: BlockHeaderResponseJson[] };
-      return {
-        finalized: jsonBody.finalized,
-        data: jsonBody.data.map((item) => ({
-          ...item,
-          header: ssz.phase0.SignedBeaconBlockHeader.fromJson(item.header),
-        })),
-      };
+      const allHeaders = jsonBody.data.map((item) => ({
+        ...item,
+        header: ssz.phase0.SignedBeaconBlockHeader.fromJson(item.header),
+      }));
+      // Filter to canonical children only — the API may return forks/sibling
+      // heads, and building proofs against a non-canonical block reverts the
+      // tx on chain. With finalization assumed, there should be at most one
+      // canonical descendant; we warn (but don't fail) if the CL returns more.
+      const canonical = allHeaders.filter((h) => h.canonical);
+      if (canonical.length > 1) {
+        this.logger.warn(
+          `Multiple canonical child headers reported for parent_root=${parentRoot} (count=${canonical.length}). Using the first one.`,
+        );
+      }
+      return { finalized: jsonBody.finalized, data: canonical };
     });
   }
 

@@ -51,8 +51,10 @@ export class RootsProvider {
     this.logger.warn(`Diff between last processed and finalized is ${diff} slots`);
     const childHeaders = await this.consensus.getBeaconHeadersByParentRoot(lastProcessed.blockRoot);
     if (childHeaders.data.length == 0 || !childHeaders.finalized) {
+      // NOTE: such responses are not cached (see `childHeadersCache` config in
+      // `Consensus`), so the next call will refetch from the CL and pick up
+      // the child once it gets finalized.
       this.logger.warn(`No finalized child header for [${lastProcessed.blockRoot}] yet`);
-      this.consensus.clearChildHeadersCache();
       return;
     }
     const child = childHeaders.data[0].root;
