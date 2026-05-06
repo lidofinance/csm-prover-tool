@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import type { RootHex, Slot } from '@lodestar/types';
 import { Inject, Injectable, type OnApplicationBootstrap } from '@nestjs/common';
@@ -7,6 +9,7 @@ import { JSONFile } from 'lowdb/node';
 import { ConfigService } from '../../common/config/config.service.js';
 import { WorkingMode } from '../../common/config/env.validation.js';
 import { toRootHex } from '../../common/helpers/proofs.js';
+import { getModuleStorageDir } from '../../common/helpers/storage.js';
 import { type AppLogger } from '../../common/logger/app-logger.type.js';
 import {
   METRIC_KEYS_CSM_VALIDATORS_COUNT,
@@ -116,7 +119,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
     const state = await this.consensus.getState(stateRoot);
     // TODO: do we need to store already full withdrawn keys ?
     const totalValLength = await stateDataProcessingCallback(state, finalizedSlot);
-    this.logger.log(`CSM validators count: ${Object.keys(this.storage.data).length}`);
+    this.logger.log(`Staking module validators count: ${Object.keys(this.storage.data).length}`);
     this.info.data.storageStateSlot = finalizedSlot;
     this.info.data.lastValidatorsCount = totalValLength;
     await this.info.write();
@@ -199,18 +202,20 @@ export class KeysIndexer implements OnApplicationBootstrap {
   }
 
   public async initOrReadServiceData() {
+    const moduleAddress = this.config.get('STAKING_MODULE_ADDRESS');
+    const storageDir = getModuleStorageDir(moduleAddress);
     const defaultInfo: KeysIndexerServiceInfo = {
-      moduleAddress: this.config.get('STAKING_MODULE_ADDRESS'),
+      moduleAddress,
       moduleId: 0,
       storageStateSlot: 0,
       lastValidatorsCount: 0,
     };
     this.info = new Low<KeysIndexerServiceInfo>(
-      new JSONFile<KeysIndexerServiceInfo>('storage/keys-indexer-info.json'),
+      new JSONFile<KeysIndexerServiceInfo>(join(storageDir, 'keys-indexer-info.json')),
       defaultInfo,
     );
     this.storage = new Low<KeysIndexerServiceStorage>(
-      new JSONFile<KeysIndexerServiceStorage>('storage/keys-indexer-storage.json'),
+      new JSONFile<KeysIndexerServiceStorage>(join(storageDir, 'keys-indexer-storage.json')),
       {},
     );
     await this.info.read();
