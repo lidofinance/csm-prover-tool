@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import type { RootHex, Slot } from '@lodestar/types';
 import { Inject, Injectable, type OnApplicationBootstrap } from '@nestjs/common';
@@ -7,6 +9,7 @@ import { JSONFile } from 'lowdb/node';
 import { ConfigService } from '../../common/config/config.service.js';
 import { WorkingMode } from '../../common/config/env.validation.js';
 import { toRootHex } from '../../common/helpers/proofs.js';
+import { getModuleStorageDir } from '../../common/helpers/storage.js';
 import { type AppLogger } from '../../common/logger/app-logger.type.js';
 import {
   METRIC_KEYS_CSM_VALIDATORS_COUNT,
@@ -116,7 +119,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
     const state = await this.consensus.getState(stateRoot);
     // TODO: do we need to store already full withdrawn keys ?
     const totalValLength = await stateDataProcessingCallback(state, finalizedSlot);
-    this.logger.log(`CSM validators count: ${Object.keys(this.storage.data).length}`);
+    this.logger.log(`Staking module validators count: ${Object.keys(this.storage.data).length}`);
     this.info.data.storageStateSlot = finalizedSlot;
     this.info.data.lastValidatorsCount = totalValLength;
     await this.info.write();
@@ -199,18 +202,20 @@ export class KeysIndexer implements OnApplicationBootstrap {
   }
 
   public async initOrReadServiceData() {
+    const moduleAddress = this.config.get('STAKING_MODULE_ADDRESS');
+    const storageDir = getModuleStorageDir(moduleAddress);
     const defaultInfo: KeysIndexerServiceInfo = {
-      moduleAddress: this.config.get('STAKING_MODULE_ADDRESS'),
+      moduleAddress,
       moduleId: 0,
       storageStateSlot: 0,
       lastValidatorsCount: 0,
     };
     this.info = new Low<KeysIndexerServiceInfo>(
-      new JSONFile<KeysIndexerServiceInfo>('storage/keys-indexer-info.json'),
+      new JSONFile<KeysIndexerServiceInfo>(join(storageDir, 'keys-indexer-info.json')),
       defaultInfo,
     );
     this.storage = new Low<KeysIndexerServiceStorage>(
-      new JSONFile<KeysIndexerServiceStorage>('storage/keys-indexer-storage.json'),
+      new JSONFile<KeysIndexerServiceStorage>(join(storageDir, 'keys-indexer-storage.json')),
       {},
     );
     await this.info.read();
@@ -248,10 +253,10 @@ export class KeysIndexer implements OnApplicationBootstrap {
   }
 
   private async initStorage(state: State, finalizedSlot: Slot): Promise<number> {
-    const csmKeys = await this.keysapi.getModuleKeys(this.info.data.moduleId);
-    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
+    const stakingModuleKeys = await this.keysapi.getModuleKeys(this.info.data.moduleId);
+    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), stakingModuleKeys.meta);
     const keysMap = new Map<string, { operatorIndex: number; index: number }>();
-    csmKeys.data.keys.forEach((k: Key) => keysMap.set(k.key, { ...k }));
+    stakingModuleKeys.data.keys.forEach((k: Key) => keysMap.set(k.key, { ...k }));
     const { totalValLength, valKeys } = await this.workers.getNewValidatorKeys({
       state,
       lastValidatorsCount: 0,
@@ -283,18 +288,18 @@ export class KeysIndexer implements OnApplicationBootstrap {
       return totalValLength;
     }
     this.logger.log(`New appeared validators count: ${newValKeys.length}`);
-    const csmKeys = await this.keysapi.findModuleKeys(this.info.data.moduleId, newValKeys);
-    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), csmKeys.meta);
-    this.logger.log(`New appeared CSM validators count: ${csmKeys.data.keys.length}`);
+    const stakingModuleKeys = await this.keysapi.findModuleKeys(this.info.data.moduleId, newValKeys);
+    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), stakingModuleKeys.meta);
+    this.logger.log(`New appeared staking module validators count: ${stakingModuleKeys.data.keys.length}`);
     const valKeysLength = newValKeys.length;
-    for (const csmKey of csmKeys.data.keys) {
+    for (const stakingModuleKey of stakingModuleKeys.data.keys) {
       for (let i = 0; i < valKeysLength; i++) {
-        if (newValKeys[i] != csmKey.key || !csmKey.used) continue;
+        if (newValKeys[i] != stakingModuleKey.key || !stakingModuleKey.used) continue;
         const index = i + this.info.data.lastValidatorsCount;
         this.storage.data[index] = {
-          operatorId: csmKey.operatorIndex,
-          keyIndex: csmKey.index,
-          pubKey: csmKey.key,
+          operatorId: stakingModuleKey.operatorIndex,
+          keyIndex: stakingModuleKey.index,
+          pubKey: stakingModuleKey.key,
         };
       }
     }

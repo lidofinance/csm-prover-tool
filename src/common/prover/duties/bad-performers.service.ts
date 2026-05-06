@@ -5,9 +5,9 @@ import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 import { ConfigService } from '../../config/config.service.js';
 import { WorkingMode } from '../../config/env.validation.js';
 import { AccountingContract } from '../../contracts/accounting-contract.service.js';
-import { CsmContract } from '../../contracts/csm-contract.service.js';
 import { ExitPenaltiesContract } from '../../contracts/exit-penalties-contract.service.js';
 import { ParametersRegistryContract } from '../../contracts/parameters-registry-contract.service.js';
+import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
 import { StrikesContract } from '../../contracts/strikes-contract.service.js';
 import type { IValidatorStrikes } from '../../contracts/types/Strikes.js';
 import { toHex } from '../../helpers/proofs.js';
@@ -28,7 +28,7 @@ export class BadPerformersService {
     protected readonly config: ConfigService,
     protected readonly consensus: Consensus,
     protected readonly ipfs: Ipfs,
-    protected readonly csm: CsmContract,
+    protected readonly stakingModule: StakingModuleContract,
     protected readonly strikes: StrikesContract,
     protected readonly exitPenalties: ExitPenaltiesContract,
     protected readonly accounting: AccountingContract,
@@ -283,7 +283,7 @@ export class BadPerformersService {
     this.logger.log('🔍 Searching for non-withdrawn bad performers');
 
     for (const key of keys) {
-      const withdrawalProved = await this.csm.isWithdrawalProved(key);
+      const withdrawalProved = await this.stakingModule.isWithdrawalProved(key);
       if (withdrawalProved) {
         this.logger.warn(
           `Validator ${key.validatorIndex} already reported as withdrawn. No need to prove as a bad performer`,

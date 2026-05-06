@@ -1,7 +1,7 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
 
-import { CsmContract } from './csm-contract.service.js';
+import { StakingModuleContract } from './staking-module-contract.service.js';
 import { type Verifier, Verifier__factory } from './types/index.js';
 import type { IVerifier } from './types/Verifier.js';
 import { ConfigService } from '../config/config.service.js';
@@ -16,16 +16,16 @@ export class VerifierContract {
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly execution: Execution,
-    protected readonly csm: CsmContract,
+    protected readonly stakingModule: StakingModuleContract,
   ) {}
 
   public async init() {
     let address = this.config.get('VERIFIER_ADDRESS');
     if (!address || address == '') {
       this.logger.warn(
-        'VERIFIER_ADDRESS env variable is not specified. Trying to get role member from CSM contract...',
+        'VERIFIER_ADDRESS env variable is not specified. Trying to get role member from staking module contract...',
       );
-      const verifierRoleMembers = await this.csm.getVerifierRoleMembers();
+      const verifierRoleMembers = await this.stakingModule.getVerifierRoleMembers();
       if (verifierRoleMembers.length == 0) {
         throw new Error('No one member for VERIFIER_ROLE were found');
       }

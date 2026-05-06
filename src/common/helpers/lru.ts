@@ -39,4 +39,8 @@ export class LruCache<TKey extends string | number, TValue> {
     }
     return value;
   }
+
+  public clear(): void {
+    this.items.clear();
+  }
 }

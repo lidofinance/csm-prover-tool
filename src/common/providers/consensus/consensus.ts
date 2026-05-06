@@ -105,6 +105,10 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     this.beaconConfig = await this.getConfig();
   }
 
+  public clearChildHeadersCache(): void {
+    this.childHeadersCache.clear();
+  }
+
   public slotToTimestamp(slot: number): number {
     return this.genesisTimestamp + slot * Number(this.beaconConfig.SECONDS_PER_SLOT);
   }

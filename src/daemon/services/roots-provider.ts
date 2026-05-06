@@ -52,6 +52,7 @@ export class RootsProvider {
     const childHeaders = await this.consensus.getBeaconHeadersByParentRoot(lastProcessed.blockRoot);
     if (childHeaders.data.length == 0 || !childHeaders.finalized) {
       this.logger.warn(`No finalized child header for [${lastProcessed.blockRoot}] yet`);
+      this.consensus.clearChildHeadersCache();
       return;
     }
     const child = childHeaders.data[0].root;
