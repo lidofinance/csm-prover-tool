@@ -27,10 +27,6 @@ export class BalancesService {
     protected readonly verifier: VerifierContract,
   ) {}
 
-  public async canReportValidatorBalance(): Promise<boolean> {
-    return await this.csm.canReportValidatorBalance();
-  }
-
   public async isProvableBalance(keyInfo: KeyInfo, balanceGwei: bigint, exitEpoch: bigint): Promise<boolean> {
     const minActivationBalanceGwei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE);
     const maxEffectiveBalanceGwei = BigInt(this.consensus.beaconConfig.MAX_EFFECTIVE_BALANCE_ELECTRA);

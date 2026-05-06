@@ -1,6 +1,6 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import type { RootHex } from '@lodestar/types';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 
 import { type AppLogger } from '../logger/app-logger.type.js';
 import { BadPerformersService } from './duties/bad-performers.service.js';
@@ -14,15 +14,21 @@ import type { SupportedBlock } from '../providers/consensus/forks.js';
 import type { BlockHeaderResponse } from '../providers/consensus/response.interface.js';
 
 @Injectable()
-export class ProverService {
+export class ProverService implements OnModuleInit {
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly consensus: Consensus,
     protected readonly withdrawals: WithdrawalsService,
     protected readonly strikes: BadPerformersService,
     protected readonly slashings: SlashingsService,
-    protected readonly balances: BalancesService,
+    protected readonly balances?: BalancesService,
   ) {}
+
+  public onModuleInit(): void {
+    if (!this.balances) {
+      this.logger.warn('Balance change proving is not supported for this module — balance reporting off');
+    }
+  }
 
   public async handleBadPerformers(
     headHeader: BlockHeaderResponse,
@@ -46,7 +52,7 @@ export class ProverService {
   ): Promise<number> {
     const slashings = await this.slashings.getUnprovenSlashings(blockInfo, keyInfoFn);
     let balanceSentCount = 0;
-    if (Object.keys(slashings).length > 0) {
+    if (this.balances && Object.keys(slashings).length > 0) {
       const parentRoot = toRootHex(blockInfo.parentRoot);
       this.logger.log(
         `Parent block [${parentRoot}] will be processed for possible balance increases before proving slashings`,
@@ -71,7 +77,7 @@ export class ProverService {
   ): Promise<number> {
     const withdrawals = await this.withdrawals.getUnprovenWithdrawals(blockInfo, keyInfoFn);
     let balanceSentCount = 0;
-    if (Object.keys(withdrawals).length > 0) {
+    if (this.balances && Object.keys(withdrawals).length > 0) {
       const parentRoot = toRootHex(blockInfo.parentRoot);
       this.logger.log(
         `Parent block [${parentRoot}] will be processed for possible balance increases before proving withdrawals`,
@@ -94,6 +100,7 @@ export class ProverService {
     finalizedHeader: BlockHeaderResponse,
     getKeys: () => InvolvedKeys,
   ): Promise<number> {
+    if (!this.balances) return 0;
     const isFirstBlockInEpoch = await this.isFirstBlockInEpoch(blockInfo);
     if (!isFirstBlockInEpoch) {
       this.logger.log('Skipping balance change proving. Not the first block in epoch');
@@ -108,6 +115,7 @@ export class ProverService {
     finalizedHeader: BlockHeaderResponse,
     getKeys: () => InvolvedKeys,
   ): Promise<number> {
+    if (!this.balances) return 0;
     const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
     return await this.handleBalanceChanges(blockHeader, finalizedHeader, getKeys);
   }
@@ -127,10 +135,7 @@ export class ProverService {
     finalizedHeader: BlockHeaderResponse,
     getKeys: () => InvolvedKeys,
   ): Promise<number> {
-    if (!(await this.balances.canReportValidatorBalance())) {
-      this.logger.log('Skipping balance change proving. Top-up queue is disabled');
-      return 0;
-    }
+    if (!this.balances) return 0;
 
     const keyMap = getKeys();
     if (!Object.keys(keyMap).length) {

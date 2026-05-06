@@ -10,7 +10,6 @@ import { Execution } from '../providers/execution/execution.js';
 @Injectable()
 export class CsmContract {
   private contract: Csm;
-  private balanceReportingSupported?: boolean;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
@@ -33,23 +32,20 @@ export class CsmContract {
     }
   }
 
-  public async getKeyAddedBalance(keyInfo: KeyInfo): Promise<bigint> {
-    const [balance] = await this.contract.getKeyConfirmedBalances(keyInfo.operatorId, keyInfo.keyIndex, 1);
-    return balance.toBigInt();
-  }
-
-  public async canReportValidatorBalance(): Promise<boolean> {
-    if (this.balanceReportingSupported !== undefined) return this.balanceReportingSupported;
-
+  public async canProveBalanceChanges(): Promise<boolean> {
     try {
       const topUpQueue = await this.contract.getTopUpQueue();
-      this.balanceReportingSupported = topUpQueue.enabled;
+      return topUpQueue.enabled;
     } catch (e) {
       // TODO: replace this with an explicit module capability/version handler.
       if (e.code !== 'CALL_EXCEPTION' || e.data !== '0x') throw e;
-      this.balanceReportingSupported = true;
+      return true;
     }
-    return this.balanceReportingSupported;
+  }
+
+  public async getKeyAddedBalance(keyInfo: KeyInfo): Promise<bigint> {
+    const [balance] = await this.contract.getKeyConfirmedBalances(keyInfo.operatorId, keyInfo.keyIndex, 1);
+    return balance.toBigInt();
   }
 
   public async isWithdrawalProved(keyInfo: KeyInfo): Promise<boolean> {

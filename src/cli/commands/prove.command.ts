@@ -91,6 +91,9 @@ export class ProveCommand extends CommandRunner {
           break;
         case 'balance':
           this.ensureClBlock(this.options.clBlock);
+          if (!(await this.csm.canProveBalanceChanges())) {
+            throw new Error('Balance change proving is not supported for this module');
+          }
           const { root: balanceBlockRoot } = await this.consensus.getBeaconHeader(this.options.clBlock);
           sentCount = await this.prover.handleBalanceChangesInBlock(balanceBlockRoot, finalizedHeader, () => ({
             [this.options.validatorIndex]: this.getSelectedKeyInfo(),
