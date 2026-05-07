@@ -18,6 +18,8 @@ import type { GetValidatorExitEpochsArgs, GetValidatorExitEpochsResult } from '.
 import { ParentLoggerMessage } from './worker-logger.js';
 import type { IVerifier } from '../contracts/types/Verifier.js';
 
+const WORKER_TIMEOUT_MS = 30 * 60 * 1000;
+
 @Injectable()
 export class WorkersService {
   constructor(
@@ -88,6 +90,22 @@ export class WorkersService {
           maxOldGenerationSizeMb: 8192,
         },
       });
+      let settled = false;
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn();
+      };
+      const timer = setTimeout(() => {
+        settle(() => {
+          this.logger.warn(`Worker ${name} timed out after ${WORKER_TIMEOUT_MS}ms; terminating`);
+          worker.terminate().catch(() => {
+            /* terminate is best-effort */
+          });
+          reject(new Error(`Worker ${name} timed out after ${WORKER_TIMEOUT_MS}ms`));
+        });
+      }, WORKER_TIMEOUT_MS);
       worker.on('message', (msg) => {
         if (msg instanceof ParentLoggerMessage) {
           switch (msg.level) {
@@ -106,11 +124,11 @@ export class WorkersService {
           }
           return;
         }
-        resolve(msg);
+        settle(() => resolve(msg));
       });
-      worker.on('error', (error) => reject(new Error('Worker error', { cause: error })));
+      worker.on('error', (error) => settle(() => reject(new Error('Worker error', { cause: error }))));
       worker.on('exit', (code) => {
-        if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`));
+        if (code !== 0) settle(() => reject(new Error(`Worker stopped with exit code ${code}`)));
       });
     });
   }

@@ -1,13 +1,15 @@
 import { join } from 'node:path';
 
+import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import type { RootHex } from '@lodestar/types';
-import { Injectable, type OnApplicationBootstrap, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, type OnApplicationBootstrap, type OnModuleInit } from '@nestjs/common';
 import { Low } from 'lowdb';
 import { JSONFile } from 'lowdb/node';
 
 import { KeysIndexer } from './keys-indexer.js';
 import { ConfigService } from '../../common/config/config.service.js';
 import { getModuleStorageDir } from '../../common/helpers/storage.js';
+import { type AppLogger } from '../../common/logger/app-logger.type.js';
 import {
   METRIC_DATA_ACTUALITY,
   METRIC_LAST_PROCESSED_SLOT_NUMBER,
@@ -31,6 +33,7 @@ export class RootsStack implements OnModuleInit, OnApplicationBootstrap {
   private storage: Low<RootsStackServiceStorage>;
 
   constructor(
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly prometheus: PrometheusService,
     protected readonly keysIndexer: KeysIndexer,
@@ -57,7 +60,15 @@ export class RootsStack implements OnModuleInit, OnApplicationBootstrap {
   }
 
   public async push(rs: RootSlot): Promise<void> {
-    if (this.storage.data[rs.slotNumber] !== undefined) return;
+    const existing = this.storage.data[rs.slotNumber];
+    if (existing !== undefined) {
+      if (existing !== rs.blockRoot) {
+        this.logger.warn(
+          `⚠️ Slot ${rs.slotNumber} already in stack with a different root. Keeping existing=${existing}, ignoring new=${rs.blockRoot}.`,
+        );
+      }
+      return;
+    }
     this.storage.data[rs.slotNumber] = rs.blockRoot;
     await this.storage.write();
   }

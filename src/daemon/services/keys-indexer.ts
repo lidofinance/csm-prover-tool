@@ -196,9 +196,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
   }
 
   public isInitialized(): boolean {
-    return Boolean(
-      this.info?.data?.moduleId && this.info?.data?.storageStateSlot && this.info?.data?.lastValidatorsCount,
-    );
+    return Boolean(this.info?.data?.moduleId) && (this.info?.data?.storageStateSlot ?? 0) > 0;
   }
 
   public async initOrReadServiceData() {
@@ -239,7 +237,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
       await this.info.write();
     }
 
-    if (this.info.data.storageStateSlot == 0 || this.info.data.lastValidatorsCount == 0) {
+    if (this.info.data.storageStateSlot == 0) {
       this.logger.log(`Init keys data`);
       const finalized = await this.consensus.getBeaconHeader('finalized');
       const finalizedSlot = Number(finalized.header.message.slot);
@@ -292,17 +290,23 @@ export class KeysIndexer implements OnApplicationBootstrap {
     this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), stakingModuleKeys.meta);
     this.logger.log(`New appeared staking module validators count: ${stakingModuleKeys.data.keys.length}`);
     const valKeysLength = newValKeys.length;
+    // Build new entries in a local map and merge them atomically (no `await`
+    // between build and assign). Concurrent readers of `storage.data` always
+    // see either pre-update or post-update state — never a partially
+    // populated batch.
+    const newEntries: KeysIndexerServiceStorage = {};
     for (const stakingModuleKey of stakingModuleKeys.data.keys) {
       for (let i = 0; i < valKeysLength; i++) {
         if (newValKeys[i] != stakingModuleKey.key || !stakingModuleKey.used) continue;
         const index = i + this.info.data.lastValidatorsCount;
-        this.storage.data[index] = {
+        newEntries[index] = {
           operatorId: stakingModuleKey.operatorIndex,
           keyIndex: stakingModuleKey.index,
           pubKey: stakingModuleKey.key,
         };
       }
     }
+    Object.assign(this.storage.data, newEntries);
     return totalValLength;
   }
 

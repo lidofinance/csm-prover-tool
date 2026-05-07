@@ -12,6 +12,10 @@ export type LruCacheOptions<TKey extends string | number, TValue> = {
 
 export class LruCache<TKey extends string | number, TValue> {
   private readonly items = new Map<string, TValue>();
+  // In-flight fetches keyed by cache key. Concurrent `getOrFetch` calls for
+  // the same key share a single underlying request (avoids thundering-herd on
+  // expensive fetches like beacon state downloads).
+  private readonly inFlight = new Map<string, Promise<TValue>>();
   private readonly shouldCache: (key: TKey) => boolean;
   private readonly shouldCacheValue: (value: TValue) => boolean;
   private readonly keyToString: (key: TKey) => string;
@@ -38,18 +42,26 @@ export class LruCache<TKey extends string | number, TValue> {
       return cached;
     }
 
-    const value = await fetcher();
-    if (!this.shouldCacheValue(value)) {
-      return value;
-    }
-    this.items.set(cacheKey, value);
-    if (this.items.size > this.capacity) {
-      const oldestKey = this.items.keys().next().value;
-      if (oldestKey !== undefined) {
-        this.items.delete(oldestKey);
+    const inFlight = this.inFlight.get(cacheKey);
+    if (inFlight) return await inFlight;
+
+    const promise = (async () => {
+      try {
+        const value = await fetcher();
+        if (this.shouldCacheValue(value)) {
+          this.items.set(cacheKey, value);
+          if (this.items.size > this.capacity) {
+            const oldestKey = this.items.keys().next().value;
+            if (oldestKey !== undefined) this.items.delete(oldestKey);
+          }
+        }
+        return value;
+      } finally {
+        this.inFlight.delete(cacheKey);
       }
-    }
-    return value;
+    })();
+    this.inFlight.set(cacheKey, promise);
+    return await promise;
   }
 
   public clear(): void {
