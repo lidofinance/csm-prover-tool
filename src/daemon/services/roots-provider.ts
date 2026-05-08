@@ -51,13 +51,20 @@ export class RootsProvider {
     this.logger.warn(`Diff between last processed and finalized is ${diff} slots`);
     const childHeaders = await this.consensus.getBeaconHeadersByParentRoot(lastProcessed.blockRoot);
     if (childHeaders.data.length == 0 || !childHeaders.finalized) {
-      // NOTE: such responses are not cached (see `childHeadersCache` config in
-      // `Consensus`), so the next call will refetch from the CL and pick up
-      // the child once it gets finalized.
+      // Such responses are not cached in `Consensus` (see `childHeadersCache`),
+      // so the next iteration refetches and picks up the child once finalized.
       this.logger.warn(`No finalized child header for [${lastProcessed.blockRoot}] yet`);
       return;
     }
-    const child = childHeaders.data[0].root;
+    // The CL may return forks/sibling heads alongside the canonical descendant.
+    const canonical = childHeaders.data.filter((h) => h.canonical);
+    if (canonical.length === 0) {
+      this.logger.warn(
+        `Got ${childHeaders.data.length} child header(s) for [${lastProcessed.blockRoot}] but none canonical.`,
+      );
+      return;
+    }
+    const child = canonical[0].root;
     this.logger.log(`⏭️ Next root to process [${child}]. Child of last processed`);
     return child;
   }

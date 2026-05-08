@@ -110,10 +110,6 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     this.beaconConfig = await this.getConfig();
   }
 
-  public clearChildHeadersCache(): void {
-    this.childHeadersCache.clear();
-  }
-
   public slotToTimestamp(slot: number): number {
     return this.genesisTimestamp + slot * Number(this.beaconConfig.SECONDS_PER_SLOT);
   }
@@ -168,21 +164,13 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
         this.baseGet(baseUrl, this.endpoints.beaconHeadersByParentRoot(parentRoot)),
       );
       const jsonBody = (await body.json()) as { finalized: boolean; data: BlockHeaderResponseJson[] };
-      const allHeaders = jsonBody.data.map((item) => ({
-        ...item,
-        header: ssz.phase0.SignedBeaconBlockHeader.fromJson(item.header),
-      }));
-      // Filter to canonical children only — the API may return forks/sibling
-      // heads, and building proofs against a non-canonical block reverts the
-      // tx on chain. With finalization assumed, there should be at most one
-      // canonical descendant; we warn (but don't fail) if the CL returns more.
-      const canonical = allHeaders.filter((h) => h.canonical);
-      if (canonical.length > 1) {
-        this.logger.warn(
-          `Multiple canonical child headers reported for parent_root=${parentRoot} (count=${canonical.length}). Using the first one.`,
-        );
-      }
-      return { finalized: jsonBody.finalized, data: canonical };
+      return {
+        finalized: jsonBody.finalized,
+        data: jsonBody.data.map((item) => ({
+          ...item,
+          header: ssz.phase0.SignedBeaconBlockHeader.fromJson(item.header),
+        })),
+      };
     });
   }
 
