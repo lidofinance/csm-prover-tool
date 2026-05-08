@@ -9,7 +9,7 @@ import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus, type State } from '../../providers/consensus/consensus.js';
 import { FAR_FUTURE_EPOCH } from '../../providers/consensus/epoch.js';
-import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo } from '../types.js';
 import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../utils/historical-summary.js';
@@ -122,8 +122,8 @@ export class BalancesService {
     state: State,
     balanceChanges: InvolvedKeys,
   ): Promise<IVerifier.ProcessBalanceProofInputStruct[]> {
-    const nextHeader = (await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data[0];
-    if (!nextHeader) throw new Error(`Next block header after ${blockHeader.root} not found`);
+    const nextHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data);
+    if (!nextHeader) throw new Error(`Next canonical block header after ${blockHeader.root} not found`);
     const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
     this.logger.log('Building balance proof payloads');
     const payloads = await this.workers.getBalanceProofPayloads({
@@ -146,8 +146,8 @@ export class BalancesService {
     recentHeader: BlockHeaderResponse,
     balanceChanges: InvolvedKeys,
   ): Promise<IVerifier.ProcessHistoricalBalanceProofInputStruct[]> {
-    const nextHeader = (await this.consensus.getBeaconHeadersByParentRoot(recentHeader.root)).data[0];
-    if (!nextHeader) throw new Error(`Next block header after ${recentHeader.root} not found`);
+    const nextHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(recentHeader.root)).data);
+    if (!nextHeader) throw new Error(`Next canonical block header after ${recentHeader.root} not found`);
     const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
     const recentState = await this.consensus.getState(toRootHex(recentHeader.header.message.stateRoot));
     const summaryResolution = await resolveHistoricalSummaryContext(

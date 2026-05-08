@@ -6,7 +6,7 @@ import { type RootSlot, RootsStack } from './roots-stack.js';
 import { ConfigService } from '../../common/config/config.service.js';
 import { type AppLogger } from '../../common/logger/app-logger.type.js';
 import { Consensus } from '../../common/providers/consensus/consensus.js';
-import type { BlockHeaderResponse } from '../../common/providers/consensus/response.interface.js';
+import { type BlockHeaderResponse, firstCanonical } from '../../common/providers/consensus/response.interface.js';
 
 @Injectable()
 export class RootsProvider {
@@ -57,15 +57,14 @@ export class RootsProvider {
       return;
     }
     // The CL may return forks/sibling heads alongside the canonical descendant.
-    const canonical = childHeaders.data.filter((h) => h.canonical);
-    if (canonical.length === 0) {
+    const canonical = firstCanonical(childHeaders.data);
+    if (!canonical) {
       this.logger.warn(
         `Got ${childHeaders.data.length} child header(s) for [${lastProcessed.blockRoot}] but none canonical.`,
       );
       return;
     }
-    const child = canonical[0].root;
-    this.logger.log(`⏭️ Next root to process [${child}]. Child of last processed`);
-    return child;
+    this.logger.log(`⏭️ Next root to process [${canonical.root}]. Child of last processed`);
+    return canonical.root;
   }
 }
