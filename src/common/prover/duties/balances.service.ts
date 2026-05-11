@@ -52,8 +52,13 @@ export class BalancesService {
     const provable: InvolvedKeys = {};
 
     for (const [valIndex, keyInfo] of Object.entries(keys)) {
-      const balanceToProve = this.getBalanceOrThrow(currentBalances, valIndex, keysCount);
-      const exitEpochToProve = this.getExitEpochOrThrow(currentExitEpochs, valIndex, keysCount);
+      const balanceToProve = currentBalances[Number(valIndex)];
+      if (balanceToProve === undefined) {
+        // No validator in the state yet. Probably, keys data is likely more recent than the state due to async processing.
+        // Skip for now, the next block will have updated state and may include these validator.
+        continue;
+      }
+      const exitEpochToProve = currentExitEpochs[Number(valIndex)];
       const isProvable = await this.isProvableBalance(keyInfo, balanceToProve, exitEpochToProve);
       if (isProvable) {
         provable[valIndex] = keyInfo;
@@ -93,28 +98,6 @@ export class BalancesService {
 
   private async getValidatorExitEpochs(state: State): Promise<bigint[]> {
     return await this.workers.getValidatorExitEpochs({ state });
-  }
-
-  private getBalanceOrThrow(balances: bigint[], valIndex: string, keysCount: number): bigint {
-    const balance = balances[Number(valIndex)];
-    if (balance !== undefined) return balance;
-
-    throw new Error(
-      `Validator balance is missing for index ${valIndex}. ` +
-        `State balances length: ${balances.length}. ` +
-        `Keys considered for proving: ${keysCount}.`,
-    );
-  }
-
-  private getExitEpochOrThrow(exitEpochs: bigint[], valIndex: string, keysCount: number): bigint {
-    const exitEpoch = exitEpochs[Number(valIndex)];
-    if (exitEpoch !== undefined) return exitEpoch;
-
-    throw new Error(
-      `Validator exit epoch is missing for index ${valIndex}. ` +
-        `State validators length: ${exitEpochs.length}. ` +
-        `Keys considered for proving: ${keysCount}.`,
-    );
   }
 
   private async sendGeneralBalanceProofs(
