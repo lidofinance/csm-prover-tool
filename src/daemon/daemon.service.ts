@@ -104,7 +104,6 @@ export class DaemonService implements OnModuleInit {
   @SingletonTask()
   @TrackTask('process-bad-performers')
   private async processBadPerformers(finalizedHeader: BlockHeaderResponse) {
-    this.logger.log(`🏁 Processing bad performers at finalized slot [${finalizedHeader.header.message.slot}]`);
     await this.prover.handleBadPerformers(finalizedHeader, this.keysIndexer.getFullKeyInfoByPubKey);
   }
 }
