@@ -35,6 +35,8 @@ class UserCancellationError extends ErrorWithContext {}
 class NoSignerError extends ErrorWithContext {}
 class DryRunError extends ErrorWithContext {}
 
+const DEPOSIT_CONTRACT_ADDRESS = '0x00000000219ab540356cBB839Cbe05303d7705Fa';
+
 @Injectable()
 export class Execution {
   public signer?: Wallet;
@@ -54,23 +56,21 @@ export class Execution {
   }
 
   public async execute(
-    emulateTxCallback: (...payload: any[]) => Promise<any>,
     populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
     payload: any[],
   ): Promise<void> {
     if (this.isCLI()) {
-      return await this.executeCLI(emulateTxCallback, populateTxCallback, payload);
+      return await this.executeCLI(populateTxCallback, payload);
     }
-    return await this.executeDaemon(emulateTxCallback, populateTxCallback, payload);
+    return await this.executeDaemon(populateTxCallback, payload);
   }
 
   public async executeCLI(
-    emulateTxCallback: (...payload: any[]) => Promise<any>,
     populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
     payload: any[],
   ): Promise<void> {
     try {
-      await this._execute(emulateTxCallback, populateTxCallback, payload);
+      await this._execute(populateTxCallback, payload);
       return;
     } catch (e) {
       if (e instanceof NoSignerError || e instanceof DryRunError) {
@@ -83,7 +83,6 @@ export class Execution {
   }
 
   public async executeDaemon(
-    emulateTxCallback: (...payload: any[]) => Promise<any>,
     populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
     payload: any[],
   ): Promise<void> {
@@ -91,7 +90,7 @@ export class Execution {
     while (true) {
       try {
         this.prometheus.transactionCount.inc({ status: TransactionStatus.pending });
-        await this._execute(emulateTxCallback, populateTxCallback, payload);
+        await this._execute(populateTxCallback, payload);
         this.prometheus.transactionCount.inc({ status: TransactionStatus.confirmed });
         return;
       } catch (e) {
@@ -116,7 +115,6 @@ export class Execution {
   }
 
   private async _execute(
-    emulateTxCallback: (...payload: any[]) => Promise<any>,
     populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
     payload: any[],
   ): Promise<void> {
@@ -128,50 +126,51 @@ export class Execution {
       maxPriorityFeePerGas: priorityFeeParams.maxPriorityFeePerGas,
       gasLimit: this.config.get('TX_GAS_LIMIT'),
     };
-    let context: { payload: any[]; tx?: any } = { payload, tx };
     this.logger.log('Emulating call');
+    const from = this.signer?.address ?? DEPOSIT_CONTRACT_ADDRESS;
+    const emulatedTx = { ...tx, from };
+    const emulatedTxContext: { payload: any[]; tx: any } = { payload, tx: emulatedTx };
     try {
-      await emulateTxCallback(...payload);
-      // NOTE: some emulated calls may not throw an error, so we need to estimate gas to ensure the transaction is valid
-      await this.provider.estimateGas({ ...tx, from: this.signer?.address });
+      await this.provider.call(emulatedTx);
+      await this.provider.estimateGas(emulatedTx);
     } catch (e) {
-      throw new EmulatedCallError(e, context);
+      throw new EmulatedCallError(e, emulatedTxContext);
     }
     this.logger.log('✅ Emulated call succeeded');
     if (!this.signer) {
-      throw new NoSignerError('No specified signer. Only emulated calls are available', context);
+      throw new NoSignerError('No specified signer. Only emulated calls are available', emulatedTxContext);
     }
-    const populated = await this.signer.populateTransaction(tx);
-    context = { ...context, tx: populated };
+    const populatedTx = await this.signer.populateTransaction(tx);
+    const populatedTxContext: { payload: any[]; tx: any } = { payload, tx: populatedTx };
     const isFeePerGasAcceptable = await this.isFeePerGasAcceptable();
     if (this.config.get('DRY_RUN')) {
-      throw new DryRunError('Dry run mode is enabled. Transaction is prepared, but not sent', context);
+      throw new DryRunError('Dry run mode is enabled. Transaction is prepared, but not sent', populatedTxContext);
     }
     if (this.isCLI()) {
       const txSummary = [
-        `to=${populated.to ?? 'n/a'}`,
-        `nonce=${String(populated.nonce ?? 'n/a')}`,
-        `gasLimit=${String(populated.gasLimit ?? 'n/a')}`,
-        `maxFeePerGas=${String(populated.maxFeePerGas ?? 'n/a')}`,
-        `maxPriorityFeePerGas=${String(populated.maxPriorityFeePerGas ?? 'n/a')}`,
+        `to=${populatedTx.to ?? 'n/a'}`,
+        `nonce=${String(populatedTx.nonce ?? 'n/a')}`,
+        `gasLimit=${String(populatedTx.gasLimit ?? 'n/a')}`,
+        `maxFeePerGas=${String(populatedTx.maxFeePerGas ?? 'n/a')}`,
+        `maxPriorityFeePerGas=${String(populatedTx.maxPriorityFeePerGas ?? 'n/a')}`,
       ].join(' | ');
       const opts = await this.inquirerService.ask('tx-execution', {
         sendingConfirmed: false,
         txSummary,
       } as { sendingConfirmed: boolean; txSummary: string });
       if (!opts.sendingConfirmed) {
-        throw new UserCancellationError('Transaction is not sent due to user cancellation', context);
+        throw new UserCancellationError('Transaction is not sent due to user cancellation', populatedTxContext);
       }
     } else {
       if (!isFeePerGasAcceptable) {
-        throw new HighGasFeeError('Transaction is not sent due to high gas fee', context);
+        throw new HighGasFeeError('Transaction is not sent due to high gas fee', populatedTxContext);
       }
     }
-    const signed = await this.signer.signTransaction(populated);
+    const signed = await this.signer.signTransaction(populatedTx);
     let submitted: TransactionResponse;
     try {
       const submittedPromise = this.provider.sendTransaction(signed);
-      let msg = `Sending transaction with nonce ${populated.nonce} and gasLimit: ${populated.gasLimit}, maxFeePerGas: ${populated.maxFeePerGas}, maxPriorityFeePerGas: ${populated.maxPriorityFeePerGas}`;
+      let msg = `Sending transaction with nonce ${populatedTx.nonce} and gasLimit: ${populatedTx.gasLimit}, maxFeePerGas: ${populatedTx.maxFeePerGas}, maxPriorityFeePerGas: ${populatedTx.maxPriorityFeePerGas}`;
       if (this.isCLI()) {
         spinnerFor(submittedPromise, { text: msg });
       } else {
@@ -195,7 +194,7 @@ export class Execution {
       // Dirty hack for switching to the next provider in case of failure in sending transaction process
       // @ts-expect-error 'accessing protected member'
       this.provider.switchToNextProvider();
-      throw new SendTransactionError(e, context);
+      throw new SendTransactionError(e, populatedTxContext);
     }
     this.logger.log(`✅ Transaction succeeded! Hash: ${submitted?.hash}`);
   }
