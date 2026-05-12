@@ -56,43 +56,23 @@ export class VerifierContract {
   }
 
   public async sendSlashingProof(payload: IVerifier.ProcessSlashedInputStruct): Promise<void> {
-    await this.execution.execute(
-      this.contract.callStatic.processSlashedProof,
-      this.contract.populateTransaction.processSlashedProof,
-      [payload],
-    );
+    await this.execution.execute(this.contract.populateTransaction.processSlashedProof, [payload]);
   }
 
   public async sendWithdrawalProof(payload: IVerifier.ProcessWithdrawalInputStruct): Promise<void> {
-    await this.execution.execute(
-      this.contract.callStatic.processWithdrawalProof,
-      this.contract.populateTransaction.processWithdrawalProof,
-      [payload],
-    );
+    await this.execution.execute(this.contract.populateTransaction.processWithdrawalProof, [payload]);
   }
 
   public async sendHistoricalWithdrawalProof(payload: IVerifier.ProcessHistoricalWithdrawalInputStruct): Promise<void> {
-    await this.execution.execute(
-      this.contract.callStatic.processHistoricalWithdrawalProof,
-      this.contract.populateTransaction.processHistoricalWithdrawalProof,
-      [payload],
-    );
+    await this.execution.execute(this.contract.populateTransaction.processHistoricalWithdrawalProof, [payload]);
   }
 
   public async sendBalanceProof(payload: IVerifier.ProcessBalanceProofInputStruct): Promise<void> {
-    await this.execution.execute(
-      this.contract.callStatic.processBalanceProof,
-      this.contract.populateTransaction.processBalanceProof,
-      [payload],
-    );
+    await this.execution.execute(this.contract.populateTransaction.processBalanceProof, [payload]);
   }
 
   public async sendHistoricalBalanceProof(payload: IVerifier.ProcessHistoricalBalanceProofInputStruct): Promise<void> {
-    await this.execution.execute(
-      this.contract.callStatic.processHistoricalBalanceProof,
-      this.contract.populateTransaction.processHistoricalBalanceProof,
-      [payload],
-    );
+    await this.execution.execute(this.contract.populateTransaction.processHistoricalBalanceProof, [payload]);
   }
 
   public async isPaused(): Promise<boolean> {
