@@ -12,7 +12,6 @@ import { WorkingMode } from '../../config/env.validation.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { PrometheusService } from '../../prometheus/index.js';
 
-
 export enum TransactionStatus {
   confirmed = 'confirmed',
   pending = 'pending',
@@ -150,7 +149,9 @@ export class Execution {
       );
     }
     const tx = { ...txBase, gasLimit };
-    this.logger.log(`✅ Emulated call succeeded. Estimated gas: ${estimatedGas} (+${bufferPct}%) → gasLimit: ${gasLimit}`);
+    this.logger.log(
+      `✅ Emulated call succeeded. Estimated gas: ${estimatedGas} (+${bufferPct}%) → gasLimit: ${gasLimit}`,
+    );
     if (!this.signer) {
       throw new NoSignerError('No specified signer. Only emulated calls are available', emulatedTxContext);
     }
