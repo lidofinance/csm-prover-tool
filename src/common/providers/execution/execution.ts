@@ -12,16 +12,10 @@ import { WorkingMode } from '../../config/env.validation.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { PrometheusService } from '../../prometheus/index.js';
 
-// HighGasFeeError: retry with a fixed 60s delay for ~2 beacon epochs total,
-// then surface the error so the daemon can move on. The root stays in the
-// stack and gets re-attempted on the next loop iteration. Other tasks (keys
-// indexer, bad performers) keep running in parallel via separate SingletonTasks.
-//
-// 2 epochs = 2 × 32 slots × 12s = 768s ≈ 13 × 60s retries.
+// HighGasFeeError: fixed 60s × 13 retries (~2 epochs), then surface so daemon can move on.
 const HIGH_GAS_FEE_RETRY_DELAY_MS = 60_000;
 const HIGH_GAS_FEE_MAX_RETRIES = 13;
-// +20% safety buffer on estimateGas, to absorb state changes between
-// estimation and inclusion.
+// +20% buffer on estimateGas.
 const GAS_LIMIT_BUFFER_NUM = 12n;
 const GAS_LIMIT_BUFFER_DEN = 10n;
 
@@ -121,8 +115,6 @@ export class Execution {
           await new Promise((resolve) => setTimeout(resolve, HIGH_GAS_FEE_RETRY_DELAY_MS));
           continue;
         }
-        // For HighGasFee after max retries: surface the error so the daemon
-        // loop can move on and re-attempt this root on a later iteration.
         this.prometheus.transactionCount.inc({ status: TransactionStatus.error });
         this.logger.error(e);
         throw e;
@@ -154,7 +146,6 @@ export class Execution {
     } catch (e) {
       throw new EmulatedCallError(e, emulatedTxContext);
     }
-    // Use estimateGas (+20%) as the actual gasLimit; cap by TX_GAS_LIMIT.
     const gasLimit = (estimatedGas * GAS_LIMIT_BUFFER_NUM) / GAS_LIMIT_BUFFER_DEN;
     const cap = BigInt(this.config.get('TX_GAS_LIMIT'));
     if (gasLimit > cap) {

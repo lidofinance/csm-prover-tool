@@ -1,20 +1,12 @@
 export type LruCacheOptions<TKey extends string | number, TValue> = {
   shouldCache?: (key: TKey) => boolean;
-  /**
-   * Optional value-level filter. Returning false means the value will be
-   * returned to the caller but NOT stored in the cache. Useful for skipping
-   * "not ready yet" responses (e.g. `{finalized: false}` from the beacon API)
-   * that would otherwise be served stale from cache forever.
-   */
+  // If returns false — value is returned to caller but not stored (e.g. skip `{finalized: false}`).
   shouldCacheValue?: (value: TValue) => boolean;
   keyToString?: (key: TKey) => string;
 };
 
 export class LruCache<TKey extends string | number, TValue> {
   private readonly items = new Map<string, TValue>();
-  // In-flight fetches keyed by cache key. Concurrent `getOrFetch` calls for
-  // the same key share a single underlying request (avoids thundering-herd on
-  // expensive fetches like beacon state downloads).
   private readonly inFlight = new Map<string, Promise<TValue>>();
   private readonly shouldCache: (key: TKey) => boolean;
   private readonly shouldCacheValue: (value: TValue) => boolean;

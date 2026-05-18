@@ -290,10 +290,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
     this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), stakingModuleKeys.meta);
     this.logger.log(`New appeared staking module validators count: ${stakingModuleKeys.data.keys.length}`);
     const valKeysLength = newValKeys.length;
-    // Build new entries in a local map and merge them atomically (no `await`
-    // between build and assign). Concurrent readers of `storage.data` always
-    // see either pre-update or post-update state — never a partially
-    // populated batch.
+    // Build first, then assign atomically — no partial state visible to concurrent readers.
     const newEntries: KeysIndexerServiceStorage = {};
     for (const stakingModuleKey of stakingModuleKeys.data.keys) {
       for (let i = 0; i < valKeysLength; i++) {

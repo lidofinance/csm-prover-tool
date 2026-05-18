@@ -67,9 +67,6 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   private readonly beaconHeaderCache = new LruCache<BlockId, BlockHeaderResponse>(16, {
     shouldCache: isCacheableConsensusId,
   });
-  // Only cache fully-populated, finalized responses. A `{finalized: false}` or
-  // empty response means "no canonical child known yet" — caching that would
-  // permanently shadow the eventual real answer.
   private readonly childHeadersCache = new LruCache<RootHex, BeaconHeadersByParentRootResponse>(16, {
     shouldCacheValue: (resp) => resp.finalized && resp.data.length > 0,
   });
