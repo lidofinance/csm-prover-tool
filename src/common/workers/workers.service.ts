@@ -18,8 +18,6 @@ import type { GetValidatorExitEpochsArgs, GetValidatorExitEpochsResult } from '.
 import { ParentLoggerMessage } from './worker-logger.js';
 import type { IVerifier } from '../contracts/types/Verifier.js';
 
-const WORKER_TIMEOUT_MS = 30 * 60 * 1000;
-
 @Injectable()
 export class WorkersService {
   constructor(
@@ -97,15 +95,16 @@ export class WorkersService {
         clearTimeout(timer);
         fn();
       };
+      const timeoutMs = this.config.get('WORKER_TIMEOUT_MS');
       const timer = setTimeout(() => {
         settle(() => {
-          this.logger.warn(`Worker ${name} timed out after ${WORKER_TIMEOUT_MS}ms; terminating`);
+          this.logger.warn(`Worker ${name} timed out after ${timeoutMs}ms; terminating`);
           worker.terminate().catch(() => {
             /* terminate is best-effort */
           });
-          reject(new Error(`Worker ${name} timed out after ${WORKER_TIMEOUT_MS}ms`));
+          reject(new Error(`Worker ${name} timed out after ${timeoutMs}ms`));
         });
-      }, WORKER_TIMEOUT_MS);
+      }, timeoutMs);
       worker.on('message', (msg) => {
         if (msg instanceof ParentLoggerMessage) {
           switch (msg.level) {

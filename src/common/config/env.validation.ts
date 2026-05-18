@@ -114,6 +114,11 @@ export class EnvironmentVariables {
   public TX_MINING_WAITING_TIMEOUT_MS = 3 * MINUTE_MS;
 
   @IsNumber()
+  @Min(MINUTE_MS)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public WORKER_TIMEOUT_MS = 30 * MINUTE_MS;
+
+  @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public TX_CONFIRMATIONS = 1;
 

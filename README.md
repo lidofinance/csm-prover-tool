@@ -167,6 +167,7 @@ So, according to the algorithm, there are the following statements:
 | TX_MINING_WAITING_TIMEOUT_MS            | Timeout for waiting for transaction mining confirmation                 | no                     | 180_000 (3 min)               |
 | TX_CONFIRMATIONS                        | Number of block confirmations required after mining                     | no                     | 1                             |
 | TX_STRIKES_PAYLOAD_MAX_BATCH_SIZE       | Max number of strikes packed into a single transaction                  | no                     | 10                            |
+| WORKER_TIMEOUT_MS                       | Timeout before a proof worker is forcibly terminated                    | no                     | 1_800_000 (30 min)            |
 | BALANCE_PROOF_MIN_DELTA_GWEI            | Minimum balance increase above confirmed level to trigger a proof       | no                     | 512_000_000_000 (512 ETH)     |
 | KEYS_INDEXER_RUNNING_PERIOD_MS          | How often the keys indexer re-syncs with KeysAPI                        | no                     | 10_800_000 (3 hours)          |
 | KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS | Max age of KeysAPI data considered fresh enough to trust                | no                     | 28_800_000 (8 hours)          |
