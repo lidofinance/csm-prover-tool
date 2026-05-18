@@ -31,3 +31,7 @@ export type BeaconHeadersByParentRootResponse = {
   finalized: boolean;
   data: BlockHeaderResponse[];
 };
+
+export function firstCanonical(headers: BlockHeaderResponse[]): BlockHeaderResponse | undefined {
+  return headers.find((h) => h.canonical);
+}

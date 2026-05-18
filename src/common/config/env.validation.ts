@@ -94,8 +94,29 @@ export class EnvironmentVariables {
   public TX_GAS_LIMIT = 2_000_000;
 
   @IsNumber()
+  @Min(0)
+  @Max(100)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_GAS_LIMIT_BUFFER_PERCENT = 20;
+
+  @IsNumber()
+  @Min(1)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_HIGH_GAS_FEE_MAX_RETRIES = 13;
+
+  @IsNumber()
+  @Min(1000)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_HIGH_GAS_FEE_RETRY_DELAY_MS = 60_000;
+
+  @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public TX_MINING_WAITING_TIMEOUT_MS = 3 * MINUTE_MS;
+
+  @IsNumber()
+  @Min(MINUTE_MS)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public WORKER_TIMEOUT_MS = 30 * MINUTE_MS;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })

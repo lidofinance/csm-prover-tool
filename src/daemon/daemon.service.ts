@@ -68,9 +68,8 @@ export class DaemonService implements OnModuleInit {
       this.updateKeysIndexer(finalizedHeader).catch((e) => this.logger.error(e));
     }
 
-    // TODO: what if no finality?
     if (isFinalizedChanged) {
-      this.processAnyHeadRoot().catch((e) => this.logger.error(e));
+      this.processBadPerformers(finalizedHeader).catch((e) => this.logger.error(e));
     }
 
     const nextRoot = await this.rootsProvider.getNext(finalizedHeader);
@@ -103,10 +102,8 @@ export class DaemonService implements OnModuleInit {
   }
 
   @SingletonTask()
-  @TrackTask('process-any-head-root')
-  private async processAnyHeadRoot() {
-    const headHeader = await this.consensus.getBeaconHeader('head');
-    this.logger.log(`🪨 Head slot [${headHeader.header.message.slot}]. Root [${headHeader.root}]`);
-    await this.prover.handleBadPerformers(headHeader, this.keysIndexer.getFullKeyInfoByPubKey);
+  @TrackTask('process-bad-performers')
+  private async processBadPerformers(finalizedHeader: BlockHeaderResponse) {
+    await this.prover.handleBadPerformers(finalizedHeader, this.keysIndexer.getFullKeyInfoByPubKey);
   }
 }

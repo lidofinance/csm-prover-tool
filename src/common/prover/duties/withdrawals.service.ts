@@ -9,7 +9,7 @@ import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus, type State } from '../../providers/consensus/consensus.js';
 import type { SupportedBlock, SupportedWithdrawal } from '../../providers/consensus/forks.js';
-import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo, KeyInfoFn } from '../types.js';
 import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../utils/historical-summary.js';
@@ -84,8 +84,8 @@ export class WithdrawalsService {
     withdrawals: InvolvedKeysWithWithdrawal,
   ): Promise<IVerifier.ProcessWithdrawalInputStruct[]> {
     // create proof against the state with withdrawals
-    const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data[0];
-    if (!nextBlockHeader) throw new Error(`Next block header after ${blockHeader.root} not found`);
+    const nextBlockHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data);
+    if (!nextBlockHeader) throw new Error(`Next canonical block header after ${blockHeader.root} not found`);
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
     this.logger.log(`Building withdrawal proof payloads`);
     const payloads = await this.workers.getGeneralWithdrawalProofPayloads({
@@ -111,8 +111,10 @@ export class WithdrawalsService {
     withdrawals: InvolvedKeysWithWithdrawal,
   ): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
     // create proof against the historical state with withdrawals
-    const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data[0];
-    if (!nextBlockHeader) throw new Error(`Next block header after ${finalizedHeader.root} not found`);
+    const nextBlockHeader = firstCanonical(
+      (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data,
+    );
+    if (!nextBlockHeader) throw new Error(`Next canonical block header after ${finalizedHeader.root} not found`);
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
     const finalizedState = await this.consensus.getState(toRootHex(finalizedHeader.header.message.stateRoot));
     const summaryResolution = await resolveHistoricalSummaryContext(

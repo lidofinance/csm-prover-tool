@@ -6,7 +6,7 @@ import { type RootSlot, RootsStack } from './roots-stack.js';
 import { ConfigService } from '../../common/config/config.service.js';
 import { type AppLogger } from '../../common/logger/app-logger.type.js';
 import { Consensus } from '../../common/providers/consensus/consensus.js';
-import type { BlockHeaderResponse } from '../../common/providers/consensus/response.interface.js';
+import { type BlockHeaderResponse, firstCanonical } from '../../common/providers/consensus/response.interface.js';
 
 @Injectable()
 export class RootsProvider {
@@ -51,12 +51,20 @@ export class RootsProvider {
     this.logger.warn(`Diff between last processed and finalized is ${diff} slots`);
     const childHeaders = await this.consensus.getBeaconHeadersByParentRoot(lastProcessed.blockRoot);
     if (childHeaders.data.length == 0 || !childHeaders.finalized) {
+      // Such responses are not cached in `Consensus` (see `childHeadersCache`),
+      // so the next iteration refetches and picks up the child once finalized.
       this.logger.warn(`No finalized child header for [${lastProcessed.blockRoot}] yet`);
-      this.consensus.clearChildHeadersCache();
       return;
     }
-    const child = childHeaders.data[0].root;
-    this.logger.log(`⏭️ Next root to process [${child}]. Child of last processed`);
-    return child;
+    // The CL may return forks/sibling heads alongside the canonical descendant.
+    const canonical = firstCanonical(childHeaders.data);
+    if (!canonical) {
+      this.logger.warn(
+        `Got ${childHeaders.data.length} child header(s) for [${lastProcessed.blockRoot}] but none canonical.`,
+      );
+      return;
+    }
+    this.logger.log(`⏭️ Next root to process [${canonical.root}]. Child of last processed`);
+    return canonical.root;
   }
 }

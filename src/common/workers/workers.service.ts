@@ -88,6 +88,23 @@ export class WorkersService {
           maxOldGenerationSizeMb: 8192,
         },
       });
+      let settled = false;
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn();
+      };
+      const timeoutMs = this.config.get('WORKER_TIMEOUT_MS');
+      const timer = setTimeout(() => {
+        settle(() => {
+          this.logger.warn(`Worker ${name} timed out after ${timeoutMs}ms; terminating`);
+          worker.terminate().catch(() => {
+            /* terminate is best-effort */
+          });
+          reject(new Error(`Worker ${name} timed out after ${timeoutMs}ms`));
+        });
+      }, timeoutMs);
       worker.on('message', (msg) => {
         if (msg instanceof ParentLoggerMessage) {
           switch (msg.level) {
@@ -106,11 +123,11 @@ export class WorkersService {
           }
           return;
         }
-        resolve(msg);
+        settle(() => resolve(msg));
       });
-      worker.on('error', (error) => reject(new Error('Worker error', { cause: error })));
+      worker.on('error', (error) => settle(() => reject(new Error('Worker error', { cause: error }))));
       worker.on('exit', (code) => {
-        if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`));
+        if (code !== 0) settle(() => reject(new Error(`Worker stopped with exit code ${code}`)));
       });
     });
   }
