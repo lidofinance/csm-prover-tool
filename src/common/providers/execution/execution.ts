@@ -12,12 +12,6 @@ import { WorkingMode } from '../../config/env.validation.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { PrometheusService } from '../../prometheus/index.js';
 
-// HighGasFeeError: fixed 60s × 13 retries (~2 epochs), then surface so daemon can move on.
-const HIGH_GAS_FEE_RETRY_DELAY_MS = 60_000;
-const HIGH_GAS_FEE_MAX_RETRIES = 13;
-// +20% buffer on estimateGas.
-const GAS_LIMIT_BUFFER_NUM = 12n;
-const GAS_LIMIT_BUFFER_DEN = 10n;
 
 export enum TransactionStatus {
   confirmed = 'confirmed',
@@ -105,14 +99,14 @@ export class Execution {
           this.logger.warn(e);
           return;
         }
-        if (e instanceof HighGasFeeError && highGasAttempts < HIGH_GAS_FEE_MAX_RETRIES) {
+        const maxRetries = this.config.get('TX_HIGH_GAS_FEE_MAX_RETRIES');
+        if (e instanceof HighGasFeeError && highGasAttempts < maxRetries) {
           this.prometheus.highGasFeeInterruptionsCount.inc();
           this.logger.warn(e);
           highGasAttempts++;
-          this.logger.warn(
-            `Retrying in ${HIGH_GAS_FEE_RETRY_DELAY_MS / 1000}s (${highGasAttempts}/${HIGH_GAS_FEE_MAX_RETRIES})...`,
-          );
-          await new Promise((resolve) => setTimeout(resolve, HIGH_GAS_FEE_RETRY_DELAY_MS));
+          const delayMs = this.config.get('TX_HIGH_GAS_FEE_RETRY_DELAY_MS');
+          this.logger.warn(`Retrying in ${delayMs / 1000}s (${highGasAttempts}/${maxRetries})...`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
           continue;
         }
         this.prometheus.transactionCount.inc({ status: TransactionStatus.error });
@@ -146,16 +140,17 @@ export class Execution {
     } catch (e) {
       throw new EmulatedCallError(e, emulatedTxContext);
     }
-    const gasLimit = (estimatedGas * GAS_LIMIT_BUFFER_NUM) / GAS_LIMIT_BUFFER_DEN;
+    const bufferPct = BigInt(this.config.get('TX_GAS_LIMIT_BUFFER_PERCENT'));
+    const gasLimit = (estimatedGas * (100n + bufferPct)) / 100n;
     const cap = BigInt(this.config.get('TX_GAS_LIMIT'));
     if (gasLimit > cap) {
       throw new EmulatedCallError(
-        `Estimated gas ${estimatedGas} (+20% = ${gasLimit}) exceeds TX_GAS_LIMIT cap (${cap}).`,
+        `Estimated gas ${estimatedGas} (+${bufferPct}% = ${gasLimit}) exceeds TX_GAS_LIMIT cap (${cap}).`,
         emulatedTxContext,
       );
     }
     const tx = { ...txBase, gasLimit };
-    this.logger.log(`✅ Emulated call succeeded. Estimated gas: ${estimatedGas} → gasLimit: ${gasLimit}`);
+    this.logger.log(`✅ Emulated call succeeded. Estimated gas: ${estimatedGas} (+${bufferPct}%) → gasLimit: ${gasLimit}`);
     if (!this.signer) {
       throw new NoSignerError('No specified signer. Only emulated calls are available', emulatedTxContext);
     }
