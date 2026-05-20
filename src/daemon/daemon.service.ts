@@ -77,8 +77,8 @@ export class DaemonService implements OnModuleInit {
       this.processNextRoot(finalizedHeader, nextRoot).catch((e) => this.logger.error(e));
     }
 
-    if (!nextRoot && !isFinalizedChanged) {
-      this.logger.log('💤 Wait 12s for the next finalized root');
+    if (!nextRoot) {
+      this.logger.log('💤 Wait 12s for the next root');
       await sleep(12 * SECOND_MS);
     }
 
