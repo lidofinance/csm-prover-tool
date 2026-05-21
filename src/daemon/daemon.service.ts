@@ -43,6 +43,8 @@ export class DaemonService implements OnModuleInit {
     const name = APP_NAME;
 
     this.prometheus.buildInfo.labels({ env, name, version, commit, branch }).inc();
+    this.prometheus.genesisTime.set(this.consensus.genesisTimestamp);
+    this.prometheus.rootsProcessingLagSlots.set(this.config.get('ROOTS_PROCESSING_LAG_SLOTS'));
   }
 
   public async loop(): Promise<never> {

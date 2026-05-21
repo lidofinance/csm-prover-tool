@@ -28,3 +28,6 @@ export const METRIC_ROOTS_STACK_OLDEST_SLOT = `roots_stack_oldest_slot`;
 export const METRIC_KEYS_INDEXER_STORAGE_STATE_SLOT = `keys_indexer_storage_state_slot`;
 export const METRIC_KEYS_INDEXER_ALL_VALIDATORS_COUNT = `keys_indexer_all_validators_count`;
 export const METRIC_KEYS_CSM_VALIDATORS_COUNT = `keys_csm_validators_count`;
+
+export const METRIC_GENESIS_TIME = `genesis_time`;
+export const METRIC_ROOTS_PROCESSING_LAG_SLOTS = `roots_processing_lag_slots`;
