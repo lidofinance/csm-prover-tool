@@ -31,11 +31,11 @@ export class ProverService implements OnModuleInit {
   }
 
   public async handleBadPerformers(
-    headHeader: BlockHeaderResponse,
+    finalizedHeader: BlockHeaderResponse,
     fullKeyInfoFn: FullKeyInfoByPubKeyFn,
   ): Promise<number> {
-    const headBlockInfo = await this.consensus.getBlockInfo(headHeader.root);
-    const badPerformers = await this.strikes.getUnprovenNonWithdrawnBadPerformers(headBlockInfo, fullKeyInfoFn);
+    const finalizedBlockInfo = await this.consensus.getBlockInfo(finalizedHeader.root);
+    const badPerformers = await this.strikes.getUnprovenNonWithdrawnBadPerformers(finalizedBlockInfo, fullKeyInfoFn);
     const sentCount = await this.strikes.sendBadPerformanceProofs(badPerformers);
     if (sentCount > 0) {
       this.logger.log(`🏁 ${sentCount} Bad performer Proof(s) were sent`);

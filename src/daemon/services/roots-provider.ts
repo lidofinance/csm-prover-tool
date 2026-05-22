@@ -6,7 +6,7 @@ import { type RootSlot, RootsStack } from './roots-stack.js';
 import { ConfigService } from '../../common/config/config.service.js';
 import { type AppLogger } from '../../common/logger/app-logger.type.js';
 import { Consensus } from '../../common/providers/consensus/consensus.js';
-import type { BlockHeaderResponse } from '../../common/providers/consensus/response.interface.js';
+import { type BlockHeaderResponse, firstCanonical } from '../../common/providers/consensus/response.interface.js';
 
 @Injectable()
 export class RootsProvider {
@@ -18,23 +18,32 @@ export class RootsProvider {
   ) {}
 
   public async getNext(finalizedHeader: BlockHeaderResponse): Promise<RootHex | undefined> {
-    const stacked = this.getStacked();
-    if (stacked) return stacked;
     const lastProcessed = this.rootsStack.getLastProcessed();
-    if (!lastProcessed) return this.getKnown(finalizedHeader);
-    const child = await this.getChild(lastProcessed, finalizedHeader);
-    if (child) return child;
-    return undefined;
-  }
+    if (!lastProcessed) {
+      // Cold start: skip possible further lag gate (candidate = finalizedHeader.root).
+      return this.getKnown(finalizedHeader);
+    }
 
-  private getStacked(): RootHex | undefined {
     const stacked = this.rootsStack.getNextEligible();
-    if (!stacked) return;
-    this.logger.warn(`⏭️ Next root to process [${stacked.blockRoot}]. Taken from 📚 stack of unprocessed roots`);
-    return stacked.blockRoot;
+    let candidate: RootSlot | undefined;
+    if (stacked) {
+      this.logger.warn(`Next root to process [${stacked.blockRoot}]. Taken from 📚 stack of unprocessed roots`);
+      candidate = stacked;
+    } else {
+      candidate = await this.getChild(lastProcessed, finalizedHeader);
+    }
+    if (!candidate) return undefined;
+
+    const lag = this.config.get('ROOTS_PROCESSING_LAG_SLOTS');
+    const diff = Number(finalizedHeader.header.message.slot) - candidate.slotNumber;
+    if (lag > 0 && lag > diff) {
+      this.logger.log(`💤 Next root to process ${diff} slots behind finalized, need ${lag}`);
+      return undefined;
+    }
+    return candidate.blockRoot;
   }
 
-  private getKnown(finalizedHeader: BlockHeaderResponse): RootHex | undefined {
+  private getKnown(finalizedHeader: BlockHeaderResponse): RootHex {
     const configured = this.config.get('START_ROOT');
     if (configured) {
       this.logger.log(`No processed roots. Start from ⚙️ configured root [${configured}]`);
@@ -44,7 +53,7 @@ export class RootsProvider {
     return finalizedHeader.root;
   }
 
-  private async getChild(lastProcessed: RootSlot, finalizedHeader: BlockHeaderResponse): Promise<RootHex | undefined> {
+  private async getChild(lastProcessed: RootSlot, finalizedHeader: BlockHeaderResponse): Promise<RootSlot | undefined> {
     this.logger.log(`⏮️ Last processed slot [${lastProcessed.slotNumber}]. Root [${lastProcessed.blockRoot}]`);
     if (lastProcessed.blockRoot == finalizedHeader.root) return;
     const diff = Number(finalizedHeader.header.message.slot) - lastProcessed.slotNumber;
@@ -52,11 +61,19 @@ export class RootsProvider {
     const childHeaders = await this.consensus.getBeaconHeadersByParentRoot(lastProcessed.blockRoot);
     if (childHeaders.data.length == 0 || !childHeaders.finalized) {
       this.logger.warn(`No finalized child header for [${lastProcessed.blockRoot}] yet`);
-      this.consensus.clearChildHeadersCache();
       return;
     }
-    const child = childHeaders.data[0].root;
-    this.logger.log(`⏭️ Next root to process [${child}]. Child of last processed`);
-    return child;
+    const canonical = firstCanonical(childHeaders.data);
+    if (!canonical) {
+      this.logger.warn(
+        `Got ${childHeaders.data.length} child header(s) for [${lastProcessed.blockRoot}] but none canonical.`,
+      );
+      return;
+    }
+    this.logger.log(`⏭️ Next root to process [${canonical.root}]. Child of last processed`);
+    return {
+      blockRoot: canonical.root,
+      slotNumber: Number(canonical.header.message.slot),
+    };
   }
 }
