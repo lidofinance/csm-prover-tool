@@ -67,7 +67,9 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   private readonly beaconHeaderCache = new LruCache<BlockId, BlockHeaderResponse>(16, {
     shouldCache: isCacheableConsensusId,
   });
-  private readonly childHeadersCache = new LruCache<RootHex, BeaconHeadersByParentRootResponse>(16);
+  private readonly childHeadersCache = new LruCache<RootHex, BeaconHeadersByParentRootResponse>(16, {
+    shouldCacheValue: (resp) => resp.finalized && resp.data.length > 0,
+  });
 
   private readonly endpoints = {
     config: 'eth/v1/config/spec',
