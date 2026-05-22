@@ -4,6 +4,7 @@ import { ProofType, type SingleProof, Tree, concatGindices, createProof } from '
 import type { RootHex } from '@lodestar/types';
 
 import type { BeaconBlockHeaderStruct, ValidatorStruct, WithdrawalStruct } from '../contracts/types/Verifier.js';
+import { epochToBigInt } from '../providers/consensus/epoch.js';
 import type {
   SupportedBlockView,
   SupportedStateView,
@@ -118,10 +119,10 @@ export function toValidatorStruct(validator: SupportedValidatorView): ValidatorS
     withdrawalCredentials: toHex(validator.withdrawalCredentials),
     effectiveBalance: BigInt(validator.effectiveBalance),
     slashed: Boolean(validator.slashed),
-    activationEligibilityEpoch: BigInt(validator.activationEligibilityEpoch),
-    activationEpoch: BigInt(validator.activationEpoch),
-    exitEpoch: BigInt(validator.exitEpoch),
-    withdrawableEpoch: BigInt(validator.withdrawableEpoch),
+    activationEligibilityEpoch: epochToBigInt(validator.activationEligibilityEpoch),
+    activationEpoch: epochToBigInt(validator.activationEpoch),
+    exitEpoch: epochToBigInt(validator.exitEpoch),
+    withdrawableEpoch: epochToBigInt(validator.withdrawableEpoch),
   };
 }
 

@@ -1,7 +1,7 @@
 <p align="center">
   <img src="logo.png" width="120" alt="CSM Logo"/>
 </p>
-<h1 align="center"> CSM Prover Tool </h1>
+<h1 align="center"> Lido Staking Module Prover Tool </h1>
 
 ## Description
 
@@ -131,40 +131,50 @@ So, according to the algorithm, there are the following statements:
 
 ## Environment variables
 
-| Name                                    | Description                                       | Required               | Default                  |
-|-----------------------------------------|---------------------------------------------------|------------------------|--------------------------|
-| WORKING_MODE                            | Working mode of the tool (daemon or cli)          | no                     | daemon                   |
-| DRY_RUN                                 | Dry run mode                                      | no                     | false                    |
-| EL_PRC_URLS                             | Comma-separated list of EL RPC URLs               | yes                    |                          |
-| EL_RPC_RETRY_DELAY_MS                   | Delay between EL RPC retries in milliseconds      | no                     | 500                      |
-| EL_RPC_MAX_RETRIES                      | Maximum number of EL RPC retries                  | no                     | 3                        |
-| CL_API_URLS                             | Comma-separated list of CL API URLs               | yes                    |                          |
-| CL_API_RETRY_DELAY_MS                   | Delay between CL API retries in milliseconds      | no                     | 500                      |
-| CL_API_RESPONSE_TIMEOUT_MS              | CL API response timeout in milliseconds           | no                     | 60_000                   |
-| CL_API_MAX_RETRIES                      | Maximum number of CL API retries                  | no                     | 3                        |
-| KEYSAPI_API_URLS                        | Comma-separated list of KeysAPI API URLs          | yes (daemon mode only) |                          |
-| DAEMON_NODE_OPERATOR_IDS               | Comma-separated list of node operator ids to prove in daemon mode only | no |                          |
-| KEYSAPI_API_RETRY_DELAY_MS              | Delay between KeysAPI API retries in milliseconds | no                     | 500                      |
-| KEYSAPI_API_RESPONSE_TIMEOUT_MS         | KeysAPI API response timeout in milliseconds      | no                     | 60_000                   |
-| KEYSAPI_API_MAX_RETRIES                 | Maximum number of KeysAPI API retries             | no                     | 3                        |
-| START_ROOT                              | Start consensus layer block root for the daemon   | no                     |                          |
-| STAKING_MODULE_ADDRESS                  | Address of the staking module contract            | yes                    |                          |
-| VERIFIER_ADDRESS                        | Address of the verifier contract                  | yes                    |                          |
-| TX_SIGNER_PRIVATE_KEY                   | Private key of the transaction signer             | yes (if not dry run)   |                          |
-| TX_MIN_GAS_PRIORITY_FEES                | Minimum gas priority fees for the transaction     | no                     | 50_000_000 (0.05 gwei)   |
-| TX_MAX_GAS_PRIORITY_FEES                | Maximum gas priority fees for the transaction     | no                     | 10_000_000_000 (10 gwei) |
-| TX_GAS_PRIORITY_FEE_PERCENTILE          | Gas priority fee percentile for the transaction   | no                     | 25                       |
-| TX_GAS_FEE_HISTORY_DAYS                 | Days of gas fee history for analyzing gas         | no                     | 1                        |
-| TX_GAS_FEE_HISTORY_PERCENTILE           | Gas fee percentile for analyzing gas              | no                     | 50                       |
-| TX_GAS_LIMIT                            | Gas limit for the transaction                     | no                     | 1_000_000                |
-| TX_MINING_WAITING_TIMEOUT_MS            | Timeout for waiting for the transaction mining    | no                     | 3_600_000 (1 hour)       |
-| TX_CONFIRMATIONS                        | Number of confirmations for the transaction       | no                     | 1                        |
-| BALANCE_PROOF_MIN_DELTA_GWEI            | Minimum balance delta to prove (in gwei)          | no                     | 1_000_000_000 (1 ETH)    |
-| KEYS_INDEXER_RUNNING_PERIOD_MS          | Period of running keys indexer in milliseconds    | no                     | 3 * 3_600_000 (3 hours)  |
-| KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS | Period of keys indexer freshness in milliseconds  | no                     | 8 * 3_600_000 (8 hours)  |
-| HTTP_PORT                               | Port for the HTTP server                          | no                     | 8080                     |
-| LOG_LEVEL                               | Log level                                         | no                     | info                     |
-| LOG_FORMAT                              | Log format                                        | no                     | simple                   |
+| Name                                    | Description                                                             | Required               | Default                       |
+|-----------------------------------------|-------------------------------------------------------------------------|------------------------|-------------------------------|
+| WORKING_MODE                            | Working mode of the tool (`daemon` or `cli`)                            | no                     | daemon                        |
+| DRY_RUN                                 | Prepare and emulate transactions without sending them                   | no                     | false                         |
+| CHAIN_ID                                | EL chain ID (1 — Mainnet, 17000 — Holesky)                              | yes                    |                               |
+| EL_RPC_URLS                             | Comma-separated list of EL RPC URLs                                     | yes                    |                               |
+| EL_RPC_RETRY_DELAY_MS                   | Delay between EL RPC retries in milliseconds                            | no                     | 500                           |
+| EL_RPC_MAX_RETRIES                      | Maximum number of EL RPC retries                                        | no                     | 3                             |
+| EL_RPC_RESET_INTERVAL_MS                | Reset active EL provider if no requests within this interval            | no                     | 720_000 (12 min)              |
+| CL_API_URLS                             | Comma-separated list of CL API URLs                                     | yes                    |                               |
+| CL_API_RETRY_DELAY_MS                   | Delay between CL API retries in milliseconds                            | no                     | 500                           |
+| CL_API_RESPONSE_TIMEOUT_MS              | CL API response timeout in milliseconds                                 | no                     | 60_000                        |
+| CL_API_MAX_RETRIES                      | Maximum number of CL API retries                                        | no                     | 3                             |
+| KEYSAPI_API_URLS                        | Comma-separated list of KeysAPI URLs                                    | yes (daemon mode only) |                               |
+| KEYSAPI_API_RETRY_DELAY_MS              | Delay between KeysAPI retries in milliseconds                           | no                     | 500                           |
+| KEYSAPI_API_RESPONSE_TIMEOUT_MS         | KeysAPI response timeout in milliseconds                                | no                     | 60_000                        |
+| KEYSAPI_API_MAX_RETRIES                 | Maximum number of KeysAPI retries                                       | no                     | 3                             |
+| START_ROOT                              | Start CL block root for the daemon (defaults to current finalized root) | no                     |                               |
+| ROOTS_PROCESSING_LAG_SLOTS              | Min slot-distance between processing tip and finalized tip. 0 = off     | no                     | 0                             |
+| DAEMON_NODE_OPERATOR_IDS                | Comma-separated node operator IDs to prove (daemon mode only)           | no                     |                               |
+| STAKING_MODULE_ADDRESS                  | Address of the staking module contract                                  | yes                    |                               |
+| VERIFIER_ADDRESS                        | Address of the verifier contract                                        | no                     |                               |
+| STRIKES_ADDRESS                         | Address of the strikes contract                                         | no                     |                               |
+| EXIT_PENALTIES_ADDRESS                  | Address of the exit penalties contract                                  | no                     |                               |
+| TX_SIGNER_PRIVATE_KEY                   | Private key of the transaction signer                                   | yes (if not dry run)   |                               |
+| TX_MIN_GAS_PRIORITY_FEE                 | Minimum gas priority fee (wei)                                          | no                     | 50_000_000 (0.05 gwei)        |
+| TX_MAX_GAS_PRIORITY_FEE                 | Maximum gas priority fee (wei)                                          | no                     | 10_000_000_000 (10 gwei)      |
+| TX_GAS_PRIORITY_FEE_PERCENTILE          | Percentile of recent priority fees used as the target                   | no                     | 25                            |
+| TX_GAS_FEE_HISTORY_DAYS                 | Days of base fee history used for gas acceptance check                  | no                     | 1                             |
+| TX_GAS_FEE_HISTORY_PERCENTILE           | Percentile of base fee history used for gas acceptance check            | no                     | 50                            |
+| TX_GAS_LIMIT                            | Hard cap on transaction gas limit                                       | no                     | 2_000_000                     |
+| TX_GAS_LIMIT_BUFFER_PERCENT             | Safety buffer added on top of `estimateGas` result (percent)            | no                     | 20                            |
+| TX_HIGH_GAS_FEE_MAX_RETRIES             | Max retries when gas fee is too high before giving up                   | no                     | 13                            |
+| TX_HIGH_GAS_FEE_RETRY_DELAY_MS          | Delay between high-gas-fee retries in milliseconds                      | no                     | 60_000                        |
+| TX_MINING_WAITING_TIMEOUT_MS            | Timeout for waiting for transaction mining confirmation                 | no                     | 180_000 (3 min)               |
+| TX_CONFIRMATIONS                        | Number of block confirmations required after mining                     | no                     | 1                             |
+| TX_STRIKES_PAYLOAD_MAX_BATCH_SIZE       | Max number of strikes packed into a single transaction                  | no                     | 10                            |
+| WORKER_TIMEOUT_MS                       | Timeout before a proof worker is forcibly terminated                    | no                     | 1_800_000 (30 min)            |
+| BALANCE_PROOF_MIN_DELTA_GWEI            | Minimum balance increase above confirmed level to trigger a proof       | no                     | 512_000_000_000 (512 ETH)     |
+| KEYS_INDEXER_RUNNING_PERIOD_MS          | How often the keys indexer re-syncs with KeysAPI                        | no                     | 10_800_000 (3 hours)          |
+| KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS | Max age of KeysAPI data considered fresh enough to trust                | no                     | 28_800_000 (8 hours)          |
+| HTTP_PORT                               | Port for the metrics/health HTTP server                                 | no                     | 8080                          |
+| LOG_LEVEL                               | Log level (`error`, `warn`, `info`, `debug`)                            | no                     | info                          |
+| LOG_FORMAT                              | Log format (`simple` or `json`)                                         | no                     | simple                        |
 
 
 

@@ -3,6 +3,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { iterateNodesAtDepth } from '@chainsafe/persistent-merkle-tree';
 
 import type { State } from '../../providers/consensus/consensus.js';
+import { epochToBigInt } from '../../providers/consensus/epoch.js';
 import { getSsz } from '../../providers/consensus/forks.js';
 import { WorkerLogger } from '../worker-logger.js';
 
@@ -34,7 +35,7 @@ async function getValidatorExitEpochs(): Promise<GetValidatorExitEpochsResult> {
   for (let i = 0; i < totalValLength; i++) {
     const node = iterator.next().value;
     const v = stateView.validators.type.elementType.tree_toValue(node);
-    valExitEpochs.push(BigInt(v.exitEpoch));
+    valExitEpochs.push(epochToBigInt(v.exitEpoch));
   }
   iterator.return && iterator.return();
   return { valExitEpochs };

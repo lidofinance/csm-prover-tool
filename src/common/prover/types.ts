@@ -1,4 +1,4 @@
-import type { ICSStrikes } from '../contracts/types/Strikes.js';
+import type { IValidatorStrikes } from '../contracts/types/Strikes.js';
 
 export interface KeyInfo {
   operatorId: number;
@@ -18,7 +18,7 @@ export type KeyInfoFn = (valIndex: number) => KeyInfo | undefined;
 export type FullKeyInfoByPubKeyFn = (pubKey: string) => FullKeyInfo | undefined;
 
 export type BadPerformerProofPayload = {
-  keyStrikesList: ICSStrikes.KeyStrikesStruct[];
+  keyStrikesList: IValidatorStrikes.KeyStrikesStruct[];
   proof: string[]; // bytes32[]
   proofFlags: boolean[];
   refundRecipient?: string; // Optional. Address to receive the refund from ejector contract

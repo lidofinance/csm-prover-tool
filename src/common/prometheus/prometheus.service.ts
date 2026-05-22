@@ -5,6 +5,7 @@ import type { Metric, Options } from './interfaces/prometheus.interface.js';
 import {
   METRICS_PREFIX,
   METRIC_BUILD_INFO,
+  METRIC_GENESIS_TIME,
   METRIC_HIGH_GAS_FEE_INTERRUPTIONS_COUNT,
   METRIC_OUTGOING_CL_REQUESTS_COUNT,
   METRIC_OUTGOING_CL_REQUESTS_DURATION_SECONDS,
@@ -14,6 +15,7 @@ import {
   METRIC_OUTGOING_IPFS_REQUESTS_DURATION_SECONDS,
   METRIC_OUTGOING_KEYSAPI_REQUESTS_COUNT,
   METRIC_OUTGOING_KEYSAPI_REQUESTS_DURATION_SECONDS,
+  METRIC_ROOTS_PROCESSING_LAG_SLOTS,
   METRIC_TASK_DURATION_SECONDS,
   METRIC_TASK_RESULT_COUNT,
   METRIC_TRANSACTION_COUNTER,
@@ -136,6 +138,16 @@ export class PrometheusService {
     name: METRIC_TRANSACTION_COUNTER,
     help: 'Count of transactions',
     labelNames: ['status'],
+  });
+
+  public genesisTime = this.getOrCreateMetric('Gauge', {
+    name: METRIC_GENESIS_TIME,
+    help: 'Network genesis time (unix seconds)',
+  });
+
+  public rootsProcessingLagSlots = this.getOrCreateMetric('Gauge', {
+    name: METRIC_ROOTS_PROCESSING_LAG_SLOTS,
+    help: 'Configured minimum slot-distance between finalized tip and processing tip (ROOTS_PROCESSING_LAG_SLOTS)',
   });
 }
 

@@ -2,13 +2,14 @@ import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { ConfigService } from '../../config/config.service.js';
-import { CsmContract } from '../../contracts/csm-contract.service.js';
+import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
 import type { IVerifier } from '../../contracts/types/Verifier.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
 import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus, type State } from '../../providers/consensus/consensus.js';
-import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { FAR_FUTURE_EPOCH } from '../../providers/consensus/epoch.js';
+import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo } from '../types.js';
 import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../utils/historical-summary.js';
@@ -22,24 +23,22 @@ export class BalancesService {
     protected readonly config: ConfigService,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
-    protected readonly csm: CsmContract,
+    protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
   ) {}
 
   public async isProvableBalance(keyInfo: KeyInfo, balanceGwei: bigint, exitEpoch: bigint): Promise<boolean> {
     const minActivationBalanceGwei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE);
     const maxEffectiveBalanceGwei = BigInt(this.consensus.beaconConfig.MAX_EFFECTIVE_BALANCE_ELECTRA);
-    const keyConfirmedBalanceGwei = (await this.csm.getKeyAddedBalance(keyInfo)) / 1_000_000_000n;
+    const keyConfirmedBalanceGwei = (await this.stakingModule.getKeyAddedBalance(keyInfo)) / 1_000_000_000n;
     const confirmedBalanceGwei = minActivationBalanceGwei + keyConfirmedBalanceGwei;
     if (maxEffectiveBalanceGwei <= confirmedBalanceGwei) return false;
     if (balanceGwei <= confirmedBalanceGwei) return false;
 
     const balanceDeltaGwei = balanceGwei - confirmedBalanceGwei;
-    const farFutureEpoch = BigInt(this.consensus.beaconConfig.FAR_FUTURE_EPOCH);
-
     return (
       balanceDeltaGwei > BigInt(this.config.get('BALANCE_PROOF_MIN_DELTA_GWEI')) ||
-      exitEpoch !== farFutureEpoch ||
+      exitEpoch !== FAR_FUTURE_EPOCH ||
       balanceGwei >= maxEffectiveBalanceGwei
     );
   }
@@ -53,8 +52,13 @@ export class BalancesService {
     const provable: InvolvedKeys = {};
 
     for (const [valIndex, keyInfo] of Object.entries(keys)) {
-      const balanceToProve = this.getBalanceOrThrow(currentBalances, valIndex, keysCount);
-      const exitEpochToProve = this.getExitEpochOrThrow(currentExitEpochs, valIndex, keysCount);
+      const balanceToProve = currentBalances[Number(valIndex)];
+      if (balanceToProve === undefined) {
+        // No validator in the state yet. Probably, keys data is likely more recent than the state due to async processing.
+        // Skip for now, the next block will have updated state and may include these validator.
+        continue;
+      }
+      const exitEpochToProve = currentExitEpochs[Number(valIndex)];
       const isProvable = await this.isProvableBalance(keyInfo, balanceToProve, exitEpochToProve);
       if (isProvable) {
         provable[valIndex] = keyInfo;
@@ -96,35 +100,13 @@ export class BalancesService {
     return await this.workers.getValidatorExitEpochs({ state });
   }
 
-  private getBalanceOrThrow(balances: bigint[], valIndex: string, keysCount: number): bigint {
-    const balance = balances[Number(valIndex)];
-    if (balance !== undefined) return balance;
-
-    throw new Error(
-      `Validator balance is missing for index ${valIndex}. ` +
-        `State balances length: ${balances.length}. ` +
-        `Keys considered for proving: ${keysCount}.`,
-    );
-  }
-
-  private getExitEpochOrThrow(exitEpochs: bigint[], valIndex: string, keysCount: number): bigint {
-    const exitEpoch = exitEpochs[Number(valIndex)];
-    if (exitEpoch !== undefined) return exitEpoch;
-
-    throw new Error(
-      `Validator exit epoch is missing for index ${valIndex}. ` +
-        `State validators length: ${exitEpochs.length}. ` +
-        `Keys considered for proving: ${keysCount}.`,
-    );
-  }
-
   private async sendGeneralBalanceProofs(
     blockHeader: BlockHeaderResponse,
     state: State,
     balanceChanges: InvolvedKeys,
   ): Promise<IVerifier.ProcessBalanceProofInputStruct[]> {
-    const nextHeader = (await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data[0];
-    if (!nextHeader) throw new Error(`Next block header after ${blockHeader.root} not found`);
+    const nextHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data);
+    if (!nextHeader) throw new Error(`Next canonical block header after ${blockHeader.root} not found`);
     const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
     this.logger.log('Building balance proof payloads');
     const payloads = await this.workers.getBalanceProofPayloads({
@@ -147,8 +129,8 @@ export class BalancesService {
     recentHeader: BlockHeaderResponse,
     balanceChanges: InvolvedKeys,
   ): Promise<IVerifier.ProcessHistoricalBalanceProofInputStruct[]> {
-    const nextHeader = (await this.consensus.getBeaconHeadersByParentRoot(recentHeader.root)).data[0];
-    if (!nextHeader) throw new Error(`Next block header after ${recentHeader.root} not found`);
+    const nextHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(recentHeader.root)).data);
+    if (!nextHeader) throw new Error(`Next canonical block header after ${recentHeader.root} not found`);
     const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
     const recentState = await this.consensus.getState(toRootHex(recentHeader.header.message.stateRoot));
     const summaryResolution = await resolveHistoricalSummaryContext(
