@@ -43,6 +43,8 @@ export class DaemonService implements OnModuleInit {
     const name = APP_NAME;
 
     this.prometheus.buildInfo.labels({ env, name, version, commit, branch }).inc();
+    this.prometheus.genesisTime.set(this.consensus.genesisTimestamp);
+    this.prometheus.rootsProcessingLagSlots.set(this.config.get('ROOTS_PROCESSING_LAG_SLOTS'));
   }
 
   public async loop(): Promise<never> {
@@ -77,8 +79,8 @@ export class DaemonService implements OnModuleInit {
       this.processNextRoot(finalizedHeader, nextRoot).catch((e) => this.logger.error(e));
     }
 
-    if (!nextRoot && !isFinalizedChanged) {
-      this.logger.log('💤 Wait 12s for the next finalized root');
+    if (!nextRoot) {
+      this.logger.log('💤 Wait 12s for the next root');
       await sleep(12 * SECOND_MS);
     }
 

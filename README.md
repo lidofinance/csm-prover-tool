@@ -149,6 +149,7 @@ So, according to the algorithm, there are the following statements:
 | KEYSAPI_API_RESPONSE_TIMEOUT_MS         | KeysAPI response timeout in milliseconds                                | no                     | 60_000                        |
 | KEYSAPI_API_MAX_RETRIES                 | Maximum number of KeysAPI retries                                       | no                     | 3                             |
 | START_ROOT                              | Start CL block root for the daemon (defaults to current finalized root) | no                     |                               |
+| ROOTS_PROCESSING_LAG_SLOTS              | Min slot-distance between processing tip and finalized tip. 0 = off     | no                     | 0                             |
 | DAEMON_NODE_OPERATOR_IDS                | Comma-separated node operator IDs to prove (daemon mode only)           | no                     |                               |
 | STAKING_MODULE_ADDRESS                  | Address of the staking module contract                                  | yes                    |                               |
 | VERIFIER_ADDRESS                        | Address of the verifier contract                                        | no                     |                               |
