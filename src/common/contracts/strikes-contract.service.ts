@@ -69,19 +69,15 @@ export class StrikesContract {
     this.logger.log(
       `Sending bad performance proof for ${payload.keyStrikesList.length} keys with total fee: ${utils.formatUnits(withdrawalFee, 'gwei')} Gwei`,
     );
-    await this.execution.execute(
-      this.contract.callStatic.processBadPerformanceProof,
-      this.contract.populateTransaction.processBadPerformanceProof,
-      [
-        payload.keyStrikesList,
-        payload.proof,
-        payload.proofFlags,
-        AddressZero, // msg.sender will be used as a refund recipient
-        {
-          value: withdrawalFee,
-        },
-      ],
-    );
+    await this.execution.execute(this.contract.populateTransaction.processBadPerformanceProof, [
+      payload.keyStrikesList,
+      payload.proof,
+      payload.proofFlags,
+      AddressZero, // msg.sender will be used as a refund recipient
+      {
+        value: withdrawalFee,
+      },
+    ]);
   }
 
   public async getExitPenaltiesAddress(): Promise<string> {
