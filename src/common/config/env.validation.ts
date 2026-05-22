@@ -43,6 +43,11 @@ export class EnvironmentVariables {
   @IsString()
   public START_ROOT?: string;
 
+  @IsNumber()
+  @Min(0)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public ROOTS_PROCESSING_LAG_SLOTS = 0;
+
   @IsNotEmpty()
   @IsString()
   public STAKING_MODULE_ADDRESS: string;
