@@ -36,11 +36,9 @@ export class WithdrawalsService {
   ): Promise<InvolvedKeysWithWithdrawal> {
     const withdrawals = this.getFullWithdrawals(blockInfo, keyInfoFn);
     if (!Object.keys(withdrawals).length) return {};
-    const unproven: InvolvedKeysWithWithdrawal = {};
-    for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
-      const proved = await this.stakingModule.isWithdrawalProved(keyWithWithdrawalInfo);
-      if (!proved) unproven[valIndex] = keyWithWithdrawalInfo;
-    }
+    const entries = Object.entries(withdrawals);
+    const proved = await Promise.all(entries.map(([, k]) => this.stakingModule.isWithdrawalProved(k)));
+    const unproven: InvolvedKeysWithWithdrawal = Object.fromEntries(entries.filter((_, i) => !proved[i]));
     const unprovenCount = Object.keys(unproven).length;
     if (!unprovenCount) {
       this.logger.warn('All full withdrawals from this block are already proved');
@@ -64,13 +62,7 @@ export class WithdrawalsService {
     // The transaction will be reverted and the application will try to handle that block again
     if (this.isHistoricalBlock(blockInfo, finalizedHeader)) {
       this.logger.warn('It is historical withdrawal. Processing will take longer than usual');
-      const payloads = await this.sendHistoricalWithdrawalProofs(
-        blockHeader,
-        blockInfo,
-        state,
-        finalizedHeader,
-        withdrawals,
-      );
+      const payloads = await this.sendHistoricalWithdrawalProofs(blockHeader, blockInfo, state, withdrawals);
       return payloads.length;
     }
     const payloads = await this.sendGeneralWithdrawalProofs(blockHeader, blockInfo, state, withdrawals);
@@ -107,10 +99,13 @@ export class WithdrawalsService {
     blockHeader: BlockHeaderResponse,
     blockInfo: SupportedBlock,
     state: State,
-    finalizedHeader: BlockHeaderResponse,
     withdrawals: InvolvedKeysWithWithdrawal,
   ): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
-    // create proof against the historical state with withdrawals
+    // create proof against the historical state with withdrawals.
+    // Anchor to the freshest finalized header, fetched as late as possible: its root must still be in
+    // the EIP-4788 ring buffer (~27h) when the tx executes. A header captured at the start of the daemon
+    // iteration can age out during slow historical proof generation → RootNotFound() revert.
+    const finalizedHeader = await this.consensus.getBeaconHeader('finalized');
     const nextBlockHeader = firstCanonical(
       (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data,
     );
