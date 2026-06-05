@@ -255,18 +255,17 @@ export class BadPerformersService {
     keys: InvolvedKeysWithBadPerformance,
   ): Promise<InvolvedKeysWithBadPerformance | undefined> {
     const blockTag = toBlockTagByHash(headBlockInfo.body.executionPayload.blockHash);
-    const unproven: InvolvedKeysWithBadPerformance = [];
 
     this.logger.log('🔍 Searching for unproven bad performers');
 
-    for (const key of keys) {
-      const proved = await this.exitPenalties.isEjectionProved(blockTag, key);
-      if (proved) {
+    const proved = await Promise.all(keys.map((key) => this.exitPenalties.isEjectionProved(blockTag, key)));
+    const unproven = keys.filter((key, i) => {
+      if (proved[i]) {
         this.logger.warn(`Validator ${key.validatorIndex} already proven as a bad performer`);
-        continue;
+        return false;
       }
-      unproven.push(key);
-    }
+      return true;
+    });
     if (unproven.length == 0) {
       this.logger.log('All keys are already proven as bad performers');
       return undefined;
@@ -278,20 +277,18 @@ export class BadPerformersService {
   private async getNonWithdrawnKeys(
     keys: InvolvedKeysWithBadPerformance,
   ): Promise<InvolvedKeysWithBadPerformance | undefined> {
-    const nonWithdrawn: InvolvedKeysWithBadPerformance = [];
-
     this.logger.log('🔍 Searching for non-withdrawn bad performers');
 
-    for (const key of keys) {
-      const withdrawalProved = await this.stakingModule.isWithdrawalProved(key);
-      if (withdrawalProved) {
+    const withdrawalProved = await Promise.all(keys.map((key) => this.stakingModule.isWithdrawalProved(key)));
+    const nonWithdrawn = keys.filter((key, i) => {
+      if (withdrawalProved[i]) {
         this.logger.warn(
           `Validator ${key.validatorIndex} already reported as withdrawn. No need to prove as a bad performer`,
         );
-        continue;
+        return false;
       }
-      nonWithdrawn.push(key);
-    }
+      return true;
+    });
     if (nonWithdrawn.length == 0) {
       this.logger.log('All bad performers are already reported as withdrawn');
       return undefined;
@@ -305,10 +302,9 @@ export class BadPerformersService {
     const thresholds = new Map<number, number>();
 
     const curvesCount = await this.accounting.getCurvesCount(blockTag);
-    for (let curveId = 0; curveId < curvesCount; curveId++) {
-      const params = await this.params.getStrikeParams(blockTag, curveId);
-      thresholds.set(curveId, params.threshold);
-    }
+    const curveIds = Array.from({ length: curvesCount }, (_, i) => i);
+    const params = await Promise.all(curveIds.map((curveId) => this.params.getStrikeParams(blockTag, curveId)));
+    curveIds.forEach((curveId, i) => thresholds.set(curveId, params[i].threshold));
     return thresholds;
   }
 
@@ -319,11 +315,11 @@ export class BadPerformersService {
     const blockTag = toBlockTagByHash(headBlockInfo.body.executionPayload.blockHash);
     const curveIds = new Map<number, number>();
 
-    const noIds = new Set([...strikesTree.entries()].map((leaf) => leaf[1][0]));
-    for (const nodeOperatorId of noIds) {
-      const curveId = await this.accounting.getBondCurveId(blockTag, nodeOperatorId);
-      curveIds.set(nodeOperatorId, curveId);
-    }
+    const noIds = [...new Set([...strikesTree.entries()].map((leaf) => leaf[1][0]))];
+    const ids = await Promise.all(
+      noIds.map((nodeOperatorId) => this.accounting.getBondCurveId(blockTag, nodeOperatorId)),
+    );
+    noIds.forEach((nodeOperatorId, i) => curveIds.set(nodeOperatorId, ids[i]));
     return curveIds;
   }
 

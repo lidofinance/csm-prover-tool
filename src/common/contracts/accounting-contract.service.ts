@@ -27,10 +27,11 @@ export class AccountingContract {
   }
 
   public async getBondCurveId(blockTag: BlockTag, nodeOperatorId: number): Promise<number> {
-    let curveId = this.bondCurveIdCache.get(`${blockTag}_${nodeOperatorId}`);
-    if (!curveId) {
+    const cacheKey = `${JSON.stringify(blockTag)}_${nodeOperatorId}`;
+    let curveId = this.bondCurveIdCache.get(cacheKey);
+    if (curveId === undefined) {
       curveId = (await this.contract.getBondCurveId(nodeOperatorId, { blockTag })).toNumber();
-      this.bondCurveIdCache.set(`${blockTag}_${nodeOperatorId}`, curveId);
+      this.bondCurveIdCache.set(cacheKey, curveId);
     }
     return curveId;
   }

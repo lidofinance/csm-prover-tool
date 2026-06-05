@@ -26,11 +26,12 @@ export class ParametersRegistryContract {
   }
 
   public async getStrikeParams(blockTag: BlockTag, curveId: number): Promise<{ lifetime: number; threshold: number }> {
-    let params = this.strikeParamsCache.get(`${blockTag}_${curveId}`);
+    const cacheKey = `${JSON.stringify(blockTag)}_${curveId}`;
+    let params = this.strikeParamsCache.get(cacheKey);
     if (!params) {
       const result = await this.contract.getStrikesParams(curveId, { blockTag });
       params = { lifetime: result.lifetime.toNumber(), threshold: result.threshold.toNumber() };
-      this.strikeParamsCache.set(`${blockTag}_${curveId}`, params);
+      this.strikeParamsCache.set(cacheKey, params);
     }
     return params;
   }
