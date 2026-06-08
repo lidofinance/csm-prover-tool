@@ -26,6 +26,7 @@ const ExecutionDaemon = () =>
           maxConcurrentRequests: configService.get('EL_RPC_MAX_CONCURRENT_REQUESTS'),
           batchAggregationWaitMs: configService.get('EL_RPC_BATCH_AGGREGATION_WAIT_MS'),
         },
+        logSuccessfulAttempts: false,
         fetchMiddlewares: [
           async (next, ctx) => {
             const targetName = new URL(ctx.provider.connection.url).hostname;
