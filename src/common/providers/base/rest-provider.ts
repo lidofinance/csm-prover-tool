@@ -44,10 +44,10 @@ export abstract class BaseRestProvider {
     };
   }
 
-  protected async retryRequest(
-    callback: (apiURL: string, options?: RequestOptions) => Promise<RestResponse>,
-    options?: RetryOptions,
-  ): Promise<RestResponse> {
+  protected async retryRequest<T = RestResponse>(
+    callback: (apiURL: string, options?: RequestOptions) => Promise<T>,
+    options?: Partial<RetryOptions>,
+  ): Promise<T> {
     options = {
       ...this.requestPolicy,
       useFallbackOnRejected: () => true, //  use fallback on error as default
