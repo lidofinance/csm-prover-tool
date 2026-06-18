@@ -30,16 +30,17 @@ export class BalancesService {
   public isProvableBalance(keyAddedBalanceWei: bigint, balanceGwei: bigint, exitEpoch: bigint): boolean {
     const minActivationBalanceGwei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE);
     const maxEffectiveBalanceGwei = BigInt(this.consensus.beaconConfig.MAX_EFFECTIVE_BALANCE_ELECTRA);
+    const reportableMaxGwei = maxEffectiveBalanceGwei - BigInt(this.config.get('BALANCE_PROOF_TOPUP_STEP_GWEI'));
     const keyConfirmedBalanceGwei = keyAddedBalanceWei / 1_000_000_000n;
     const confirmedBalanceGwei = minActivationBalanceGwei + keyConfirmedBalanceGwei;
-    if (maxEffectiveBalanceGwei <= confirmedBalanceGwei) return false;
+    if (reportableMaxGwei <= confirmedBalanceGwei) return false;
     if (balanceGwei <= confirmedBalanceGwei) return false;
 
     const balanceDeltaGwei = balanceGwei - confirmedBalanceGwei;
     return (
       balanceDeltaGwei > BigInt(this.config.get('BALANCE_PROOF_MIN_DELTA_GWEI')) ||
       exitEpoch !== FAR_FUTURE_EPOCH ||
-      balanceGwei >= maxEffectiveBalanceGwei
+      balanceGwei >= reportableMaxGwei
     );
   }
 

@@ -164,6 +164,7 @@ So, according to the algorithm, there are the following statements:
 | TX_GAS_PRIORITY_FEE_PERCENTILE          | Percentile of recent priority fees used as the target                   | no                     | 25                            |
 | TX_GAS_FEE_HISTORY_DAYS                 | Days of base fee history used for gas acceptance check                  | no                     | 1                             |
 | TX_GAS_FEE_HISTORY_PERCENTILE           | Percentile of base fee history used for gas acceptance check            | no                     | 50                            |
+| TX_MAX_BASE_FEE_GWEI                    | Absolute base fee ceiling (gwei); tx held back above it. 0 = disabled    | no                     | 50                            |
 | TX_GAS_LIMIT                            | Hard cap on transaction gas limit                                       | no                     | 2_000_000                     |
 | TX_GAS_LIMIT_BUFFER_PERCENT             | Safety buffer added on top of `estimateGas` result (percent)            | no                     | 20                            |
 | TX_HIGH_GAS_FEE_MAX_RETRIES             | Max retries when gas fee is too high before giving up                   | no                     | 13                            |
@@ -171,8 +172,10 @@ So, according to the algorithm, there are the following statements:
 | TX_MINING_WAITING_TIMEOUT_MS            | Timeout for waiting for transaction mining confirmation                 | no                     | 180_000 (3 min)               |
 | TX_CONFIRMATIONS                        | Number of block confirmations required after mining                     | no                     | 1                             |
 | TX_STRIKES_PAYLOAD_MAX_BATCH_SIZE       | Max number of strikes packed into a single transaction                  | no                     | 10                            |
+| STRIKES_MAX_REQUEST_FEE_GWEI            | Abort bad-performance proof if EIP-7002 withdrawal request fee ≥ this    | no                     | 6000                          |
 | WORKER_TIMEOUT_MS                       | Timeout before a proof worker is forcibly terminated                    | no                     | 1_800_000 (30 min)            |
 | BALANCE_PROOF_MIN_DELTA_GWEI            | Minimum balance increase above confirmed level to trigger a proof       | no                     | 512_000_000_000 (512 ETH)     |
+| BALANCE_PROOF_TOPUP_STEP_GWEI           | Report a balance change this far below MaxEB (top-up step); 0 = at MaxEB | no                     | 2_000_000_000 (2 ETH)         |
 | KEYS_INDEXER_RUNNING_PERIOD_MS          | How often the keys indexer re-syncs with KeysAPI                        | no                     | 10_800_000 (3 hours)          |
 | KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS | Max age of KeysAPI data considered fresh enough to trust                | no                     | 28_800_000 (8 hours)          |
 | HTTP_PORT                               | Port for the metrics/health HTTP server                                 | no                     | 8080                          |

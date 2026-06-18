@@ -223,6 +223,14 @@ export class Execution {
     const currentGwei = utils.formatUnits(current, 'gwei');
     const recommendedGwei = utils.formatUnits(recommended, 'gwei');
     const info = `Current: ${currentGwei} Gwei | Recommended: ${recommendedGwei} Gwei`;
+    const maxBaseFeeGwei = this.config.get('TX_MAX_BASE_FEE_GWEI');
+    if (maxBaseFeeGwei > 0) {
+      const cap = utils.parseUnits(String(maxBaseFeeGwei), 'gwei').toBigInt();
+      if (current > cap) {
+        this.logger.warn(`📛 Current base fee is above the absolute cap (${maxBaseFeeGwei} Gwei)! ${info}`);
+        return false;
+      }
+    }
     if (current > recommended) {
       this.logger.warn(`📛 Current gas fee is HIGH! ${info}`);
       return false;
