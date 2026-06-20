@@ -4920,7 +4920,7 @@ __metadata:
     tsconfig-paths: "npm:^4.2.0"
     typechain: "npm:^8.3.2"
     typescript: "npm:^5.3.3"
-    undici: "npm:^7.24.0"
+    undici: "npm:^7.28.0"
     winston: "npm:^3.11.0"
   languageName: unknown
   linkType: soft
@@ -10939,10 +10939,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"undici@npm:^7.24.0":
-  version: 7.27.1
-  resolution: "undici@npm:7.27.1"
-  checksum: 10c0/f88e75ca66e495899a4973ad7fe97713101c86307c0fb2001638332de6a24c68edde4395edb0024b7152a9499b1abeda42c923387fa5f14da51cf964b91d05a6
+"undici@npm:^7.28.0":
+  version: 7.28.0
+  resolution: "undici@npm:7.28.0"
+  checksum: 10c0/fe781983a26098795e99bb1f64906cbb7d0bcaa029a26baade007b53ea67f2631d189b8f9671a31f4c8d0cb3773b7559608628ba54452fef51fec90e7c78bb0d
   languageName: node
   linkType: hard
 
