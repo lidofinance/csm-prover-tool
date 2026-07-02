@@ -1,6 +1,6 @@
 import { FallbackProviderModule, type NonEmptyArray } from '@lido-nestjs/execution';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Module } from '@nestjs/common';
+import { type DynamicModule, Module } from '@nestjs/common';
 import { ConditionalModule } from '@nestjs/config';
 
 import { Consensus } from './consensus/consensus.js';
@@ -21,7 +21,12 @@ const ExecutionDaemon = () =>
         maxRetries: configService.get('EL_RPC_MAX_RETRIES'),
         minBackoffMs: configService.get('EL_RPC_RETRY_DELAY_MS'),
         resetIntervalMs: configService.get('EL_RPC_RESET_INTERVAL_MS'),
-        logRetries: true,
+        requestPolicy: {
+          jsonRpcMaxBatchSize: configService.get('EL_RPC_MAX_BATCH_SIZE'),
+          maxConcurrentRequests: configService.get('EL_RPC_MAX_CONCURRENT_REQUESTS'),
+          batchAggregationWaitMs: configService.get('EL_RPC_BATCH_AGGREGATION_WAIT_MS'),
+        },
+        logSuccessfulAttempts: false,
         fetchMiddlewares: [
           async (next, ctx) => {
             const targetName = new URL(ctx.provider.connection.url).hostname;
@@ -53,7 +58,7 @@ const ExecutionDaemon = () =>
       };
     },
     inject: [ConfigService, PrometheusService, LOGGER_PROVIDER],
-  });
+  }) as DynamicModule;
 
 const ExecutionCli = () =>
   FallbackProviderModule.forRootAsync({
@@ -61,10 +66,15 @@ const ExecutionCli = () =>
       return {
         urls: configService.get('EL_RPC_URLS') as NonEmptyArray<string>,
         network: configService.get('CHAIN_ID'),
+        requestPolicy: {
+          jsonRpcMaxBatchSize: configService.get('EL_RPC_MAX_BATCH_SIZE'),
+          maxConcurrentRequests: configService.get('EL_RPC_MAX_CONCURRENT_REQUESTS'),
+          batchAggregationWaitMs: configService.get('EL_RPC_BATCH_AGGREGATION_WAIT_MS'),
+        },
       };
     },
     inject: [ConfigService],
-  });
+  }) as DynamicModule;
 
 @Module({
   imports: [

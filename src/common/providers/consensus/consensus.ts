@@ -176,22 +176,33 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   }
 
   private async fetchState(stateId: StateId, signal?: AbortSignal): Promise<State> {
-    const requestPromise = this.retryRequest(async (baseUrl) =>
-      this.baseGet(baseUrl, this.endpoints.state(stateId), {
+    const requestPromise = this.retryRequest<State>(async (baseUrl) => {
+      const { body, headers } = await this.baseGet(baseUrl, this.endpoints.state(stateId), {
         signal,
         headers: { accept: 'application/octet-stream' },
-      }),
-    );
+      });
+      this.progress?.show('State downloading', { body, headers });
+      const forkName = parseFork(headers['eth-consensus-version'] as string);
+      const bodyBytes = await body.bytes();
+      this.assertSerializedState(bodyBytes, forkName, stateId);
+      return { bodyBytes, forkName };
+    });
     if (this.progress) {
       spinnerFor(requestPromise, { text: `Getting state response for state id [${stateId}]` });
     } else {
       this.logger.log(`Getting state response for state id [${stateId}]`);
     }
-    const { body, headers } = await requestPromise;
-    this.progress?.show('State downloading', { body, headers });
-    const forkName = parseFork(headers['eth-consensus-version'] as string);
-    const bodyBytes = await body.bytes();
-    return { bodyBytes, forkName };
+    return await requestPromise;
+  }
+
+  private assertSerializedState(bodyBytes: Uint8Array, forkName: SupportedForkKey, stateId: StateId): void {
+    const stateMinSize = ssz[forkName].BeaconState.minSize;
+    if (bodyBytes.length < stateMinSize) {
+      throw new Error(`State body too small for [${stateId}]: ${bodyBytes.length} < ${stateMinSize}`);
+    }
+    const view = new DataView(bodyBytes.buffer, bodyBytes.byteOffset, bodyBytes.byteLength);
+    // Validate field bytes offsets and fail on a corrupt body
+    ssz[forkName].BeaconState.getFieldRanges(view, 0, bodyBytes.byteLength);
   }
 
   @TrackCLRequest

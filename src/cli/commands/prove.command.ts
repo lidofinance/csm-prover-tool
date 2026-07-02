@@ -81,7 +81,7 @@ export class ProveCommand extends CommandRunner {
           );
           break;
         case 'bad_performer':
-          const headHeader = await this.consensus.getBeaconHeader('head');
+          const headHeader = await this.consensus.getBeaconHeader('finalized');
           sentCount = await this.prover.handleBadPerformers(headHeader, this.fullKeyInfoFn);
           break;
         case 'slashing':

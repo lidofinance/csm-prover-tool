@@ -59,8 +59,13 @@ export class StrikesContract {
       throw new Error('FeeInvalidData');
     }
 
-    // Parse uint256 from the response
-    return BigInt(result);
+    // Parse uint256 from the response (wei)
+    const fee = BigInt(result);
+    const maxFeeGwei = BigInt(this.config.get('STRIKES_MAX_REQUEST_FEE_GWEI'));
+    if (fee >= maxFeeGwei * 1_000_000_000n) {
+      throw new Error(`Withdrawal request fee too high: ${utils.formatUnits(fee, 'gwei')} Gwei >= ${maxFeeGwei} Gwei`);
+    }
+    return fee;
   }
 
   public async sendBadPerformanceProof(payload: BadPerformerProofPayload): Promise<void> {

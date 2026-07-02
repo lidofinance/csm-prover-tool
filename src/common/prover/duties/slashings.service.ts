@@ -29,11 +29,9 @@ export class SlashingsService {
       ...this.getSlashedAttesters(blockInfo, keyInfoFn),
     };
     if (!Object.keys(slashings).length) return {};
-    const unproven: InvolvedKeys = {};
-    for (const [valIndex, keyInfo] of Object.entries(slashings)) {
-      const proved = await this.stakingModule.isSlashingProved(keyInfo);
-      if (!proved) unproven[valIndex] = keyInfo;
-    }
+    const entries = Object.entries(slashings);
+    const proved = await Promise.all(entries.map(([, keyInfo]) => this.stakingModule.isSlashingProved(keyInfo)));
+    const unproven: InvolvedKeys = Object.fromEntries(entries.filter((_, i) => !proved[i]));
     const unprovenCount = Object.keys(unproven).length;
     if (!unprovenCount) {
       this.logger.log('No slashings to prove');

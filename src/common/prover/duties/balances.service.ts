@@ -27,19 +27,20 @@ export class BalancesService {
     protected readonly verifier: VerifierContract,
   ) {}
 
-  public async isProvableBalance(keyInfo: KeyInfo, balanceGwei: bigint, exitEpoch: bigint): Promise<boolean> {
+  public isProvableBalance(keyAddedBalanceWei: bigint, balanceGwei: bigint, exitEpoch: bigint): boolean {
     const minActivationBalanceGwei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE);
     const maxEffectiveBalanceGwei = BigInt(this.consensus.beaconConfig.MAX_EFFECTIVE_BALANCE_ELECTRA);
-    const keyConfirmedBalanceGwei = (await this.stakingModule.getKeyAddedBalance(keyInfo)) / 1_000_000_000n;
+    const reportableMaxGwei = maxEffectiveBalanceGwei - BigInt(this.config.get('BALANCE_PROOF_TOPUP_STEP_GWEI'));
+    const keyConfirmedBalanceGwei = keyAddedBalanceWei / 1_000_000_000n;
     const confirmedBalanceGwei = minActivationBalanceGwei + keyConfirmedBalanceGwei;
-    if (maxEffectiveBalanceGwei <= confirmedBalanceGwei) return false;
+    if (reportableMaxGwei <= confirmedBalanceGwei) return false;
     if (balanceGwei <= confirmedBalanceGwei) return false;
 
     const balanceDeltaGwei = balanceGwei - confirmedBalanceGwei;
     return (
       balanceDeltaGwei > BigInt(this.config.get('BALANCE_PROOF_MIN_DELTA_GWEI')) ||
       exitEpoch !== FAR_FUTURE_EPOCH ||
-      balanceGwei >= maxEffectiveBalanceGwei
+      balanceGwei >= reportableMaxGwei
     );
   }
 
@@ -51,19 +52,20 @@ export class BalancesService {
     const currentExitEpochs = await this.getValidatorExitEpochs(currentState);
     const provable: InvolvedKeys = {};
 
-    for (const [valIndex, keyInfo] of Object.entries(keys)) {
+    // Validators not yet in the state are skipped — keys data can be more recent than the state due to
+    // async processing. They'll be retried on the next block once the state catches up.
+    const entries = Object.entries(keys).filter(([valIndex]) => currentBalances[Number(valIndex)] !== undefined);
+    const addedBalances = await Promise.all(
+      entries.map(([, keyInfo]) => this.stakingModule.getKeyAddedBalance(keyInfo)),
+    );
+
+    entries.forEach(([valIndex, keyInfo], i) => {
       const balanceToProve = currentBalances[Number(valIndex)];
-      if (balanceToProve === undefined) {
-        // No validator in the state yet. Probably, keys data is likely more recent than the state due to async processing.
-        // Skip for now, the next block will have updated state and may include these validator.
-        continue;
-      }
       const exitEpochToProve = currentExitEpochs[Number(valIndex)];
-      const isProvable = await this.isProvableBalance(keyInfo, balanceToProve, exitEpochToProve);
-      if (isProvable) {
+      if (this.isProvableBalance(addedBalances[i], balanceToProve, exitEpochToProve)) {
         provable[valIndex] = keyInfo;
       }
-    }
+    });
 
     const provableCount = Object.keys(provable).length;
     if (!provableCount) {
@@ -84,7 +86,7 @@ export class BalancesService {
     if (!Object.keys(balanceChanges).length) return 0;
     if (this.isHistoricalBlock(blockHeader, recentHeader)) {
       this.logger.warn('Balance proof block is historical. Processing will take longer than usual');
-      const payloads = await this.sendHistoricalBalanceProofs(blockHeader, state, recentHeader, balanceChanges);
+      const payloads = await this.sendHistoricalBalanceProofs(blockHeader, state, balanceChanges);
       return payloads.length;
     }
 
@@ -126,9 +128,11 @@ export class BalancesService {
   private async sendHistoricalBalanceProofs(
     blockHeader: BlockHeaderResponse,
     state: State,
-    recentHeader: BlockHeaderResponse,
     balanceChanges: InvolvedKeys,
   ): Promise<IVerifier.ProcessHistoricalBalanceProofInputStruct[]> {
+    // Get the freshest finalized header: A header captured at the start of the daemon iteration
+    // can age out during slow historical proof generation → RootNotFound() revert.
+    const recentHeader = await this.consensus.getBeaconHeader('finalized');
     const nextHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(recentHeader.root)).data);
     if (!nextHeader) throw new Error(`Next canonical block header after ${recentHeader.root} not found`);
     const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
