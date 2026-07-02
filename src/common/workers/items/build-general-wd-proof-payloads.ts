@@ -47,6 +47,12 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.Process
       );
       throw new Error('Validator pubkey mismatch');
     }
+    if (validator.slashed) {
+      WorkerLogger.warn(
+        `Validator ${valIndex} is slashed. Must be reported via reportSlashedWithdrawnValidators. Skipped`,
+      );
+      continue;
+    }
     if (epoch < validator.withdrawableEpoch) {
       WorkerLogger.warn(`Validator ${valIndex} is not full withdrawn. Just huge amount of ETH. Skipped`);
       continue;
