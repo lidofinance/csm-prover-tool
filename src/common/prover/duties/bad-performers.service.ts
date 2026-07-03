@@ -40,6 +40,10 @@ export class BadPerformersService {
   private currentNodeOperatorsCurveIds: Map<number, number> = new Map();
   private lastProcessedStrikesTreeRoot: string | undefined;
 
+  public getCurrentExitRequestsLimit(): Promise<bigint> {
+    return this.strikes.getCurrentExitRequestsLimit();
+  }
+
   public async getUnprovenNonWithdrawnBadPerformers(
     headBlockInfo: SupportedBlock,
     fullKeyInfoFn: FullKeyInfoByPubKeyFn,
@@ -68,16 +72,30 @@ export class BadPerformersService {
 
     const keysMaxBatchSize = this.config.get('TX_STRIKES_PAYLOAD_MAX_BATCH_SIZE');
 
-    const batchCount = Math.ceil(badPerformers.length / keysMaxBatchSize);
+    // Each key triggers one exit request; cap the report to what the gateway allows now and defer the rest.
+    const exitLimit = await this.strikes.getCurrentExitRequestsLimit();
+    const sendAll = exitLimit >= BigInt(badPerformers.length);
+    const toSend = sendAll ? badPerformers : badPerformers.slice(0, Number(exitLimit));
+    if (!sendAll) {
+      this.logger.warn(
+        `⚠️ Exit request limit ${exitLimit} < ${badPerformers.length} bad performers; sending ${toSend.length} now, deferring the rest`,
+      );
+    }
+    if (toSend.length === 0) return 0; // nothing allowed now — leave the tree unprocessed and retry next round
+
+    const batchCount = Math.ceil(toSend.length / keysMaxBatchSize);
 
     this.logger.log(
-      `Preparing payloads for ${badPerformers.length} validators in ${batchCount} batches by ${keysMaxBatchSize} max keys each`,
+      `Preparing payloads for ${toSend.length} validators in ${batchCount} batches by ${keysMaxBatchSize} max keys each`,
     );
 
-    await this.processBadPerformerBatches(badPerformers, keysMaxBatchSize);
+    await this.processBadPerformerBatches(toSend, keysMaxBatchSize);
 
-    this.lastProcessedStrikesTreeRoot = this.currentStrikesTree.root;
-    return badPerformers.length;
+    // Mark the tree processed only if the full set was sent; a partial send is retried next round.
+    if (sendAll) {
+      this.lastProcessedStrikesTreeRoot = this.currentStrikesTree.root;
+    }
+    return toSend.length;
   }
 
   private async prepareStrikesTreeForProcessing(headBlockInfo: SupportedBlock): Promise<boolean> {
