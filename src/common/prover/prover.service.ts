@@ -34,6 +34,10 @@ export class ProverService implements OnModuleInit {
     finalizedHeader: BlockHeaderResponse,
     fullKeyInfoFn: FullKeyInfoByPubKeyFn,
   ): Promise<number> {
+    if ((await this.strikes.getCurrentExitRequestsLimit()) === 0n) {
+      this.logger.warn('⚠️ Exit request limit is 0; skipping bad performers processing this round');
+      return 0;
+    }
     const finalizedBlockInfo = await this.consensus.getBlockInfo(finalizedHeader.root);
     const badPerformers = await this.strikes.getUnprovenNonWithdrawnBadPerformers(finalizedBlockInfo, fullKeyInfoFn);
     const sentCount = await this.strikes.sendBadPerformanceProofs(badPerformers);

@@ -5,7 +5,14 @@ import { Inject, Injectable } from '@nestjs/common';
 import { utils } from 'ethers';
 
 import { AccountingContract } from './accounting-contract.service.js';
-import { FeeDistributor__factory, FeeOracle__factory, type Strikes, Strikes__factory } from './types/index.js';
+import {
+  Ejector__factory,
+  FeeDistributor__factory,
+  FeeOracle__factory,
+  type Strikes,
+  Strikes__factory,
+  TriggerableWithdrawalsGateway__factory,
+} from './types/index.js';
 import { ConfigService } from '../config/config.service.js';
 import { type AppLogger } from '../logger/app-logger.type.js';
 import type { BadPerformerProofPayload } from '../prover/types.js';
@@ -87,6 +94,17 @@ export class StrikesContract {
 
   public async getExitPenaltiesAddress(): Promise<string> {
     return await this.contract.EXIT_PENALTIES();
+  }
+
+  // Current triggerable-withdrawals exit-request allowance, via Strikes -> ejector -> gateway.
+  // Returns type(uint256).max when the on-chain limit is unset (unlimited).
+  public async getCurrentExitRequestsLimit(): Promise<bigint> {
+    const ejectorAddress = await this.contract.ejector();
+    const ejector = Ejector__factory.connect(ejectorAddress, this.execution.provider);
+    const gatewayAddress = await ejector.triggerableWithdrawalsGateway();
+    const gateway = TriggerableWithdrawalsGateway__factory.connect(gatewayAddress, this.execution.provider);
+    const info = await gateway.getExitRequestLimitFullInfo();
+    return info.currentExitRequestsLimit.toBigInt();
   }
 
   public async getTreeCid(blockTag: BlockTag): Promise<string> {
