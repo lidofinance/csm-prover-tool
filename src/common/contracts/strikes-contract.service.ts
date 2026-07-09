@@ -11,6 +11,7 @@ import {
   FeeOracle__factory,
   type Strikes,
   Strikes__factory,
+  type TriggerableWithdrawalsGateway,
   TriggerableWithdrawalsGateway__factory,
 } from './types/index.js';
 import { ConfigService } from '../config/config.service.js';
@@ -23,6 +24,7 @@ const WITHDRAWAL_REQUEST_SYS_ADDRESS = '0x00000961Ef480Eb55e80D19ad83579A64c0070
 @Injectable()
 export class StrikesContract {
   private contract: Strikes;
+  private gateway: TriggerableWithdrawalsGateway;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
@@ -48,6 +50,13 @@ export class StrikesContract {
     }
     this.logger.log(`CSStrikes address: ${address}`);
     this.contract = Strikes__factory.connect(address, this.execution.provider);
+
+    // Resolve the triggerable-withdrawals gateway once — addresses (Strikes -> ejector -> gateway) are deployment-constant.
+    const ejectorAddress = await this.contract.ejector();
+    const ejector = Ejector__factory.connect(ejectorAddress, this.execution.provider);
+    const gatewayAddress = await ejector.triggerableWithdrawalsGateway();
+    this.gateway = TriggerableWithdrawalsGateway__factory.connect(gatewayAddress, this.execution.provider);
+    this.logger.log(`TriggerableWithdrawalsGateway address: ${gatewayAddress}`);
   }
 
   private async getRequestFee(): Promise<bigint> {
@@ -96,14 +105,9 @@ export class StrikesContract {
     return await this.contract.EXIT_PENALTIES();
   }
 
-  // Current triggerable-withdrawals exit-request allowance, via Strikes -> ejector -> gateway.
-  // Returns type(uint256).max when the on-chain limit is unset (unlimited).
+  // Current triggerable-withdrawals exit-request allowance. Returns type(uint256).max when unset (unlimited).
   public async getCurrentExitRequestsLimit(): Promise<bigint> {
-    const ejectorAddress = await this.contract.ejector();
-    const ejector = Ejector__factory.connect(ejectorAddress, this.execution.provider);
-    const gatewayAddress = await ejector.triggerableWithdrawalsGateway();
-    const gateway = TriggerableWithdrawalsGateway__factory.connect(gatewayAddress, this.execution.provider);
-    const info = await gateway.getExitRequestLimitFullInfo();
+    const info = await this.gateway.getExitRequestLimitFullInfo();
     return info.currentExitRequestsLimit.toBigInt();
   }
 
