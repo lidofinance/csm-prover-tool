@@ -15,9 +15,12 @@ import { ProverService } from '../common/prover/prover.service.js';
 import { Consensus } from '../common/providers/consensus/consensus.js';
 import { type BlockHeaderResponse } from '../common/providers/consensus/response.interface.js';
 
+const SLOT_MS = 12 * SECOND_MS;
+
 @Injectable()
 export class DaemonService implements OnModuleInit {
   private lastFinalizedHeader: BlockHeaderResponse | null = null;
+  private rootProcessing: Promise<void> | null = null;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
@@ -55,7 +58,10 @@ export class DaemonService implements OnModuleInit {
       } catch (e) {
         this.logger.error(e);
       } finally {
-        await sleep(SECOND_MS);
+        // While a root is processing, wait a slot to keep the finalized heartbeat but wake the instant it
+        // finishes; otherwise tick every second.
+        const processing = this.rootProcessing;
+        await (processing ? Promise.race([sleep(SLOT_MS), processing]) : sleep(SECOND_MS));
       }
     }
   }
@@ -74,17 +80,23 @@ export class DaemonService implements OnModuleInit {
       this.processBadPerformers(finalizedHeader).catch((e) => this.logger.error(e));
     }
 
-    const nextRoot = await this.rootsProvider.getNext(finalizedHeader);
-    if (nextRoot) {
-      this.processNextRoot(finalizedHeader, nextRoot).catch((e) => this.logger.error(e));
-    }
+    this.lastFinalizedHeader = finalizedHeader;
 
+    // Previous root still processing — skip; the loop's backoff wakes us the moment it finishes.
+    if (this.rootProcessing) return;
+
+    const nextRoot = await this.rootsProvider.getNext(finalizedHeader);
     if (!nextRoot) {
       this.logger.log('💤 Wait 12s for the next root');
-      await sleep(12 * SECOND_MS);
+      await sleep(SLOT_MS);
+      return;
     }
 
-    this.lastFinalizedHeader = finalizedHeader;
+    this.rootProcessing = this.processNextRoot(finalizedHeader, nextRoot)
+      .catch((e) => this.logger.error(e))
+      .finally(() => {
+        this.rootProcessing = null;
+      });
   }
 
   private isFinalizedHeaderChanged(finalizedHeader: BlockHeaderResponse): boolean {
