@@ -98,22 +98,6 @@ export class ProverService implements OnModuleInit {
     return sentCount + balanceSentCount;
   }
 
-  public async handleBalanceChangesInEpoch(
-    blockRoot: RootHex,
-    blockInfo: SupportedBlock,
-    finalizedHeader: BlockHeaderResponse,
-    getKeys: () => InvolvedKeys,
-  ): Promise<number> {
-    if (!this.balances) return 0;
-    const isFirstBlockInEpoch = await this.isFirstBlockInEpoch(blockInfo);
-    if (!isFirstBlockInEpoch) {
-      this.logger.log('Skipping balance change proving. Not the first block in epoch');
-      return 0;
-    }
-
-    return await this.handleBalanceChangesInBlock(blockRoot, finalizedHeader, getKeys);
-  }
-
   public async handleBalanceChangesInBlock(
     blockRoot: RootHex,
     finalizedHeader: BlockHeaderResponse,
@@ -122,16 +106,6 @@ export class ProverService implements OnModuleInit {
     if (!this.balances) return 0;
     const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
     return await this.handleBalanceChanges(blockHeader, finalizedHeader, getKeys);
-  }
-
-  private async isFirstBlockInEpoch(blockInfo: SupportedBlock): Promise<boolean> {
-    const currentSlot = Number(blockInfo.slot);
-    if (currentSlot === 0) return true;
-    const parentRoot = toRootHex(blockInfo.parentRoot);
-    const parentHeader = await this.consensus.getBeaconHeader(parentRoot);
-    const parentEpoch = this.consensus.slotToEpoch(Number(parentHeader.header.message.slot));
-    const currentEpoch = this.consensus.slotToEpoch(currentSlot);
-    return parentEpoch < currentEpoch;
   }
 
   private async handleBalanceChanges(

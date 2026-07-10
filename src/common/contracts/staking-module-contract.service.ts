@@ -43,9 +43,24 @@ export class StakingModuleContract {
     }
   }
 
-  public async getKeyAddedBalance(keyInfo: KeyInfo): Promise<bigint> {
-    const [balance] = await this.contract.getKeyConfirmedBalances(keyInfo.operatorId, keyInfo.keyIndex, 1);
-    return balance.toBigInt();
+  public async getKeyAddedBalances(keyInfos: KeyInfo[]): Promise<bigint[]> {
+    // Fetch each operator's candidate keys as one contiguous getKeyConfirmedBalances range
+    const operatorIds = [...new Set(keyInfos.map((k) => k.operatorId))];
+    const rangeByOperator: Record<number, { start: number; balances: bigint[] }> = {};
+    await Promise.all(
+      operatorIds.map(async (operatorId) => {
+        const keyIndexes = keyInfos.filter((k) => k.operatorId === operatorId).map((k) => k.keyIndex);
+        const start = Math.min(...keyIndexes);
+        const count = Math.max(...keyIndexes) - start + 1;
+        const balances = await this.contract.getKeyConfirmedBalances(operatorId, start, count);
+        rangeByOperator[operatorId] = { start, balances: balances.map((b) => b.toBigInt()) };
+      }),
+    );
+
+    return keyInfos.map(({ operatorId, keyIndex }) => {
+      const { start, balances } = rangeByOperator[operatorId];
+      return balances[keyIndex - start];
+    });
   }
 
   public async isWithdrawalProved(keyInfo: KeyInfo): Promise<boolean> {
