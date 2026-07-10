@@ -58,10 +58,15 @@ export class DaemonService implements OnModuleInit {
       } catch (e) {
         this.logger.error(e);
       } finally {
-        // While a root is processing, wait a slot to keep the finalized heartbeat but wake the instant it
-        // finishes; otherwise tick every second.
         const processing = this.rootProcessing;
-        await (processing ? Promise.race([sleep(SLOT_MS), processing]) : sleep(SECOND_MS));
+        if (!processing) {
+          await sleep(SECOND_MS);
+        } else {
+          // Wake when the root finishes or a slot passes (finalized heartbeat), but never sooner than a second
+          const minGap = sleep(SECOND_MS);
+          const doneOrSlot = Promise.race([processing, sleep(SLOT_MS)]);
+          await Promise.all([minGap, doneOrSlot]);
+        }
       }
     }
   }

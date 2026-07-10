@@ -50,14 +50,17 @@ export class BalancesService {
 
     const currentBalances = await this.getValidatorBalances(currentState);
     const currentExitEpochs = await this.getValidatorExitEpochs(currentState);
+    const minActivationBalanceGwei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE);
     const provable: InvolvedKeys = {};
 
-    // Validators not yet in the state are skipped — keys data can be more recent than the state due to
-    // async processing. They'll be retried on the next block once the state catches up.
-    const entries = Object.entries(keys).filter(([valIndex]) => currentBalances[Number(valIndex)] !== undefined);
-    const addedBalances = await Promise.all(
-      entries.map(([, keyInfo]) => this.stakingModule.getKeyAddedBalance(keyInfo)),
-    );
+    // Validators not yet in the state are skipped — keys data can be more recent than the state due to async
+    // processing; they retry next block. A balance <= MIN_ACTIVATION_BALANCE can never be provable (confirmed
+    // balance is always >= MIN_ACTIVATION_BALANCE), so drop those before the on-chain confirmed-balance reads.
+    const entries = Object.entries(keys).filter(([valIndex]) => {
+      const balance = currentBalances[Number(valIndex)];
+      return balance !== undefined && balance > minActivationBalanceGwei;
+    });
+    const addedBalances = await this.stakingModule.getKeyAddedBalances(entries.map(([, keyInfo]) => keyInfo));
 
     entries.forEach(([valIndex, keyInfo], i) => {
       const balanceToProve = currentBalances[Number(valIndex)];
