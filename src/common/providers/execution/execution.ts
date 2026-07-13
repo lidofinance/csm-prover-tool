@@ -1,4 +1,4 @@
-import { type TransactionResponse } from '@ethersproject/abstract-provider';
+import { type TransactionReceipt, type TransactionResponse } from '@ethersproject/abstract-provider';
 import { MAX_BLOCKCOUNT, SimpleFallbackJsonRpcBatchProvider } from '@lido-nestjs/execution';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, Optional } from '@nestjs/common';
@@ -183,6 +183,7 @@ export class Execution {
     }
     const signed = await this.signer.signTransaction(populatedTx);
     let submitted: TransactionResponse;
+    let receipt: TransactionReceipt;
     try {
       const submittedPromise = this.provider.sendTransaction(signed);
       let msg = `Sending transaction with nonce ${populatedTx.nonce} and gasLimit: ${populatedTx.gasLimit}, maxFeePerGas: ${populatedTx.maxFeePerGas}, maxPriorityFeePerGas: ${populatedTx.maxPriorityFeePerGas}`;
@@ -204,12 +205,18 @@ export class Execution {
       } else {
         this.logger.log(msg);
       }
-      await waitingPromise;
+      receipt = await waitingPromise;
     } catch (e) {
       // Dirty hack for switching to the next provider in case of failure in sending transaction process
       // @ts-expect-error 'accessing protected member'
       this.provider.switchToNextProvider();
       throw new SendTransactionError(e, populatedTxContext);
+    }
+    if (receipt.status !== 1) {
+      throw new SendTransactionError(
+        `Transaction reverted on-chain (status ${receipt.status}). Hash: ${submitted?.hash}`,
+        populatedTxContext,
+      );
     }
     this.logger.log(`✅ Transaction succeeded! Hash: ${submitted?.hash}`);
   }
