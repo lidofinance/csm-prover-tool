@@ -1,0 +1,27 @@
+name: Build and push csm-prover-tool to staging
+
+run-name: Build and push csm-prover-tool:staging to staging
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '.github/**'
+      - 'test/**'
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-push:
+    uses: lidofinance/actions/.github/workflows/k8s-build-push-harbor.yml@c7b5b6c5d8013046347d728d748fa741eb214e28
+    with:
+      tag: staging
+      registry: registry.staging.k8s-staging.org
+      registry_username: ${{ vars.REGISTRY_USERNAME }}
+      image: team-csm/csm-prover-tool
+      environment: harbor_stage_release
+    secrets:
+      registry_token: ${{ secrets.HARBOR_STAGE_TOKEN }}

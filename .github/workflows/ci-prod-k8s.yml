@@ -1,0 +1,27 @@
+name: Build and push csm-prover-tool to production
+
+run-name: Build and push csm-prover-tool:${{ inputs.TAG }} to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      TAG:
+        description: Image tag to push
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-push:
+    if: github.ref_name == 'main'
+    uses: lidofinance/actions/.github/workflows/k8s-build-push-harbor.yml@c7b5b6c5d8013046347d728d748fa741eb214e28
+    with:
+      tag: ${{ inputs.TAG }}
+      registry: registry.prod.k8s-prod.org
+      registry_username: ${{ vars.REGISTRY_USERNAME }}
+      image: team-csm/csm-prover-tool
+      environment: harbor_prod_release
+    secrets:
+      registry_token: ${{ secrets.HARBOR_PROD_TOKEN }}
