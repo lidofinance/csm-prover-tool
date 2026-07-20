@@ -136,8 +136,9 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
       const { body, headers } = await this.retryRequest((baseUrl) =>
         this.baseGet(baseUrl, this.endpoints.blockInfo(blockId)),
       );
-      const forkName = parseFork(headers['eth-consensus-version'] as string);
+      // Read the body before parsing the fork, else a bad fork leaks it.
       const jsonBody = (await body.json()) as { data: { message: JSON } };
+      const forkName = parseFork(headers['eth-consensus-version'] as string);
       return getSsz(forkName).BeaconBlock.fromJson(jsonBody.data.message);
     });
   }
@@ -182,7 +183,14 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
         headers: { accept: 'application/octet-stream' },
       });
       this.progress?.show('State downloading', { body, headers });
-      const forkName = parseFork(headers['eth-consensus-version'] as string);
+      let forkName: SupportedForkKey;
+      try {
+        forkName = parseFork(headers['eth-consensus-version'] as string);
+      } catch (e) {
+        // Reject a bad fork before downloading the body; dump it so the socket isn't leaked.
+        await body.dump().catch(() => {});
+        throw e;
+      }
       const bodyBytes = await body.bytes();
       this.assertSerializedState(bodyBytes, forkName, stateId);
       return { bodyBytes, forkName };

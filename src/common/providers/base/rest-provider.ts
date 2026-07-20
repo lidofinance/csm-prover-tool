@@ -100,6 +100,7 @@ export abstract class BaseRestProvider {
       headers: options.headers,
     });
     if (statusCode !== 200) {
+      await body.dump().catch(() => {}); // release the body/socket
       const hostname = new URL(base).hostname;
       throw new RequestError(
         `Request failed with status code [${statusCode}] on host [${hostname}]: ${endpoint}`,
@@ -129,6 +130,7 @@ export abstract class BaseRestProvider {
       body: JSON.stringify(requestBody),
     });
     if (statusCode !== 200) {
+      await body.dump().catch(() => {}); // release the body/socket
       const hostname = new URL(base).hostname;
       throw new RequestError(
         `Request failed with status code [${statusCode}] on host [${hostname}]: ${endpoint}`,
