@@ -63,8 +63,9 @@ export class Keysapi extends BaseRestProvider {
     );
     // TODO: ignore depositSignature ?
     const pipeline = chain([resp.body, parser()]);
-    return await new Promise((resolve) => {
+    return await new Promise((resolve, reject) => {
       Assembler.connectTo(pipeline).on('done', (asm) => resolve(asm.current));
+      pipeline.on('error', reject);
     });
   }
 
