@@ -1,0 +1,36 @@
+# Installed/built inside the image
+node_modules
+dist
+.yarn
+
+# Secrets & local env — never bake into the image
+.env
+.env.*
+!.env.example
+
+# Runtime data & logs
+storage
+*.log
+logs
+
+# VCS / CI / editors / OS
+.git
+.gitignore
+.github
+.claude
+.idea
+.vscode
+.DS_Store
+
+# Tests & coverage
+test
+coverage
+.nyc_output
+
+# Docker & docs (not needed in the build context)
+Dockerfile*
+docker
+docker-compose.yml
+README.md
+LICENSE
+logo.png
