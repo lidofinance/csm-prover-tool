@@ -1,7 +1,6 @@
 import { ConfigService as ConfigServiceSource } from '@nestjs/config';
-import { plainToInstance } from 'class-transformer';
 
-import { EnvironmentVariables } from './env.validation.js';
+import { ENV_VARIABLE_KEYS, type EnvironmentVariables } from './env.validation.js';
 
 export class ConfigService extends ConfigServiceSource<EnvironmentVariables> {
   /**
@@ -22,7 +21,7 @@ export class ConfigService extends ConfigServiceSource<EnvironmentVariables> {
 
   /** App config snapshot for the startup ENV dump; secret values are masked by the log transport (see `secrets`). */
   public snapshot(): Record<string, unknown> {
-    const keys = Object.keys(plainToInstance(EnvironmentVariables, process.env)) as (keyof EnvironmentVariables)[];
-    return Object.fromEntries(keys.map((key) => [key, this.get(key)]));
+    const config = Object.fromEntries(ENV_VARIABLE_KEYS.map((key) => [key, this.get(key)]));
+    return { ...config, NODE_OPTIONS: process.env.NODE_OPTIONS };
   }
 }
