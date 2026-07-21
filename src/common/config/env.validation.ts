@@ -12,6 +12,7 @@ import {
   Max,
   Min,
   ValidateIf,
+  getMetadataStorage,
   validateSync,
 } from 'class-validator';
 
@@ -264,6 +265,14 @@ export class EnvironmentVariables {
   @Transform(({ value }) => toIntArray(value), { toClassOnly: true })
   public DAEMON_NODE_OPERATOR_IDS?: number[];
 }
+
+export const ENV_VARIABLE_KEYS = [
+  ...new Set(
+    getMetadataStorage()
+      .getTargetValidationMetadatas(EnvironmentVariables, '', false, false)
+      .map((meta) => meta.propertyName),
+  ),
+] as (keyof EnvironmentVariables)[];
 
 export function validate(config: Record<string, unknown>) {
   if (config.CSM_ADDRESS) {
