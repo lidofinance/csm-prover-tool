@@ -164,7 +164,7 @@ export class BadPerformersService {
   private async getStrikesTree(
     headBlockInfo: SupportedBlock,
   ): Promise<StandardMerkleTree<StrikesTreeLeaf> | undefined> {
-    const blockTag = toBlockTagByHash(headBlockInfo.body.executionPayload.blockHash);
+    const blockTag = toBlockTagByHash(this.getExecutionBlockHash(headBlockInfo));
     const treeRoot = await this.strikes.getTreeRoot(blockTag);
     const treeCid = await this.strikes.getTreeCid(blockTag);
     if (!treeCid || treeCid == '0x') {
@@ -272,7 +272,7 @@ export class BadPerformersService {
     headBlockInfo: SupportedBlock,
     keys: InvolvedKeysWithBadPerformance,
   ): Promise<InvolvedKeysWithBadPerformance | undefined> {
-    const blockTag = toBlockTagByHash(headBlockInfo.body.executionPayload.blockHash);
+    const blockTag = toBlockTagByHash(this.getExecutionBlockHash(headBlockInfo));
 
     this.logger.log('🔍 Searching for unproven bad performers');
 
@@ -316,7 +316,7 @@ export class BadPerformersService {
   }
 
   private async getStrikesThresholds(headBlockInfo: SupportedBlock): Promise<Map<number, number>> {
-    const blockTag = toBlockTagByHash(headBlockInfo.body.executionPayload.blockHash);
+    const blockTag = toBlockTagByHash(this.getExecutionBlockHash(headBlockInfo));
     const thresholds = new Map<number, number>();
 
     const curvesCount = await this.accounting.getCurvesCount(blockTag);
@@ -330,7 +330,7 @@ export class BadPerformersService {
     strikesTree: StandardMerkleTree<StrikesTreeLeaf>,
     headBlockInfo: SupportedBlock,
   ): Promise<Map<number, number>> {
-    const blockTag = toBlockTagByHash(headBlockInfo.body.executionPayload.blockHash);
+    const blockTag = toBlockTagByHash(this.getExecutionBlockHash(headBlockInfo));
     const curveIds = new Map<number, number>();
 
     const noIds = [...new Set([...strikesTree.entries()].map((leaf) => leaf[1][0]))];
@@ -339,6 +339,11 @@ export class BadPerformersService {
     );
     noIds.forEach((nodeOperatorId, i) => curveIds.set(nodeOperatorId, ids[i]));
     return curveIds;
+  }
+
+  private getExecutionBlockHash(block: SupportedBlock): Uint8Array {
+    if ('executionPayload' in block.body) return block.body.executionPayload.blockHash;
+    return block.body.signedExecutionPayloadBid.message.parentBlockHash;
   }
 
   private async getStrikesThresholdByNodeOperatorId(nodeOperatorId: number): Promise<number> {

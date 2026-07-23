@@ -32,7 +32,7 @@ async function buildSlashingProofPayloads(): Promise<IVerifier.ProcessSlashedInp
   //
   const payloads = [];
   for (const [valIndex, keyInfo] of Object.entries(slashings)) {
-    const validator = stateView.validators.getReadonly(Number(valIndex));
+    const validator = stateView.validators.get(Number(valIndex));
     WorkerLogger.log(`Generating validator [${valIndex}] proof`);
     const validatorProof = await generateValidatorProof(stateView, Number(valIndex));
     WorkerLogger.log('Verifying validator proof locally');

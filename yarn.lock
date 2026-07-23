@@ -593,13 +593,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@chainsafe/ssz@npm:^1.4.0":
-  version: 1.6.0
-  resolution: "@chainsafe/ssz@npm:1.6.0"
+"@chainsafe/ssz@npm:^1.6.2":
+  version: 1.6.2
+  resolution: "@chainsafe/ssz@npm:1.6.2"
   dependencies:
     "@chainsafe/as-sha256": "npm:"
     "@chainsafe/persistent-merkle-tree": "npm:"
-  checksum: 10c0/bbc2e1a06ac847300509237cd1b4cb3bc21805f018655447f5f4c92146ae286106100ff94ff06cbc9e6ce066ed848dc582a9ff41f445e18d7b471b195aaab981
+  checksum: 10c0/764b10f2e994606f88b637852e7ce367e9639ce3d25aeeb144919736fccf9985ca5926fd2b1eae1c203a5535cb20c88781366e8670bbb31238103e5a0e08f957
   languageName: node
   linkType: hard
 
@@ -1891,21 +1891,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lodestar/params@npm:^1.43.0":
-  version: 1.43.0
-  resolution: "@lodestar/params@npm:1.43.0"
-  checksum: 10c0/d3aeb2f8bee32bdc49a225aeb3b478ac8cda794888a99ad737f7ae29864de53991ded32292a164fc2903778fb3d523c8182c42068eb6c70fa750607a87e13054
+"@lodestar/params@npm:1.45.0-dev.d16fa2b13a":
+  version: 1.45.0-dev.d16fa2b13a
+  resolution: "@lodestar/params@npm:1.45.0-dev.d16fa2b13a"
+  checksum: 10c0/2945381ae020bbc68cad7e264ce480ae00b21047bc1c41a28a906ed9a1b846fb719f518d949f7542fdca2ff80aefb10daa8a5e17b67ae8c0e5572c3dc5efd317
   languageName: node
   linkType: hard
 
-"@lodestar/types@npm:^1.43.0":
-  version: 1.43.0
-  resolution: "@lodestar/types@npm:1.43.0"
+"@lodestar/types@npm:1.45.0-dev.d16fa2b13a":
+  version: 1.45.0-dev.d16fa2b13a
+  resolution: "@lodestar/types@npm:1.45.0-dev.d16fa2b13a"
   dependencies:
-    "@chainsafe/ssz": "npm:^1.4.0"
-    "@lodestar/params": "npm:^1.43.0"
+    "@chainsafe/ssz": "npm:^1.6.2"
+    "@lodestar/params": "npm:^1.45.0-dev.d16fa2b13a"
     ethereum-cryptography: "npm:^2.0.0"
-  checksum: 10c0/dda696d49808209c946f19f609efb3f6c4f0cc560bb801bdc9745167870bb67b57102ad9a90d27e5c387de3244cb9a8418bc88434140f8e1210cd8196e068d26
+  checksum: 10c0/8f39c42982d07de6e150d7714eb067c68c434616c692da39677d5791101c63357ccba325456ba7bdaff7596e22c3b3265d931311d5c569e706337d531a3eb92a
   languageName: node
   linkType: hard
 
@@ -4962,8 +4962,8 @@ __metadata:
     "@lido-nestjs/constants": "npm:^5.3.0"
     "@lido-nestjs/execution": "npm:^1.22.0"
     "@lido-nestjs/logger": "npm:^1.3.2"
-    "@lodestar/params": "npm:^1.43.0"
-    "@lodestar/types": "npm:^1.43.0"
+    "@lodestar/params": "npm:1.45.0-dev.d16fa2b13a"
+    "@lodestar/types": "npm:1.45.0-dev.d16fa2b13a"
     "@nestjs/cli": "npm:^10.4.5"
     "@nestjs/common": "npm:^11.1.24"
     "@nestjs/config": "npm:^4.0.4"

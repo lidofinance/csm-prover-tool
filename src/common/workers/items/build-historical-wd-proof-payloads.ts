@@ -5,6 +5,7 @@ import {
   generateHistoricalStateProof,
   generateValidatorProof,
   generateWithdrawalProof,
+  getWithdrawalView,
   toBeaconHeaderStruct,
   toHex,
   toValidatorStruct,
@@ -57,7 +58,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
   //
   const payloads = [];
   for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
-    const validator = stateWithWdsView.validators.getReadonly(Number(valIndex));
+    const validator = stateWithWdsView.validators.get(Number(valIndex));
     if (toHex(validator.pubkey) != keyWithWithdrawalInfo.pubKey) {
       WorkerLogger.error(
         `Validator ${valIndex} pubkey mismatch with key from the contract 
@@ -83,6 +84,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
       stateWithWdsView,
       blockWithWdsView,
       keyWithWithdrawalInfo.withdrawal.offset,
+      stateWithWds.forkName,
     );
     WorkerLogger.log('Generating historical state proof');
     const historicalStateProof = await generateHistoricalStateProof(
@@ -103,9 +105,12 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
       stateWithWdsView.hashTreeRoot(),
       withdrawalProof.gindex,
       withdrawalProof.witnesses,
-      blockWithWdsView.body.executionPayload.withdrawals
-        .getReadonly(keyWithWithdrawalInfo.withdrawal.offset)
-        .hashTreeRoot(),
+      getWithdrawalView(
+        stateWithWdsView,
+        blockWithWdsView,
+        keyWithWithdrawalInfo.withdrawal.offset,
+        stateWithWds.forkName,
+      ).hashTreeRoot(),
     );
     WorkerLogger.log('Verifying historical state proof locally');
     verifyProof(

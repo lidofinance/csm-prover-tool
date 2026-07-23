@@ -29,7 +29,7 @@ async function buildBalanceProofPayloads(): Promise<IVerifier.ProcessBalanceProo
   const payloads: IVerifier.ProcessBalanceProofInputStruct[] = [];
   for (const [valIndex, keyInfo] of Object.entries(keys)) {
     const valIndexNum = Number(valIndex);
-    const validator = stateView.validators.getReadonly(valIndexNum);
+    const validator = stateView.validators.get(valIndexNum);
     if (toHex(validator.pubkey) !== keyInfo.pubKey) {
       WorkerLogger.error(
         `Validator ${valIndex} pubkey mismatch with key from the contract 

@@ -65,7 +65,7 @@ async function buildHistoricalBalanceProofPayloads(): Promise<IVerifier.ProcessH
   const payloads: IVerifier.ProcessHistoricalBalanceProofInputStruct[] = [];
   for (const [valIndex, keyInfo] of Object.entries(keys)) {
     const valIndexNum = Number(valIndex);
-    const validator = stateWithBalancesView.validators.getReadonly(valIndexNum);
+    const validator = stateWithBalancesView.validators.get(valIndexNum);
     if (toHex(validator.pubkey) !== keyInfo.pubKey) {
       WorkerLogger.error(
         `Validator ${valIndex} pubkey mismatch with key from the contract 

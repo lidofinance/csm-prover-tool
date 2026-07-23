@@ -79,9 +79,15 @@ export class ProverService implements OnModuleInit {
     finalizedHeader: BlockHeaderResponse,
     keyInfoFn: KeyInfoFn,
   ): Promise<number> {
-    const withdrawals = await this.withdrawals.getUnprovenWithdrawals(blockInfo, keyInfoFn);
+    const withdrawals = await this.withdrawals.getUnprovenWithdrawals(blockRoot, blockInfo, keyInfoFn);
+    if (!Object.keys(withdrawals).length) {
+      this.logger.log('No Withdrawal Proof(s) were sent');
+      return 0;
+    }
+    const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
+    const state = await this.consensus.getState(toRootHex(blockHeader.header.message.stateRoot));
     let balanceSentCount = 0;
-    if (this.balances && Object.keys(withdrawals).length > 0) {
+    if (this.balances) {
       const parentRoot = toRootHex(blockInfo.parentRoot);
       this.logger.log(
         `Parent block [${parentRoot}] will be processed for possible balance increases before proving withdrawals`,
@@ -89,7 +95,13 @@ export class ProverService implements OnModuleInit {
       const parentHeader = await this.consensus.getBeaconHeader(parentRoot);
       balanceSentCount = await this.handleBalanceChanges(parentHeader, finalizedHeader, () => withdrawals);
     }
-    const sentCount = await this.withdrawals.sendWithdrawalProofs(blockRoot, blockInfo, finalizedHeader, withdrawals);
+    const sentCount = await this.withdrawals.sendWithdrawalProofs(
+      blockHeader,
+      blockInfo,
+      state,
+      finalizedHeader,
+      withdrawals,
+    );
     if (sentCount > 0) {
       this.logger.log(`🏁 ${sentCount} Withdrawal Proof(s) were sent`);
     } else {
