@@ -32,7 +32,7 @@ async function buildSlashingProofPayloads(): Promise<IVerifier.ProcessSlashedInp
   //
   const payloads = [];
   for (const [valIndex, keyInfo] of Object.entries(slashings)) {
-    const validator = stateView.validators.getReadonly(Number(valIndex));
+    const validator = stateView.validators.get(Number(valIndex));
     if (!validator.slashed) {
       WorkerLogger.warn(`Validator ${valIndex} is not slashed in the finalized state. Skipped`);
       continue;

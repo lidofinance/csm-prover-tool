@@ -1,7 +1,7 @@
 import { ForkName } from '@lodestar/params';
 import { sszTypesFor } from '@lodestar/types';
 
-const SUPPORTED_FORKS = [ForkName.capella, ForkName.deneb, ForkName.electra, ForkName.fulu] as const;
+const SUPPORTED_FORKS = [ForkName.capella, ForkName.deneb, ForkName.electra, ForkName.fulu, ForkName.gloas] as const;
 
 export type SupportedForkKey = (typeof SUPPORTED_FORKS)[number];
 type ForkSsz = ReturnType<typeof sszTypesFor<SupportedForkKey>>;

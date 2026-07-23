@@ -145,7 +145,9 @@ export class KeysIndexer implements OnApplicationBootstrap {
 
   private maxReferencedValidatorIndex(blockInfo: SupportedBlock): number {
     let max = -1;
-    for (const wd of blockInfo.body.executionPayload.withdrawals) max = Math.max(max, Number(wd.validatorIndex));
+    if ('executionPayload' in blockInfo.body) {
+      for (const wd of blockInfo.body.executionPayload.withdrawals) max = Math.max(max, Number(wd.validatorIndex));
+    }
     for (const prop of blockInfo.body.proposerSlashings) {
       max = Math.max(max, Number(prop.signedHeader1.message.proposerIndex));
     }

@@ -2,12 +2,14 @@ import { createHash } from 'node:crypto';
 
 import { ProofType, type SingleProof, Tree, concatGindices, createProof } from '@chainsafe/persistent-merkle-tree';
 import type { BlockTag } from '@ethersproject/abstract-provider';
-import type { RootHex } from '@lodestar/types';
+import { ForkName } from '@lodestar/params';
+import { type RootHex, ssz } from '@lodestar/types';
 
 import type { BeaconBlockHeaderStruct, ValidatorStruct, WithdrawalStruct } from '../contracts/types/Verifier.js';
 import { epochToBigInt } from '../providers/consensus/epoch.js';
 import type {
   SupportedBlockView,
+  SupportedForkKey,
   SupportedStateView,
   SupportedValidatorView,
   SupportedWithdrawal,
@@ -23,17 +25,54 @@ export async function generateWithdrawalProof(
   stateView: SupportedStateView,
   blockView: SupportedBlockView,
   withdrawalOffset: number,
+  forkName: SupportedForkKey,
 ): Promise<SingleProof> {
+  if (forkName === ForkName.gloas) {
+    const gI = stateView.type.getPathInfo(['payloadExpectedWithdrawals', withdrawalOffset]).gindex;
+    return createProof(stateView.node, { type: ProofType.single, gindex: gI }) as SingleProof;
+  }
+
   // NOTE: ugly hack to replace root with the value to make a proof
   const patchedTree = new Tree(stateView.node);
   const stateWdGindex = stateView.type.getPathInfo(['latestExecutionPayloadHeader', 'withdrawalsRoot']).gindex;
-  patchedTree.setNode(stateWdGindex, blockView.body.executionPayload.withdrawals.node);
-  const withdrawalGI = blockView.body.executionPayload.withdrawals.type.getPropertyGindex(withdrawalOffset) as bigint;
+  if (!('executionPayload' in blockView.body)) throw new Error('Execution payload is missing before Gloas');
+  const withdrawals = blockView.body.executionPayload.withdrawals;
+  patchedTree.setNode(stateWdGindex, withdrawals.node);
+  const withdrawalGI = withdrawals.type.getPropertyGindex(withdrawalOffset) as bigint;
   const gI = concatGindices([stateWdGindex, withdrawalGI]);
   return createProof(patchedTree.rootNode, {
     type: ProofType.single,
     gindex: gI,
   }) as SingleProof;
+}
+
+export async function generateBlockRootsProof(
+  recentStateView: SupportedStateView,
+  withdrawalSlot: number,
+): Promise<SingleProof> {
+  const rootIndex = withdrawalSlot % recentStateView.blockRoots.length;
+  const gI = recentStateView.type.getPathInfo(['blockRoots', rootIndex]).gindex;
+  return createProof(recentStateView.node, { type: ProofType.single, gindex: gI }) as SingleProof;
+}
+
+export function getWithdrawalView(
+  stateView: SupportedStateView,
+  blockView: SupportedBlockView,
+  withdrawalOffset: number,
+  forkName: SupportedForkKey,
+) {
+  if (forkName === ForkName.gloas) {
+    if (!('payloadExpectedWithdrawals' in stateView)) {
+      throw new Error('Expected withdrawals are missing in Gloas state');
+    }
+    return stateView.payloadExpectedWithdrawals.get(withdrawalOffset);
+  }
+  if (!('executionPayload' in blockView.body)) throw new Error('Execution payload is missing before Gloas');
+  return blockView.body.executionPayload.withdrawals.get(withdrawalOffset);
+}
+
+export function beaconHeaderRoot(header: BlockHeaderResponse): Uint8Array {
+  return ssz.phase0.BeaconBlockHeader.hashTreeRoot(header.header.message);
 }
 
 export async function generateBalanceProof(
