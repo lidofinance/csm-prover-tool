@@ -1,7 +1,5 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import { iterateNodesAtDepth } from '@chainsafe/persistent-merkle-tree';
-
 import type { State } from '../../providers/consensus/consensus.js';
 import { epochToBigInt } from '../../providers/consensus/epoch.js';
 import { getSsz } from '../../providers/consensus/forks.js';
@@ -19,29 +17,18 @@ export type GetValidatorExitEpochsResult = {
 
 async function getValidatorExitEpochs(): Promise<GetValidatorExitEpochsResult> {
   const { state } = workerData as GetValidatorExitEpochsArgs;
-  //
-  // Get views
-  //
   const stateView = getSsz(state.forkName).BeaconState.deserializeToView(state.bodyBytes);
-  //
-  //
-  //
+
   const totalValLength = stateView.validators.length;
-  const iterator = iterateNodesAtDepth(
-    stateView.validators.type.tree_getChunksNode(stateView.validators.node),
-    stateView.validators.type.chunkDepth,
-    0,
-    totalValLength,
-  );
-  const valExitEpochs: bigint[] = [];
-  const valWithdrawableEpochs: bigint[] = [];
+  const valExitEpochs = new Array<bigint>(totalValLength);
+  const valWithdrawableEpochs = new Array<bigint>(totalValLength);
+
   for (let i = 0; i < totalValLength; i++) {
-    const node = iterator.next().value;
-    const v = stateView.validators.type.elementType.tree_toValue(node);
-    valExitEpochs.push(epochToBigInt(v.exitEpoch));
-    valWithdrawableEpochs.push(epochToBigInt(v.withdrawableEpoch));
+    const v = stateView.validators.get(i);
+    valExitEpochs[i] = epochToBigInt(v.exitEpoch);
+    valWithdrawableEpochs[i] = epochToBigInt(v.withdrawableEpoch);
   }
-  iterator.return?.();
+
   return { slot: stateView.slot, valExitEpochs, valWithdrawableEpochs };
 }
 
