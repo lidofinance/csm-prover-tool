@@ -4,9 +4,11 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { type RootSlot, RootsStack } from './roots-stack.js';
 import { ConfigService } from '../../common/config/config.service.js';
+import { toRootHex } from '../../common/helpers/proofs.js';
 import { type AppLogger } from '../../common/logger/app-logger.type.js';
 import { Consensus } from '../../common/providers/consensus/consensus.js';
 import { type BlockHeaderResponse, firstCanonical } from '../../common/providers/consensus/response.interface.js';
+import { Execution } from '../../common/providers/execution/execution.js';
 
 @Injectable()
 export class RootsProvider {
@@ -14,14 +16,17 @@ export class RootsProvider {
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly consensus: Consensus,
+    protected readonly execution: Execution,
     protected readonly rootsStack: RootsStack,
   ) {}
 
   public async getNext(finalizedHeader: BlockHeaderResponse): Promise<RootHex | undefined> {
     const lastProcessed = this.rootsStack.getLastProcessed();
+    const { root: horizonRoot } = await this.execution.getFinalizedBeaconAnchor();
+    const horizonSlot = Number((await this.consensus.getBeaconHeader(horizonRoot)).header.message.slot);
+
     if (!lastProcessed) {
-      // Cold start: skip possible further lag gate (candidate = finalizedHeader.root).
-      return this.getKnown(finalizedHeader);
+      return await this.getKnown(horizonRoot);
     }
 
     const stacked = this.rootsStack.getNextEligible();
@@ -34,23 +39,28 @@ export class RootsProvider {
     }
     if (!candidate) return undefined;
 
+    if (candidate.slotNumber >= horizonSlot) {
+      this.logger.log(`⏳ Root slot ${candidate.slotNumber} is not provable yet; EL horizon is ${horizonSlot}`);
+      return;
+    }
     const lag = this.config.get('ROOTS_PROCESSING_LAG_SLOTS');
     const diff = Number(finalizedHeader.header.message.slot) - candidate.slotNumber;
     if (lag > 0 && lag > diff) {
       this.logger.log(`💤 Next root to process ${diff} slots behind finalized, need ${lag}`);
-      return undefined;
+      return;
     }
     return candidate.blockRoot;
   }
 
-  private getKnown(finalizedHeader: BlockHeaderResponse): RootHex {
+  private async getKnown(horizonRoot: RootHex): Promise<RootHex> {
     const configured = this.config.get('START_ROOT');
     if (configured) {
       this.logger.log(`No processed roots. Start from ⚙️ configured root [${configured}]`);
       return configured;
     }
-    this.logger.log(`No processed roots. Start from 💎 last finalized root [${finalizedHeader.root}]`);
-    return finalizedHeader.root;
+    const parentRoot = toRootHex((await this.consensus.getBlockInfo(horizonRoot)).parentRoot);
+    this.logger.log(`No processed roots. Start from 🔐 parent of EL proof horizon [${parentRoot}]`);
+    return parentRoot;
   }
 
   private async getChild(lastProcessed: RootSlot, finalizedHeader: BlockHeaderResponse): Promise<RootSlot | undefined> {
