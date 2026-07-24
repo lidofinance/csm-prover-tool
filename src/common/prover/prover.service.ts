@@ -49,11 +49,7 @@ export class ProverService implements OnModuleInit {
     return sentCount;
   }
 
-  public async handleSlashingsInBlock(
-    blockInfo: SupportedBlock,
-    finalizedHeader: BlockHeaderResponse,
-    keyInfoFn: KeyInfoFn,
-  ): Promise<number> {
+  public async handleSlashingsInBlock(blockInfo: SupportedBlock, keyInfoFn: KeyInfoFn): Promise<number> {
     const slashings = await this.slashings.getUnprovenSlashings(blockInfo, keyInfoFn);
     let balanceSentCount = 0;
     if (this.balances && Object.keys(slashings).length > 0) {
@@ -62,9 +58,9 @@ export class ProverService implements OnModuleInit {
         `Parent block [${parentRoot}] will be processed for possible balance increases before proving slashings`,
       );
       const parentHeader = await this.consensus.getBeaconHeader(parentRoot);
-      balanceSentCount = await this.handleBalanceChanges(parentHeader, finalizedHeader, () => slashings);
+      balanceSentCount = await this.handleBalanceChanges(parentHeader, () => slashings);
     }
-    const sentCount = await this.slashings.sendSlashingProofs(finalizedHeader, slashings);
+    const sentCount = await this.slashings.sendSlashingProofs(slashings);
     if (sentCount > 0) {
       this.logger.log(`🏁 ${sentCount} Slashing proof(s) sent`);
     } else {
@@ -76,7 +72,6 @@ export class ProverService implements OnModuleInit {
   public async handleWithdrawalsInBlock(
     blockRoot: RootHex,
     blockInfo: SupportedBlock,
-    finalizedHeader: BlockHeaderResponse,
     keyInfoFn: KeyInfoFn,
   ): Promise<number> {
     const withdrawals = await this.withdrawals.getUnprovenWithdrawals(blockRoot, blockInfo, keyInfoFn);
@@ -93,7 +88,7 @@ export class ProverService implements OnModuleInit {
         `Parent block [${parentRoot}] will be processed for possible balance increases before proving withdrawals`,
       );
       const parentHeader = await this.consensus.getBeaconHeader(parentRoot);
-      balanceSentCount = await this.handleBalanceChanges(parentHeader, finalizedHeader, () => withdrawals);
+      balanceSentCount = await this.handleBalanceChanges(parentHeader, () => withdrawals);
     }
     const sentCount = await this.withdrawals.sendWithdrawalProofs(blockHeader, blockInfo, state, withdrawals);
     if (sentCount > 0) {
@@ -104,21 +99,13 @@ export class ProverService implements OnModuleInit {
     return sentCount + balanceSentCount;
   }
 
-  public async handleBalanceChangesInBlock(
-    blockRoot: RootHex,
-    finalizedHeader: BlockHeaderResponse,
-    getKeys: () => InvolvedKeys,
-  ): Promise<number> {
+  public async handleBalanceChangesInBlock(blockRoot: RootHex, getKeys: () => InvolvedKeys): Promise<number> {
     if (!this.balances) return 0;
     const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
-    return await this.handleBalanceChanges(blockHeader, finalizedHeader, getKeys);
+    return await this.handleBalanceChanges(blockHeader, getKeys);
   }
 
-  private async handleBalanceChanges(
-    blockHeader: BlockHeaderResponse,
-    finalizedHeader: BlockHeaderResponse,
-    getKeys: () => InvolvedKeys,
-  ): Promise<number> {
+  private async handleBalanceChanges(blockHeader: BlockHeaderResponse, getKeys: () => InvolvedKeys): Promise<number> {
     if (!this.balances) return 0;
 
     const keyMap = getKeys();

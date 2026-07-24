@@ -10,7 +10,6 @@ import { PrometheusService } from '../../common/prometheus/index.js';
 import { ProverService } from '../../common/prover/prover.service.js';
 import { Consensus } from '../../common/providers/consensus/consensus.js';
 import type { SupportedBlock } from '../../common/providers/consensus/forks.js';
-import type { BlockHeaderResponse } from '../../common/providers/consensus/response.interface.js';
 
 @Injectable()
 export class RootsProcessor {
@@ -23,7 +22,7 @@ export class RootsProcessor {
     protected readonly prover: ProverService,
   ) {}
 
-  public async processNext(blockRootToProcess: RootHex, finalizedHeader: BlockHeaderResponse): Promise<void> {
+  public async processNext(blockRootToProcess: RootHex): Promise<void> {
     this.logger.log(`🛃 Root in processing [${blockRootToProcess}]`);
     const blockInfoToProcess = await this.consensus.getBlockInfo(blockRootToProcess);
     const rootSlot: RootSlot = {
@@ -32,15 +31,10 @@ export class RootsProcessor {
     };
     await this.rootsStack.push(rootSlot); // in case of revert we should reprocess the root
     {
-      await this.prover.handleSlashingsInBlock(blockInfoToProcess, finalizedHeader, this.keysIndexer.getKey);
-      await this.prover.handleWithdrawalsInBlock(
-        blockRootToProcess,
-        blockInfoToProcess,
-        finalizedHeader,
-        this.keysIndexer.getKey,
-      );
+      await this.prover.handleSlashingsInBlock(blockInfoToProcess, this.keysIndexer.getKey);
+      await this.prover.handleWithdrawalsInBlock(blockRootToProcess, blockInfoToProcess, this.keysIndexer.getKey);
       if (await this.isFirstBlockInEpoch(blockInfoToProcess)) {
-        await this.prover.handleBalanceChangesInBlock(blockRootToProcess, finalizedHeader, this.keysIndexer.getAllKeys);
+        await this.prover.handleBalanceChangesInBlock(blockRootToProcess, this.keysIndexer.getAllKeys);
       }
     }
     const indexerIsTrusted = this.keysIndexer.isTrustedForEveryDuty(rootSlot.slotNumber);

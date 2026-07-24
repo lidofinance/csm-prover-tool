@@ -98,7 +98,7 @@ export class DaemonService implements OnModuleInit {
       return;
     }
 
-    this.rootProcessing = this.processNextRoot(finalizedHeader, nextRoot)
+    this.rootProcessing = this.processNextRoot(nextRoot)
       .catch((e) => this.logger.error(e))
       .finally(() => {
         this.rootProcessing = null;
@@ -117,8 +117,8 @@ export class DaemonService implements OnModuleInit {
 
   @SingletonTask()
   @TrackTask('process-next-root')
-  private async processNextRoot(finalizedHeader: BlockHeaderResponse, nextRoot: string) {
-    await this.rootsProcessor.processNext(nextRoot, finalizedHeader);
+  private async processNextRoot(nextRoot: string) {
+    await this.rootsProcessor.processNext(nextRoot);
   }
 
   @SingletonTask()
