@@ -95,13 +95,7 @@ export class ProverService implements OnModuleInit {
       const parentHeader = await this.consensus.getBeaconHeader(parentRoot);
       balanceSentCount = await this.handleBalanceChanges(parentHeader, finalizedHeader, () => withdrawals);
     }
-    const sentCount = await this.withdrawals.sendWithdrawalProofs(
-      blockHeader,
-      blockInfo,
-      state,
-      finalizedHeader,
-      withdrawals,
-    );
+    const sentCount = await this.withdrawals.sendWithdrawalProofs(blockHeader, blockInfo, state, withdrawals);
     if (sentCount > 0) {
       this.logger.log(`🏁 ${sentCount} Withdrawal Proof(s) were sent`);
     } else {
