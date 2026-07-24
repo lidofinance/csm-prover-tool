@@ -9,12 +9,14 @@ import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus, type State } from '../../providers/consensus/consensus.js';
 import { FAR_FUTURE_EPOCH } from '../../providers/consensus/epoch.js';
-import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
+import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { Execution } from '../../providers/execution/execution.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo } from '../types.js';
 import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../utils/historical-summary.js';
 
 export type InvolvedKeys = { [valIndex: string]: KeyInfo };
+type ExecutionAnchor = { header: BlockHeaderResponse; state: State; timestamp: number };
 
 @Injectable()
 export class BalancesService {
@@ -23,6 +25,7 @@ export class BalancesService {
     protected readonly config: ConfigService,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
+    protected readonly execution: Execution,
     protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
   ) {}
@@ -82,18 +85,18 @@ export class BalancesService {
 
   public async sendBalanceChangeProofs(
     blockHeader: BlockHeaderResponse,
-    recentHeader: BlockHeaderResponse,
     state: State,
     balanceChanges: InvolvedKeys,
   ): Promise<number> {
     if (!Object.keys(balanceChanges).length) return 0;
-    if (this.isHistoricalBlock(blockHeader, recentHeader)) {
+    const anchor = await this.getExecutionAnchor();
+    if (this.isHistoricalBlock(blockHeader, anchor.header)) {
       this.logger.warn('Balance proof block is historical. Processing will take longer than usual');
-      const payloads = await this.sendHistoricalBalanceProofs(blockHeader, state, balanceChanges);
+      const payloads = await this.sendHistoricalBalanceProofs(blockHeader, state, anchor, balanceChanges);
       return payloads.length;
     }
 
-    const payloads = await this.sendGeneralBalanceProofs(blockHeader, state, balanceChanges);
+    const payloads = await this.sendGeneralBalanceProofs(blockHeader, state, anchor, balanceChanges);
     return payloads.length;
   }
 
@@ -108,16 +111,22 @@ export class BalancesService {
   private async sendGeneralBalanceProofs(
     blockHeader: BlockHeaderResponse,
     state: State,
+    anchor: ExecutionAnchor,
     balanceChanges: InvolvedKeys,
   ): Promise<IVerifier.ProcessBalanceProofInputStruct[]> {
-    const nextHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data);
-    if (!nextHeader) throw new Error(`Next canonical block header after ${blockHeader.root} not found`);
-    const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
+    const balanceSlot = Number(blockHeader.header.message.slot);
+    const recentSlot = Number(anchor.header.header.message.slot);
+    const historicalRootLimit = Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT);
+    if (recentSlot <= balanceSlot || recentSlot - balanceSlot > historicalRootLimit) {
+      throw new Error(`Balance block slot ${balanceSlot} is not in recent block_roots at slot ${recentSlot}`);
+    }
     this.logger.log('Building balance proof payloads');
     const payloads = await this.workers.getBalanceProofPayloads({
-      currentHeader: blockHeader,
-      nextHeaderTimestamp: nextHeaderTs,
-      state,
+      balanceHeader: blockHeader,
+      recentHeader: anchor.header,
+      rootsTimestamp: anchor.timestamp,
+      balanceState: state,
+      recentState: anchor.state,
       keys: balanceChanges,
     });
 
@@ -131,18 +140,12 @@ export class BalancesService {
   private async sendHistoricalBalanceProofs(
     blockHeader: BlockHeaderResponse,
     state: State,
+    anchor: ExecutionAnchor,
     balanceChanges: InvolvedKeys,
   ): Promise<IVerifier.ProcessHistoricalBalanceProofInputStruct[]> {
-    // Get the freshest finalized header: A header captured at the start of the daemon iteration
-    // can age out during slow historical proof generation → RootNotFound() revert.
-    const recentHeader = await this.consensus.getBeaconHeader('finalized');
-    const nextHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(recentHeader.root)).data);
-    if (!nextHeader) throw new Error(`Next canonical block header after ${recentHeader.root} not found`);
-    const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
-    const recentState = await this.consensus.getState(toRootHex(recentHeader.header.message.stateRoot));
     const summaryResolution = await resolveHistoricalSummaryContext(
       this.consensus,
-      recentHeader,
+      anchor.header,
       Number(blockHeader.header.message.slot),
     );
     if (summaryResolution.status === HistoricalSummaryResolutionStatus.BeforeCapella) {
@@ -156,10 +159,10 @@ export class BalancesService {
     this.logger.log('Building historical balance proof payloads');
     const payloads = await this.workers.getHistoricalBalanceProofPayloads({
       headerWithBalances: blockHeader,
-      recentHeader,
-      nextToRecentHeaderTimestamp: nextHeaderTs,
+      recentHeader: anchor.header,
+      nextToRecentHeaderTimestamp: anchor.timestamp,
       stateWithBalances: state,
-      recentState,
+      recentState: anchor.state,
       summaryState,
       summaryIndex,
       rootIndexInSummary,
@@ -172,6 +175,13 @@ export class BalancesService {
     }
 
     return payloads;
+  }
+
+  private async getExecutionAnchor(): Promise<ExecutionAnchor> {
+    const { root, timestamp } = await this.execution.getFinalizedBeaconAnchor();
+    const header = await this.consensus.getBeaconHeader(root);
+    const state = await this.consensus.getState(toRootHex(header.header.message.stateRoot));
+    return { header, state, timestamp };
   }
 
   private isHistoricalBlock(blockHeader: BlockHeaderResponse, recentHeader: BlockHeaderResponse): boolean {

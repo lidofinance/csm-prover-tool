@@ -129,12 +129,7 @@ export class ProverService implements OnModuleInit {
 
     const currentState = await this.consensus.getState(toRootHex(blockHeader.header.message.stateRoot));
     const balanceChanges = await this.balances.getUnprovenBalanceChangeProofs(currentState, keyMap);
-    const sentCount = await this.balances.sendBalanceChangeProofs(
-      blockHeader,
-      finalizedHeader,
-      currentState,
-      balanceChanges,
-    );
+    const sentCount = await this.balances.sendBalanceChangeProofs(blockHeader, currentState, balanceChanges);
 
     if (sentCount > 0) {
       this.logger.log(`🏁 ${sentCount} Balance change proof(s) sent`);

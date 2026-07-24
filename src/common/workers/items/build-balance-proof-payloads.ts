@@ -2,7 +2,9 @@ import { parentPort, workerData } from 'node:worker_threads';
 
 import type { IVerifier } from '../../contracts/types/Verifier.js';
 import {
+  beaconHeaderRoot,
   generateBalanceProof,
+  generateBlockRootsProof,
   generateValidatorProof,
   toBeaconHeaderStruct,
   toHex,
@@ -16,15 +18,26 @@ import type { BlockHeaderResponse } from '../../providers/consensus/response.int
 import { WorkerLogger } from '../worker-logger.js';
 
 export type BuildBalanceProofArgs = {
-  currentHeader: BlockHeaderResponse;
-  nextHeaderTimestamp: number;
-  state: State;
+  balanceHeader: BlockHeaderResponse;
+  recentHeader: BlockHeaderResponse;
+  rootsTimestamp: number;
+  balanceState: State;
+  recentState: State;
   keys: InvolvedKeys;
 };
 
 async function buildBalanceProofPayloads(): Promise<IVerifier.ProcessBalanceProofInputStruct[]> {
-  const { currentHeader, nextHeaderTimestamp, state, keys } = workerData as BuildBalanceProofArgs;
-  const stateView = getSsz(state.forkName).BeaconState.deserializeToView(state.bodyBytes);
+  const { balanceHeader, recentHeader, rootsTimestamp, balanceState, recentState, keys } =
+    workerData as BuildBalanceProofArgs;
+  const stateView = getSsz(balanceState.forkName).BeaconState.deserializeToView(balanceState.bodyBytes);
+  const recentStateView = getSsz(recentState.forkName).BeaconState.deserializeToView(recentState.bodyBytes);
+  const blockRootsProof = await generateBlockRootsProof(recentStateView, Number(balanceHeader.header.message.slot));
+  verifyProof(
+    recentStateView.hashTreeRoot(),
+    blockRootsProof.gindex,
+    blockRootsProof.witnesses,
+    beaconHeaderRoot(balanceHeader),
+  );
 
   const payloads: IVerifier.ProcessBalanceProofInputStruct[] = [];
   for (const [valIndex, keyInfo] of Object.entries(keys)) {
@@ -50,8 +63,12 @@ async function buildBalanceProofPayloads(): Promise<IVerifier.ProcessBalanceProo
 
     payloads.push({
       recentBlock: {
-        header: toBeaconHeaderStruct(currentHeader),
-        rootsTimestamp: nextHeaderTimestamp,
+        header: toBeaconHeaderStruct(recentHeader),
+        rootsTimestamp,
+      },
+      balanceBlock: {
+        header: toBeaconHeaderStruct(balanceHeader),
+        proof: blockRootsProof.witnesses.map(toHex),
       },
       validator: {
         index: valIndexNum,
