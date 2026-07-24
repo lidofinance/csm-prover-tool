@@ -1,17 +1,17 @@
 import { Module } from '@nestjs/common';
 
-import { DaemonService } from './daemon.service';
-import { KeysIndexer } from './services/keys-indexer';
-import { RootsProcessor } from './services/roots-processor';
-import { RootsProvider } from './services/roots-provider';
-import { RootsStack } from './services/roots-stack';
-import { ConfigModule } from '../common/config/config.module';
-import { HealthModule } from '../common/health/health.module';
-import { LoggerModule } from '../common/logger/logger.module';
-import { PrometheusModule } from '../common/prometheus/prometheus.module';
-import { ProverModule } from '../common/prover/prover.module';
-import { ProvidersModule } from '../common/providers/providers.module';
-import { WorkersModule } from '../common/workers/workers.module';
+import { DaemonService } from './daemon.service.js';
+import { KeysIndexer } from './services/keys-indexer.js';
+import { RootsProcessor } from './services/roots-processor.js';
+import { RootsProvider } from './services/roots-provider.js';
+import { RootsStack } from './services/roots-stack.js';
+import { ConfigModule } from '../common/config/config.module.js';
+import { HealthModule } from '../common/health/health.module.js';
+import { LoggerModule } from '../common/logger/logger.module.js';
+import { PrometheusModule } from '../common/prometheus/index.js';
+import { ProverModule } from '../common/prover/prover.module.js';
+import { ProvidersModule } from '../common/providers/providers.module.js';
+import { WorkersModule } from '../common/workers/workers.module.js';
 
 @Module({
   imports: [LoggerModule, ConfigModule, HealthModule, PrometheusModule, ProvidersModule, WorkersModule, ProverModule],

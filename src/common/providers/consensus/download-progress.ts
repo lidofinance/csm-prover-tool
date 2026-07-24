@@ -1,16 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import ora = require('ora-classic');
-import { Ora } from 'ora-classic';
-import { IncomingHttpHeaders } from 'undici/types/header';
-import BodyReadable from 'undici/types/readable';
+import ora, { type Ora } from 'ora';
+
+import type { RestResponse } from '../base/rest-provider.js';
 
 @Injectable()
 export class DownloadProgress {
   private spinner: Ora;
 
-  constructor() {}
-
-  public show(name: string, resp: { body: BodyReadable; headers: IncomingHttpHeaders }): void {
+  public show(name: string, resp: RestResponse): void {
     const totalContentLength = Number(resp.headers['content-length']);
     let downloaded = 0;
     let speed = '0.00';

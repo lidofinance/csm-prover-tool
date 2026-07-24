@@ -1,23 +1,33 @@
-import { BlockTag } from '@ethersproject/abstract-provider';
+import { type BlockTag } from '@ethersproject/abstract-provider';
 import { AddressZero } from '@ethersproject/constants';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { utils } from 'ethers';
 
-import { AccountingContract } from './accounting-contract.service';
-import { FeeDistributor__factory, FeeOracle__factory, Strikes, Strikes__factory } from './types';
-import { ConfigService } from '../config/config.service';
-import { BadPerformerProofPayload } from '../prover/types';
-import { Execution } from '../providers/execution/execution';
+import { AccountingContract } from './accounting-contract.service.js';
+import {
+  Ejector__factory,
+  FeeDistributor__factory,
+  FeeOracle__factory,
+  type Strikes,
+  Strikes__factory,
+  type TriggerableWithdrawalsGateway,
+  TriggerableWithdrawalsGateway__factory,
+} from './types/index.js';
+import { ConfigService } from '../config/config.service.js';
+import { type AppLogger } from '../logger/app-logger.type.js';
+import type { BadPerformerProofPayload } from '../prover/types.js';
+import { Execution } from '../providers/execution/execution.js';
 
 const WITHDRAWAL_REQUEST_SYS_ADDRESS = '0x00000961Ef480Eb55e80D19ad83579A64c007002';
 
 @Injectable()
 export class StrikesContract {
   private contract: Strikes;
+  private gateway: TriggerableWithdrawalsGateway;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly execution: Execution,
     protected readonly accounting: AccountingContract,
@@ -35,8 +45,18 @@ export class StrikesContract {
       const feeOracleContract = FeeOracle__factory.connect(feeOracle, this.execution.provider);
       address = await feeOracleContract.STRIKES();
     }
+    if (!address || address == '') {
+      throw new Error('Failed to resolve CSStrikes address');
+    }
     this.logger.log(`CSStrikes address: ${address}`);
     this.contract = Strikes__factory.connect(address, this.execution.provider);
+
+    // Resolve the triggerable-withdrawals gateway once — addresses (Strikes -> ejector -> gateway) are deployment-constant.
+    const ejectorAddress = await this.contract.ejector();
+    const ejector = Ejector__factory.connect(ejectorAddress, this.execution.provider);
+    const gatewayAddress = await ejector.triggerableWithdrawalsGateway();
+    this.gateway = TriggerableWithdrawalsGateway__factory.connect(gatewayAddress, this.execution.provider);
+    this.logger.log(`TriggerableWithdrawalsGateway address: ${gatewayAddress}`);
   }
 
   private async getRequestFee(): Promise<bigint> {
@@ -55,8 +75,13 @@ export class StrikesContract {
       throw new Error('FeeInvalidData');
     }
 
-    // Parse uint256 from the response
-    return BigInt(result);
+    // Parse uint256 from the response (wei)
+    const fee = BigInt(result);
+    const maxFeeGwei = BigInt(this.config.get('STRIKES_MAX_REQUEST_FEE_GWEI'));
+    if (fee >= maxFeeGwei * 1_000_000_000n) {
+      throw new Error(`Withdrawal request fee too high: ${utils.formatUnits(fee, 'gwei')} Gwei >= ${maxFeeGwei} Gwei`);
+    }
+    return fee;
   }
 
   public async sendBadPerformanceProof(payload: BadPerformerProofPayload): Promise<void> {
@@ -65,23 +90,25 @@ export class StrikesContract {
     this.logger.log(
       `Sending bad performance proof for ${payload.keyStrikesList.length} keys with total fee: ${utils.formatUnits(withdrawalFee, 'gwei')} Gwei`,
     );
-    await this.execution.execute(
-      this.contract.callStatic.processBadPerformanceProof,
-      this.contract.populateTransaction.processBadPerformanceProof,
-      [
-        payload.keyStrikesList,
-        payload.proof,
-        payload.proofFlags,
-        AddressZero, // msg.sender will be used as a refund recipient
-        {
-          value: withdrawalFee,
-        },
-      ],
-    );
+    await this.execution.execute(this.contract.populateTransaction.processBadPerformanceProof, [
+      payload.keyStrikesList,
+      payload.proof,
+      payload.proofFlags,
+      AddressZero, // msg.sender will be used as a refund recipient
+      {
+        value: withdrawalFee,
+      },
+    ]);
   }
 
   public async getExitPenaltiesAddress(): Promise<string> {
     return await this.contract.EXIT_PENALTIES();
+  }
+
+  // Current triggerable-withdrawals exit-request allowance. Returns type(uint256).max when unset (unlimited).
+  public async getCurrentExitRequestsLimit(): Promise<bigint> {
+    const info = await this.gateway.getExitRequestLimitFullInfo();
+    return info.currentExitRequestsLimit.toBigInt();
   }
 
   public async getTreeCid(blockTag: BlockTag): Promise<string> {

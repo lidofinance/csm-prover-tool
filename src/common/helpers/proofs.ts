@@ -1,24 +1,20 @@
 import { createHash } from 'node:crypto';
 
-import type { SingleProof } from '@chainsafe/persistent-merkle-tree';
-import type { ContainerTreeViewType } from '@chainsafe/ssz/lib/view/container';
-import type { ssz as sszType } from '@lodestar/types';
+import { ProofType, type SingleProof, Tree, concatGindices, createProof } from '@chainsafe/persistent-merkle-tree';
+import type { BlockTag } from '@ethersproject/abstract-provider';
+import type { RootHex } from '@lodestar/types';
 
-import { SupportedFork } from '../providers/consensus/consensus';
-import { loadPMT } from '../vendors/persistent-merkle-tree';
-
-let ssz: typeof sszType;
-
-export type SupportedStateView = {
-  [K in keyof typeof SupportedFork]: ContainerTreeViewType<(typeof ssz)[K]['BeaconState']['fields']>;
-}[keyof typeof SupportedFork];
-
-export type SupportedBlockView = {
-  [K in keyof typeof SupportedFork]: ContainerTreeViewType<(typeof ssz)[K]['BeaconBlock']['fields']>;
-}[keyof typeof SupportedFork];
+import type { BeaconBlockHeaderStruct, ValidatorStruct, WithdrawalStruct } from '../contracts/types/Verifier.js';
+import { epochToBigInt } from '../providers/consensus/epoch.js';
+import type {
+  SupportedBlockView,
+  SupportedStateView,
+  SupportedValidatorView,
+  SupportedWithdrawal,
+} from '../providers/consensus/forks.js';
+import type { BlockHeaderResponse } from '../providers/consensus/response.interface.js';
 
 export async function generateValidatorProof(stateView: SupportedStateView, valIndex: number): Promise<SingleProof> {
-  const { ProofType, createProof } = await loadPMT();
   const gI = stateView.type.getPathInfo(['validators', Number(valIndex)]).gindex;
   return createProof(stateView.node, { type: ProofType.single, gindex: gI }) as SingleProof;
 }
@@ -28,7 +24,6 @@ export async function generateWithdrawalProof(
   blockView: SupportedBlockView,
   withdrawalOffset: number,
 ): Promise<SingleProof> {
-  const { Tree, concatGindices, ProofType, createProof } = await loadPMT();
   // NOTE: ugly hack to replace root with the value to make a proof
   const patchedTree = new Tree(stateView.node);
   const stateWdGindex = stateView.type.getPathInfo(['latestExecutionPayloadHeader', 'withdrawalsRoot']).gindex;
@@ -41,13 +36,20 @@ export async function generateWithdrawalProof(
   }) as SingleProof;
 }
 
+export async function generateBalanceProof(
+  stateView: SupportedStateView,
+  validatorIndex: number,
+): Promise<SingleProof> {
+  const gI = stateView.type.getPathInfo(['balances', validatorIndex]).gindex;
+  return createProof(stateView.node, { type: ProofType.single, gindex: gI }) as SingleProof;
+}
+
 export async function generateHistoricalStateProof(
   finalizedStateView: SupportedStateView,
   summaryStateView: SupportedStateView,
   summaryIndex: number,
   rootIndex: number,
 ): Promise<SingleProof> {
-  const { Tree, concatGindices, ProofType, createProof } = await loadPMT();
   // NOTE: ugly hack to replace root with the value to make a proof
   const patchedTree = new Tree(finalizedStateView.node);
   const blockSummaryRootGI = finalizedStateView.type.getPathInfo([
@@ -95,4 +97,45 @@ export function verifyProof(root: Uint8Array, gI: bigint, proof: Uint8Array[], v
 
 export function toHex(value: Uint8Array) {
   return '0x' + Buffer.from(value).toString('hex');
+}
+
+export function toBlockTagByHash(hashBytes: Uint8Array): BlockTag {
+  return { blockHash: toHex(hashBytes) } as unknown as BlockTag;
+}
+
+export function toRootHex(value: RootHex | Uint8Array): RootHex {
+  return typeof value === 'string' ? value : toHex(value);
+}
+
+export function toBeaconHeaderStruct(header: BlockHeaderResponse): BeaconBlockHeaderStruct {
+  const message = header.header.message;
+  return {
+    slot: Number(message.slot),
+    proposerIndex: Number(message.proposerIndex),
+    parentRoot: toHex(message.parentRoot),
+    stateRoot: toHex(message.stateRoot),
+    bodyRoot: toHex(message.bodyRoot),
+  };
+}
+
+export function toValidatorStruct(validator: SupportedValidatorView): ValidatorStruct {
+  return {
+    pubkey: toHex(validator.pubkey),
+    withdrawalCredentials: toHex(validator.withdrawalCredentials),
+    effectiveBalance: BigInt(validator.effectiveBalance),
+    slashed: Boolean(validator.slashed),
+    activationEligibilityEpoch: epochToBigInt(validator.activationEligibilityEpoch),
+    activationEpoch: epochToBigInt(validator.activationEpoch),
+    exitEpoch: epochToBigInt(validator.exitEpoch),
+    withdrawableEpoch: epochToBigInt(validator.withdrawableEpoch),
+  };
+}
+
+export function toWithdrawalStruct(withdrawal: SupportedWithdrawal): WithdrawalStruct {
+  return {
+    index: Number(withdrawal.index),
+    validatorIndex: Number(withdrawal.validatorIndex),
+    withdrawalAddress: toHex(withdrawal.address),
+    amount: BigInt(withdrawal.amount),
+  };
 }

@@ -1,33 +1,40 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, LoggerService } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { Command as Commander } from 'commander';
 import { Command, CommandRunner, InjectCommander, InquirerService, Option } from 'nest-commander';
 
-import { CsmContract } from '../../common/contracts/csm-contract.service';
-import { ProverService } from '../../common/prover/prover.service';
-import { FullKeyInfoByPubKeyFn, KeyInfoFn } from '../../common/prover/types';
-import { Consensus } from '../../common/providers/consensus/consensus';
+import { ConfigService } from '../../common/config/config.service.js';
+import { StakingModuleContract } from '../../common/contracts/staking-module-contract.service.js';
+import { type AppLogger } from '../../common/logger/app-logger.type.js';
+import { ProverService } from '../../common/prover/prover.service.js';
+import type { FullKeyInfoByPubKeyFn, KeyInfoFn } from '../../common/prover/types.js';
+import { Consensus } from '../../common/providers/consensus/consensus.js';
 import {
+  PROOF_TYPES,
   validateClBlock,
   validateKeyIndex,
   validateNodeOperatorId,
   validateValidatorIndex,
-} from '../questions/proof-input.question';
+} from '../questions/proof-input.question.js';
+import type { ProofType } from '../questions/proof-input.question.js';
 
 type ProofOptions = {
   nodeOperatorId: string;
   keyIndex: string;
   validatorIndex: string;
-  clBlock: string;
+  clBlock?: string;
+  proofType?: ProofType;
 };
 
 @Command({
   name: 'prove',
-  description: 'Prove a withdrawal or bad performer',
-  arguments: '<withdrawal|bad_performer>',
+  description: 'Prove a slashing or withdrawal or bad performer or balance change',
+  arguments: '<slashing|withdrawal|bad_performer|balance>',
   argsDescription: {
     withdrawal: 'Prove a withdrawal',
     bad_performer: 'Prove a bad performer',
+    slashing: 'Prove a slashing',
+    balance: 'Prove a balance change',
   },
 })
 export class ProveCommand extends CommandRunner {
@@ -35,45 +42,80 @@ export class ProveCommand extends CommandRunner {
   private pubkey: string;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     @InjectCommander() private readonly commander: Commander,
     protected readonly inquirerService: InquirerService,
-    protected readonly csm: CsmContract,
+    protected readonly config: ConfigService,
+    protected readonly stakingModule: StakingModuleContract,
     protected readonly consensus: Consensus,
     protected readonly prover: ProverService,
   ) {
     super();
   }
 
-  async run(inputs: string[], options?: ProofOptions) {
+  async run(inputs: string[], options?: Partial<ProofOptions>) {
+    const startedAt = Date.now();
     try {
-      this.options = await this.inquirerService.ask('proof-input', options);
+      const proofType = this.getProofTypeOrThrow(inputs[0]);
+      this.options = await this.inquirerService.ask('proof-input', { ...options, proofType });
       this.logger.debug!(this.options);
-      this.pubkey = await this.csm.getNodeOperatorKey(this.options.nodeOperatorId, this.options.keyIndex);
-      this.logger.debug!(`Validator public key: ${this.pubkey}`);
-      const header = await this.consensus.getBeaconHeader('finalized');
-      this.logger.debug!(`Finalized slot [${header.header.message.slot}]. Root [${header.root}]`);
-      const { root: blockRootToProcess } = await this.consensus.getBeaconHeader(this.options.clBlock);
-      const blockInfoToProcess = await this.consensus.getBlockInfo(this.options.clBlock);
-      this.logger.debug!(`Block to process [${this.options.clBlock}]`);
 
-      switch (inputs[0]) {
+      this.pubkey = await this.stakingModule.getNodeOperatorKey(this.options.nodeOperatorId, this.options.keyIndex);
+      this.logger.debug!(`Validator public key: ${this.pubkey}`);
+
+      const finalizedHeader = await this.consensus.getBeaconHeader('finalized');
+      this.logPreflightSummary(proofType, finalizedHeader.root, Number(finalizedHeader.header.message.slot));
+
+      let sentCount = 0;
+
+      switch (proofType) {
         case 'withdrawal':
-          await this.prover.handleWithdrawalsInBlock(blockRootToProcess, blockInfoToProcess, header, this.keyInfoFn);
+          this.ensureClBlock(this.options.clBlock);
+          const withdrawalBlockInfo = await this.consensus.getBlockInfo(this.options.clBlock);
+          const { root: withdrawalBlockRoot } = await this.consensus.getBeaconHeader(this.options.clBlock);
+          sentCount = await this.prover.handleWithdrawalsInBlock(
+            withdrawalBlockRoot,
+            withdrawalBlockInfo,
+            finalizedHeader,
+            this.keyInfoFn,
+          );
           break;
         case 'bad_performer':
-          const headHeader = await this.consensus.getBeaconHeader('head');
-          await this.prover.handleBadPerformers(headHeader, this.fullKeyInfoFn);
+          const headHeader = await this.consensus.getBeaconHeader('finalized');
+          sentCount = await this.prover.handleBadPerformers(headHeader, this.fullKeyInfoFn);
+          break;
+        case 'slashing':
+          this.ensureClBlock(this.options.clBlock);
+          const slashingBlockInfo = await this.consensus.getBlockInfo(this.options.clBlock);
+          sentCount = await this.prover.handleSlashingsInBlock(slashingBlockInfo, finalizedHeader, this.keyInfoFn);
+          break;
+        case 'balance':
+          this.ensureClBlock(this.options.clBlock);
+          if (!(await this.stakingModule.canProveBalanceChanges())) {
+            throw new Error('Balance change proving is not supported for this module');
+          }
+          const { root: balanceBlockRoot } = await this.consensus.getBeaconHeader(this.options.clBlock);
+          sentCount = await this.prover.handleBalanceChangesInBlock(balanceBlockRoot, finalizedHeader, () => ({
+            [this.options.validatorIndex]: this.getSelectedKeyInfo(),
+          }));
           break;
       }
+
+      const elapsedMs = Date.now() - startedAt;
+      if (sentCount > 0) {
+        this.logger.log(`SUCCESS: sent ${sentCount} proof(s) for mode "${proofType}" in ${elapsedMs}ms`);
+      } else {
+        this.logger.log(`NOOP: no proofs were sent for mode "${proofType}" (${elapsedMs}ms)`);
+      }
     } catch (e) {
-      this.commander.error(e);
+      const message = e instanceof Error ? e.message : String(e);
+      this.commander.error(`CLI proving failed: ${message}`);
     }
   }
 
   @Option({
     flags: '--node-operator-id <nodeOperatorId>',
-    description: 'Node Operator ID from the CSM',
+    description: 'Node Operator ID from the staking module',
   })
   parseNodeOperatorId(val: string) {
     return validateNodeOperatorId(val);
@@ -81,7 +123,7 @@ export class ProveCommand extends CommandRunner {
 
   @Option({
     flags: '--key-index <keyIndex>',
-    description: 'Key Index from the CSM',
+    description: 'Key Index from the staking module',
   })
   parseKeyIndex(val: string) {
     return validateKeyIndex(val);
@@ -97,19 +139,52 @@ export class ProveCommand extends CommandRunner {
 
   @Option({
     flags: '--cl-block <clBlock>',
-    description: 'Block from the Consensus Layer with validator withdrawal. Might be a block root or a slot number',
+    description: 'Block from the Consensus Layer (slot number or block root)',
   })
   parseClBlock(val: string) {
     return validateClBlock(val);
   }
 
+  private getProofTypeOrThrow(input: string | undefined): ProofType {
+    if (!input || !PROOF_TYPES.includes(input as ProofType)) {
+      throw new Error(`Unknown proof type "${input ?? ''}". Expected one of: ${PROOF_TYPES.join(', ')}`);
+    }
+    return input as ProofType;
+  }
+
+  private ensureClBlock(clBlock: string | undefined): asserts clBlock is string {
+    if (!clBlock) {
+      throw new Error('--cl-block is required for this proof mode');
+    }
+  }
+
+  private getSelectedKeyInfo() {
+    return {
+      operatorId: Number(this.options.nodeOperatorId),
+      keyIndex: Number(this.options.keyIndex),
+      pubKey: this.pubkey,
+    };
+  }
+
+  private logPreflightSummary(proofType: ProofType, finalizedRoot: string, finalizedSlot: number): void {
+    this.logger.log(
+      [
+        'Preflight',
+        `  mode: ${proofType}`,
+        `  nodeOperatorId: ${this.options.nodeOperatorId}`,
+        `  keyIndex: ${this.options.keyIndex}`,
+        `  validatorIndex: ${this.options.validatorIndex}`,
+        `  clBlock: ${this.options.clBlock ?? 'n/a'}`,
+        `  finalizedSlot: ${finalizedSlot}`,
+        `  finalizedRoot: ${finalizedRoot}`,
+        `  dryRun: ${this.config.get('DRY_RUN')}`,
+      ].join('\n'),
+    );
+  }
+
   keyInfoFn: KeyInfoFn = (valIndex: number) => {
     if (valIndex === Number(this.options.validatorIndex)) {
-      return {
-        operatorId: Number(this.options.nodeOperatorId),
-        keyIndex: Number(this.options.keyIndex),
-        pubKey: this.pubkey,
-      };
+      return this.getSelectedKeyInfo();
     }
   };
 
@@ -117,9 +192,7 @@ export class ProveCommand extends CommandRunner {
     if (pubKey === this.pubkey) {
       return {
         validatorIndex: Number(this.options.validatorIndex),
-        operatorId: Number(this.options.nodeOperatorId),
-        keyIndex: Number(this.options.keyIndex),
-        pubKey: this.pubkey,
+        ...this.getSelectedKeyInfo(),
       };
     }
   };

@@ -1,21 +1,21 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type { ssz as sszType } from '@lodestar/types';
-
+import type { IVerifier } from '../../contracts/types/Verifier.js';
 import {
   generateHistoricalStateProof,
   generateValidatorProof,
   generateWithdrawalProof,
+  toBeaconHeaderStruct,
   toHex,
+  toValidatorStruct,
+  toWithdrawalStruct,
   verifyProof,
-} from '../../helpers/proofs';
-import { InvolvedKeysWithWithdrawal } from '../../prover/duties/withdrawals.service';
-import { HistoricalWithdrawalsProofPayload } from '../../prover/types';
-import { State, SupportedBlock } from '../../providers/consensus/consensus';
-import { BlockHeaderResponse } from '../../providers/consensus/response.interface';
-import { WorkerLogger } from '../workers.service';
-
-let ssz: typeof sszType;
+} from '../../helpers/proofs.js';
+import type { InvolvedKeysWithWithdrawal } from '../../prover/duties/withdrawals.service.js';
+import type { State } from '../../providers/consensus/consensus.js';
+import { type SupportedBlock, getSsz } from '../../providers/consensus/forks.js';
+import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { WorkerLogger } from '../worker-logger.js';
 
 export type BuildHistoricalWithdrawalProofArgs = {
   headerWithWds: BlockHeaderResponse;
@@ -31,8 +31,7 @@ export type BuildHistoricalWithdrawalProofArgs = {
   epoch: number;
 };
 
-async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWithdrawalsProofPayload[]> {
-  ssz = await eval(`import('@lodestar/types').then((m) => m.ssz)`);
+async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
   const {
     headerWithWds,
     finalHeader,
@@ -49,11 +48,10 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
   //
   // Get views
   //
-  const finalizedStateView = ssz[finalizedState.forkName].BeaconState.deserializeToView(finalizedState.bodyBytes);
-  const summaryStateView = ssz[summaryState.forkName].BeaconState.deserializeToView(summaryState.bodyBytes);
-  const stateWithWdsView = ssz[stateWithWds.forkName].BeaconState.deserializeToView(stateWithWds.bodyBytes);
-  // @ts-expect-error: thinks state can have different fork with currentBlock, but it's not possible
-  const blockWithWdsView = ssz[stateWithWds.forkName].BeaconBlock.toView(blockWithWds);
+  const finalizedStateView = getSsz(finalizedState.forkName).BeaconState.deserializeToView(finalizedState.bodyBytes);
+  const summaryStateView = getSsz(summaryState.forkName).BeaconState.deserializeToView(summaryState.bodyBytes);
+  const stateWithWdsView = getSsz(stateWithWds.forkName).BeaconState.deserializeToView(stateWithWds.bodyBytes);
+  const blockWithWdsView = getSsz(stateWithWds.forkName).BeaconBlock.toView(blockWithWds);
   //
   //
   //
@@ -67,6 +65,12 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
         Key from the contract ${keyWithWithdrawalInfo.pubKey}`,
       );
       throw new Error('Validator pubkey mismatch');
+    }
+    if (validator.slashed) {
+      WorkerLogger.warn(
+        `Validator ${valIndex} is slashed. Must be reported via reportSlashedWithdrawnValidators. Skipped`,
+      );
+      continue;
     }
     if (epoch < validator.withdrawableEpoch) {
       WorkerLogger.warn(`Validator ${valIndex} is not full withdrawn. Just huge amount of ETH. Skipped`);
@@ -111,42 +115,25 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
       summaryStateView.blockRoots.getReadonly(rootIndexInSummary),
     );
     payloads.push({
-      keyIndex: keyWithWithdrawalInfo.keyIndex,
-      nodeOperatorId: keyWithWithdrawalInfo.operatorId,
-      beaconBlock: {
-        header: {
-          slot: Number(finalHeader.header.message.slot),
-          proposerIndex: Number(finalHeader.header.message.proposer_index),
-          parentRoot: finalHeader.header.message.parent_root,
-          stateRoot: finalHeader.header.message.state_root,
-          bodyRoot: finalHeader.header.message.body_root,
-        },
+      withdrawal: {
+        offset: Number(keyWithWithdrawalInfo.withdrawal.offset),
+        object: toWithdrawalStruct(keyWithWithdrawalInfo.withdrawal),
+        proof: withdrawalProof.witnesses.map(toHex),
+      },
+      validator: {
+        index: Number(valIndex),
+        nodeOperatorId: keyWithWithdrawalInfo.operatorId,
+        keyIndex: keyWithWithdrawalInfo.keyIndex,
+        object: toValidatorStruct(validator),
+        proof: validatorProof.witnesses.map(toHex),
+      },
+      recentBlock: {
+        header: toBeaconHeaderStruct(finalHeader),
         rootsTimestamp: nextToFinalizedHeaderTimestamp,
       },
-      oldBlock: {
-        header: {
-          slot: Number(headerWithWds.header.message.slot),
-          proposerIndex: Number(headerWithWds.header.message.proposer_index),
-          parentRoot: headerWithWds.header.message.parent_root,
-          stateRoot: headerWithWds.header.message.state_root,
-          bodyRoot: headerWithWds.header.message.body_root,
-        },
+      withdrawalBlock: {
+        header: toBeaconHeaderStruct(headerWithWds),
         proof: historicalStateProof.witnesses.map(toHex),
-      },
-      witness: {
-        withdrawalOffset: Number(keyWithWithdrawalInfo.withdrawal.offset),
-        withdrawalIndex: Number(keyWithWithdrawalInfo.withdrawal.index),
-        validatorIndex: Number(keyWithWithdrawalInfo.withdrawal.validatorIndex),
-        amount: Number(keyWithWithdrawalInfo.withdrawal.amount),
-        withdrawalCredentials: toHex(validator.withdrawalCredentials),
-        effectiveBalance: validator.effectiveBalance,
-        slashed: Boolean(validator.slashed),
-        activationEligibilityEpoch: validator.activationEligibilityEpoch,
-        activationEpoch: validator.activationEpoch,
-        exitEpoch: validator.exitEpoch,
-        withdrawableEpoch: validator.withdrawableEpoch,
-        withdrawalProof: withdrawalProof.witnesses.map(toHex),
-        validatorProof: validatorProof.witnesses.map(toHex),
       },
     });
   }
@@ -156,6 +143,6 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<HistoricalWith
 buildHistoricalWithdrawalsProofPayloads()
   .then((v) => parentPort?.postMessage(v))
   .catch((e) => {
-    console.error(e);
+    WorkerLogger.error(e instanceof Error ? (e.stack ?? e.message) : String(e));
     throw e;
   });

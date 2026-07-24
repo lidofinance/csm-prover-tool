@@ -1,18 +1,18 @@
 import { Module } from '@nestjs/common';
 
-import { AccountingContract } from './accounting-contract.service';
-import { ContractsInitializer } from './contracts-initializer.service';
-import { CsmContract } from './csm-contract.service';
-import { ExitPenaltiesContract } from './exit-penalties-contract.service';
-import { ParametersRegistryContract } from './parameters-registry-contract.service';
-import { StrikesContract } from './strikes-contract.service';
-import { VerifierContract } from './verifier-contract.service';
-import { ProvidersModule } from '../providers/providers.module';
+import { AccountingContract } from './accounting-contract.service.js';
+import { ContractsInitializer } from './contracts-initializer.service.js';
+import { ExitPenaltiesContract } from './exit-penalties-contract.service.js';
+import { ParametersRegistryContract } from './parameters-registry-contract.service.js';
+import { StakingModuleContract } from './staking-module-contract.service.js';
+import { StrikesContract } from './strikes-contract.service.js';
+import { VerifierContract } from './verifier-contract.service.js';
+import { ProvidersModule } from '../providers/providers.module.js';
 
 @Module({
   imports: [ProvidersModule],
   providers: [
-    CsmContract,
+    StakingModuleContract,
     VerifierContract,
     StrikesContract,
     ExitPenaltiesContract,
@@ -21,7 +21,7 @@ import { ProvidersModule } from '../providers/providers.module';
     ContractsInitializer,
   ],
   exports: [
-    CsmContract,
+    StakingModuleContract,
     VerifierContract,
     StrikesContract,
     ExitPenaltiesContract,

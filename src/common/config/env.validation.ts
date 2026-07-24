@@ -12,10 +12,11 @@ import {
   Max,
   Min,
   ValidateIf,
+  getMetadataStorage,
   validateSync,
 } from 'class-validator';
 
-import { Environment, LogFormat, LogLevel } from './interfaces';
+import { Environment, LogFormat, LogLevel } from './interfaces/environment.interface.js';
 
 export enum Network {
   Mainnet = 1,
@@ -43,9 +44,14 @@ export class EnvironmentVariables {
   @IsString()
   public START_ROOT?: string;
 
+  @IsNumber()
+  @Min(0)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public ROOTS_PROCESSING_LAG_SLOTS = 0;
+
   @IsNotEmpty()
   @IsString()
-  public CSM_ADDRESS: string;
+  public STAKING_MODULE_ADDRESS: string;
 
   @IsOptional()
   @IsNotEmpty()
@@ -90,12 +96,38 @@ export class EnvironmentVariables {
   public TX_GAS_FEE_HISTORY_PERCENTILE = 50;
 
   @IsNumber()
-  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public TX_GAS_LIMIT = 2_000_000;
+  @Min(0)
+  @Transform(({ value }) => parseFloat(value), { toClassOnly: true })
+  public TX_MAX_BASE_FEE_GWEI = 50;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public TX_MINING_WAITING_TIMEOUT_MS = 10 * MINUTE_MS;
+  public TX_GAS_LIMIT = 3_000_000;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_GAS_LIMIT_BUFFER_PERCENT = 20;
+
+  @IsNumber()
+  @Min(1)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_HIGH_GAS_FEE_MAX_RETRIES = 13;
+
+  @IsNumber()
+  @Min(1000)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_HIGH_GAS_FEE_RETRY_DELAY_MS = 60_000;
+
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public TX_MINING_WAITING_TIMEOUT_MS = 3 * MINUTE_MS;
+
+  @IsNumber()
+  @Min(MINUTE_MS)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public WORKER_TIMEOUT_MS = 30 * MINUTE_MS;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
@@ -148,7 +180,26 @@ export class EnvironmentVariables {
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public EL_RPC_RESET_INTERVAL_MS = 30 * MINUTE_MS;
+  // NOTE: Resets active provider if no outgoing EL requests within this interval
+  public EL_RPC_RESET_INTERVAL_MS = 12 * MINUTE_MS; // a bit less than CL finalization time
+
+  @IsNumber()
+  @Min(1)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  // Max JSON-RPC calls coalesced into one batched HTTP request. Lower if the provider rejects large batches.
+  public EL_RPC_MAX_BATCH_SIZE = 25;
+
+  @IsNumber()
+  @Min(1)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  // Max concurrent batched HTTP requests in flight to a single EL provider.
+  public EL_RPC_MAX_CONCURRENT_REQUESTS = 2;
+
+  @IsNumber()
+  @Min(0)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  // Window (ms) to accumulate calls into a batch before sending.
+  public EL_RPC_BATCH_AGGREGATION_WAIT_MS = 10;
 
   @IsArray()
   @ArrayMinSize(1)
@@ -190,9 +241,47 @@ export class EnvironmentVariables {
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public TX_STRIKES_PAYLOAD_MAX_BATCH_SIZE = 10;
+
+  @IsNumber()
+  @Min(0)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public STRIKES_MAX_REQUEST_FEE_GWEI = 6000;
+
+  @IsNumber()
+  @Min(1)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public BALANCE_PROOF_MIN_DELTA_GWEI = 512 * 1_000_000_000; // 512 ETH
+
+  @IsNumber()
+  @Min(0)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public BALANCE_PROOF_TOPUP_STEP_GWEI = 2 * 1_000_000_000; // 2 ETH
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Transform(({ value }) => toIntArray(value), { toClassOnly: true })
+  public DAEMON_NODE_OPERATOR_IDS?: number[];
 }
 
+export const ENV_VARIABLE_KEYS = [
+  ...new Set(
+    getMetadataStorage()
+      .getTargetValidationMetadatas(EnvironmentVariables, '', false, false)
+      .map((meta) => meta.propertyName),
+  ),
+] as (keyof EnvironmentVariables)[];
+
 export function validate(config: Record<string, unknown>) {
+  if (config.CSM_ADDRESS) {
+    console.warn('CSM_ADDRESS is deprecated, use STAKING_MODULE_ADDRESS instead');
+    if (!config.STAKING_MODULE_ADDRESS) {
+      config.STAKING_MODULE_ADDRESS = config.CSM_ADDRESS;
+    }
+  }
+
   const validatedConfig = plainToInstance(EnvironmentVariables, config);
 
   const validatorOptions = { skipMissingProperties: false };
@@ -232,4 +321,21 @@ const toBoolean = (value: any): boolean => {
     default:
       return false;
   }
+};
+
+const toIntArray = (value: unknown): number[] | undefined | unknown => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return [...new Set(trimmed.split(',').map((part) => Number(part.trim())))];
 };

@@ -1,5 +1,8 @@
 import { Question, QuestionSet } from 'nest-commander';
 
+export const PROOF_TYPES = ['slashing', 'withdrawal', 'bad_performer', 'balance'] as const;
+export type ProofType = (typeof PROOF_TYPES)[number];
+
 export const validateNodeOperatorId = (val: string) => {
   if (!/^\d+$/.test(val)) {
     throw new Error('Node operator ID must be a number');
@@ -57,6 +60,7 @@ export class ProofInputQuestion {
   @Question({
     message: 'Consensus Layer Block (root or slot number):',
     name: 'clBlock',
+    when: (answers: { proofType?: ProofType }) => answers.proofType !== 'bad_performer',
   })
   parseCLBlock(val: string) {
     return validateClBlock(val);

@@ -1,54 +1,27 @@
-import { Worker, parentPort } from 'node:worker_threads';
+import { Worker } from 'node:worker_threads';
 
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, Optional } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 
-import { WorkingMode } from '../config/env.validation';
-import { PrometheusService, TrackWorker } from '../prometheus';
-import { HistoricalWithdrawalsProofPayload, WithdrawalsProofPayload } from '../prover/types';
-import { BuildGeneralWithdrawalProofArgs } from './items/build-general-wd-proof-payloads';
-import { BuildHistoricalWithdrawalProofArgs } from './items/build-historical-wd-proof-payloads';
-import { GetNewValidatorKeysArgs, GetNewValidatorKeysResult } from './items/get-new-validator-keys';
-import { GetValidatorExitEpochsArgs, GetValidatorExitEpochsResult } from './items/get-validator-exit-epochs';
-
-class ParentLoggerMessage {
-  __class: string;
-  level: string;
-  message: string;
-
-  constructor(level: string, message: string) {
-    this.__class = ParentLoggerMessage.name;
-    this.level = level;
-    this.message = message;
-  }
-
-  // override `instanceof` behavior to allow simple type checking
-  static get [Symbol.hasInstance]() {
-    return function (instance: any) {
-      return instance.__class === ParentLoggerMessage.name;
-    };
-  }
-}
-
-export class WorkerLogger {
-  public static warn(message: string): void {
-    parentPort?.postMessage(new ParentLoggerMessage('warn', message));
-  }
-
-  public static log(message: string): void {
-    parentPort?.postMessage(new ParentLoggerMessage('log', message));
-  }
-
-  public static error(message: string): void {
-    parentPort?.postMessage(new ParentLoggerMessage('error', message));
-  }
-}
+import { ConfigService } from '../config/config.service.js';
+import { WorkingMode } from '../config/env.validation.js';
+import { type AppLogger } from '../logger/app-logger.type.js';
+import { PrometheusService, TrackWorker } from '../prometheus/index.js';
+import type { BuildBalanceProofArgs } from './items/build-balance-proof-payloads.js';
+import type { BuildGeneralWithdrawalProofArgs } from './items/build-general-wd-proof-payloads.js';
+import type { BuildHistoricalBalanceProofArgs } from './items/build-historical-balance-proof-payloads.js';
+import type { BuildHistoricalWithdrawalProofArgs } from './items/build-historical-wd-proof-payloads.js';
+import type { BuildSlashingProofArgs } from './items/build-slashing-proof-payloads.js';
+import type { GetNewValidatorKeysArgs, GetNewValidatorKeysResult } from './items/get-new-validator-keys.js';
+import type { GetValidatorBalancesArgs, GetValidatorBalancesResult } from './items/get-validator-balances.js';
+import type { GetValidatorExitEpochsArgs, GetValidatorExitEpochsResult } from './items/get-validator-exit-epochs.js';
+import { ParentLoggerMessage } from './worker-logger.js';
+import type { IVerifier } from '../contracts/types/Verifier.js';
 
 @Injectable()
 export class WorkersService {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     @Optional() protected readonly prometheus: PrometheusService,
     protected readonly config: ConfigService,
   ) {}
@@ -57,21 +30,42 @@ export class WorkersService {
     return await this._run('get-new-validator-keys', args);
   }
 
-  public async getValidatorExitEpochs(args: GetValidatorExitEpochsArgs): Promise<number[]> {
+  public async getValidatorBalances(args: GetValidatorBalancesArgs): Promise<bigint[]> {
+    const result: GetValidatorBalancesResult = await this._run('get-validator-balances', args);
+    return result.valBalances;
+  }
+
+  public async getValidatorExitEpochs(args: GetValidatorExitEpochsArgs): Promise<bigint[]> {
     const result: GetValidatorExitEpochsResult = await this._run('get-validator-exit-epochs', args);
     return result.valExitEpochs;
   }
 
+  public async getSlashedProofPayloads(args: BuildSlashingProofArgs): Promise<IVerifier.ProcessSlashedInputStruct[]> {
+    return await this._run('build-slashing-proof-payloads', args);
+  }
+
   public async getGeneralWithdrawalProofPayloads(
     args: BuildGeneralWithdrawalProofArgs,
-  ): Promise<WithdrawalsProofPayload[]> {
+  ): Promise<IVerifier.ProcessWithdrawalInputStruct[]> {
     return await this._run('build-general-wd-proof-payloads', args);
   }
 
   public async getHistoricalWithdrawalProofPayloads(
     args: BuildHistoricalWithdrawalProofArgs,
-  ): Promise<HistoricalWithdrawalsProofPayload[]> {
+  ): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
     return await this._run('build-historical-wd-proof-payloads', args);
+  }
+
+  public async getBalanceProofPayloads(
+    args: BuildBalanceProofArgs,
+  ): Promise<IVerifier.ProcessBalanceProofInputStruct[]> {
+    return await this._run('build-balance-proof-payloads', args);
+  }
+
+  public async getHistoricalBalanceProofPayloads(
+    args: BuildHistoricalBalanceProofArgs,
+  ): Promise<IVerifier.ProcessHistoricalBalanceProofInputStruct[]> {
+    return await this._run('build-historical-balance-proof-payloads', args);
   }
 
   private async _run<T>(name: string, data: any): Promise<T> {
@@ -88,12 +82,29 @@ export class WorkersService {
 
   private async _baseRun<T>(name: string, data: any): Promise<T> {
     return new Promise((resolve, reject) => {
-      const worker = new Worker(__dirname + `/items/${name}.js`, {
+      const worker = new Worker(new URL(`./items/${name}.js`, import.meta.url), {
         workerData: data,
         resourceLimits: {
           maxOldGenerationSizeMb: 8192,
         },
       });
+      let settled = false;
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn();
+      };
+      const timeoutMs = this.config.get('WORKER_TIMEOUT_MS');
+      const timer = setTimeout(() => {
+        settle(() => {
+          this.logger.warn(`Worker ${name} timed out after ${timeoutMs}ms; terminating`);
+          worker.terminate().catch(() => {
+            /* terminate is best-effort */
+          });
+          reject(new Error(`Worker ${name} timed out after ${timeoutMs}ms`));
+        });
+      }, timeoutMs);
       worker.on('message', (msg) => {
         if (msg instanceof ParentLoggerMessage) {
           switch (msg.level) {
@@ -112,11 +123,11 @@ export class WorkersService {
           }
           return;
         }
-        resolve(msg);
+        settle(() => resolve(msg));
       });
-      worker.on('error', (error) => reject(new Error(`Worker error: ${error}`)));
+      worker.on('error', (error) => settle(() => reject(new Error('Worker error', { cause: error }))));
       worker.on('exit', (code) => {
-        if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`));
+        if (code !== 0) settle(() => reject(new Error(`Worker stopped with exit code ${code}`)));
       });
     });
   }

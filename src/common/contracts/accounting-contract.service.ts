@@ -1,11 +1,10 @@
-import { BlockTag } from '@ethersproject/abstract-provider';
+import { type BlockTag } from '@ethersproject/abstract-provider';
 import { Injectable } from '@nestjs/common';
 import { LRUCache } from 'lru-cache';
 
-import { CsmContract } from './csm-contract.service';
-import { Accounting, Accounting__factory } from './types';
-import { ConfigService } from '../config/config.service';
-import { Execution } from '../providers/execution/execution';
+import { StakingModuleContract } from './staking-module-contract.service.js';
+import { type Accounting, Accounting__factory } from './types/index.js';
+import { Execution } from '../providers/execution/execution.js';
 
 @Injectable()
 export class AccountingContract {
@@ -13,13 +12,12 @@ export class AccountingContract {
   private bondCurveIdCache = new LRUCache<string, number>({ max: 128 });
 
   constructor(
-    protected readonly config: ConfigService,
     protected readonly execution: Execution,
-    protected readonly csm: CsmContract,
+    protected readonly stakingModule: StakingModuleContract,
   ) {}
 
   public async init() {
-    const accounting = await this.csm.getAccountingAddress();
+    const accounting = await this.stakingModule.getAccountingAddress();
     this.contract = Accounting__factory.connect(accounting, this.execution.provider);
   }
 
@@ -29,15 +27,16 @@ export class AccountingContract {
   }
 
   public async getBondCurveId(blockTag: BlockTag, nodeOperatorId: number): Promise<number> {
-    let curveId = this.bondCurveIdCache.get(`${blockTag}_${nodeOperatorId}`);
-    if (!curveId) {
+    const cacheKey = `${JSON.stringify(blockTag)}_${nodeOperatorId}`;
+    let curveId = this.bondCurveIdCache.get(cacheKey);
+    if (curveId === undefined) {
       curveId = (await this.contract.getBondCurveId(nodeOperatorId, { blockTag })).toNumber();
-      this.bondCurveIdCache.set(`${blockTag}_${nodeOperatorId}`, curveId);
+      this.bondCurveIdCache.set(cacheKey, curveId);
     }
     return curveId;
   }
 
   public async getFeeDistributorAddress(): Promise<string> {
-    return await this.contract.feeDistributor();
+    return await this.contract.FEE_DISTRIBUTOR();
   }
 }

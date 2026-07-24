@@ -5,7 +5,10 @@ export class TxExecutionQuestion {
   @Question({
     type: 'confirm',
     askAnswered: true,
-    message: 'Are you sure you want to send this transaction?',
+    message: (answers: { txSummary?: string }) =>
+      answers.txSummary
+        ? `Send this transaction?\n${answers.txSummary}\nConfirm sending?`
+        : 'Are you sure you want to send this transaction?',
     name: 'sendingConfirmed',
   })
   parseSendingConfirmed(val: boolean) {

@@ -1,26 +1,29 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 
-import * as buildInfo from 'build-info';
+import buildInfo from '../build-info.js';
+import { KeysIndexer } from './services/keys-indexer.js';
+import { RootsProcessor } from './services/roots-processor.js';
+import { RootsProvider } from './services/roots-provider.js';
+import { SingletonTask } from './utils/singleton-task.decorator.js';
+import sleep from './utils/sleep.js';
+import { ConfigService } from '../common/config/config.service.js';
+import { SECOND_MS } from '../common/config/env.validation.js';
+import { type AppLogger } from '../common/logger/app-logger.type.js';
+import { APP_NAME, PrometheusService, TrackTask } from '../common/prometheus/index.js';
+import { ProverService } from '../common/prover/prover.service.js';
+import { Consensus } from '../common/providers/consensus/consensus.js';
+import { type BlockHeaderResponse } from '../common/providers/consensus/response.interface.js';
 
-import { KeysIndexer } from './services/keys-indexer';
-import { RootsProcessor } from './services/roots-processor';
-import { RootsProvider } from './services/roots-provider';
-import sleep from './utils/sleep';
-import { ConfigService } from '../common/config/config.service';
-import { SECOND_MS } from '../common/config/env.validation';
-import { APP_NAME, PrometheusService, TrackTask } from '../common/prometheus';
-import { ProverService } from '../common/prover/prover.service';
-import { Consensus } from '../common/providers/consensus/consensus';
-import { BlockHeaderResponse } from '../common/providers/consensus/response.interface';
-import { SingletonTask } from '../common/utils/singleton-task.decorator';
+const SLOT_MS = 12 * SECOND_MS;
 
 @Injectable()
 export class DaemonService implements OnModuleInit {
   private lastFinalizedHeader: BlockHeaderResponse | null = null;
+  private rootProcessing: Promise<void> | null = null;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly prometheus: PrometheusService,
     protected readonly consensus: Consensus,
@@ -32,6 +35,11 @@ export class DaemonService implements OnModuleInit {
 
   async onModuleInit() {
     this.logger.log('Working mode: DAEMON');
+    this.logger.log(`Runtime configuration: ${JSON.stringify(this.config.snapshot())}`);
+    const filteredOperatorIds = this.config.get('DAEMON_NODE_OPERATOR_IDS');
+    if (filteredOperatorIds?.length) {
+      this.logger.warn(`Running for Node Operator IDs: ${filteredOperatorIds.join(', ')}`);
+    }
     const env = this.config.get('NODE_ENV');
     const version = buildInfo.version;
     const commit = buildInfo.commit;
@@ -39,9 +47,11 @@ export class DaemonService implements OnModuleInit {
     const name = APP_NAME;
 
     this.prometheus.buildInfo.labels({ env, name, version, commit, branch }).inc();
+    this.prometheus.genesisTime.set(this.consensus.genesisTimestamp);
+    this.prometheus.rootsProcessingLagSlots.set(this.config.get('ROOTS_PROCESSING_LAG_SLOTS'));
   }
 
-  public async loop() {
+  public async loop(): Promise<never> {
     while (true) {
       try {
         if (!this.keysIndexer.isInitialized()) await this.keysIndexer.initOrReadServiceData();
@@ -49,7 +59,15 @@ export class DaemonService implements OnModuleInit {
       } catch (e) {
         this.logger.error(e);
       } finally {
-        await sleep(SECOND_MS);
+        const processing = this.rootProcessing;
+        if (!processing) {
+          await sleep(SECOND_MS);
+        } else {
+          // Wake when the root finishes or a slot passes (finalized heartbeat), but never sooner than a second
+          const minGap = sleep(SECOND_MS);
+          const doneOrSlot = Promise.race([processing, sleep(SLOT_MS)]);
+          await Promise.all([minGap, doneOrSlot]);
+        }
       }
     }
   }
@@ -65,20 +83,26 @@ export class DaemonService implements OnModuleInit {
     }
 
     if (isFinalizedChanged) {
-      this.processAnyHeadRoot().catch((e) => this.logger.error(e));
-    }
-
-    const nextRoot = await this.rootsProvider.getNext(finalizedHeader);
-    if (nextRoot) {
-      this.processNextRoot(finalizedHeader, nextRoot).catch((e) => this.logger.error(e));
-    }
-
-    if (!nextRoot && !isFinalizedChanged) {
-      this.logger.log('💤 Wait 12s for the next finalized root');
-      await sleep(12 * SECOND_MS);
+      this.processBadPerformers(finalizedHeader).catch((e) => this.logger.error(e));
     }
 
     this.lastFinalizedHeader = finalizedHeader;
+
+    // Previous root still processing — skip; the loop's backoff wakes us the moment it finishes.
+    if (this.rootProcessing) return;
+
+    const nextRoot = await this.rootsProvider.getNext(finalizedHeader);
+    if (!nextRoot) {
+      this.logger.log('💤 Wait 12s for the next root');
+      await sleep(SLOT_MS);
+      return;
+    }
+
+    this.rootProcessing = this.processNextRoot(finalizedHeader, nextRoot)
+      .catch((e) => this.logger.error(e))
+      .finally(() => {
+        this.rootProcessing = null;
+      });
   }
 
   private isFinalizedHeaderChanged(finalizedHeader: BlockHeaderResponse): boolean {
@@ -98,10 +122,8 @@ export class DaemonService implements OnModuleInit {
   }
 
   @SingletonTask()
-  @TrackTask('process-any-head-root')
-  private async processAnyHeadRoot() {
-    const headHeader = await this.consensus.getBeaconHeader('head');
-    this.logger.log(`🪨 Head slot [${headHeader.header.message.slot}]. Root [${headHeader.root}]`);
-    await this.prover.handleBadPerformers(headHeader, this.keysIndexer.getFullKeyInfoByPubKey);
+  @TrackTask('process-bad-performers')
+  private async processBadPerformers(finalizedHeader: BlockHeaderResponse) {
+    await this.prover.handleBadPerformers(finalizedHeader, this.keysIndexer.getFullKeyInfoByPubKey);
   }
 }

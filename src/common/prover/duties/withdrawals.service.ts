@@ -1,26 +1,32 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import { Inject, Injectable, LoggerService } from '@nestjs/common';
+import type { RootHex } from '@lodestar/types';
+import { Inject, Injectable } from '@nestjs/common';
 
-import { CsmContract } from '../../contracts/csm-contract.service';
-import { VerifierContract } from '../../contracts/verifier-contract.service';
-import { Consensus, State, SupportedBlock, SupportedWithdrawal } from '../../providers/consensus/consensus';
-import { BlockHeaderResponse, RootHex } from '../../providers/consensus/response.interface';
-import { WorkersService } from '../../workers/workers.service';
-import { HistoricalWithdrawalsProofPayload, KeyInfo, KeyInfoFn, WithdrawalsProofPayload } from '../types';
+import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
+import type { IVerifier } from '../../contracts/types/Verifier.js';
+import { VerifierContract } from '../../contracts/verifier-contract.service.js';
+import { toRootHex } from '../../helpers/proofs.js';
+import { type AppLogger } from '../../logger/app-logger.type.js';
+import { Consensus, type State } from '../../providers/consensus/consensus.js';
+import type { SupportedBlock, SupportedWithdrawal } from '../../providers/consensus/forks.js';
+import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
+import { WorkersService } from '../../workers/workers.service.js';
+import type { KeyInfo, KeyInfoFn } from '../types.js';
+import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../utils/historical-summary.js';
 
 // according to the research https://hackmd.io/1wM8vqeNTjqt4pC3XoCUKQ?view#Proposed-solution
 const FULL_WITHDRAWAL_MIN_AMOUNT = 8 * 10 ** 9; // 8 ETH in Gwei
 
 type WithdrawalWithOffset = SupportedWithdrawal & { offset: number };
-export type InvolvedKeysWithWithdrawal = { [valIndex: number]: KeyInfo & { withdrawal: WithdrawalWithOffset } };
+export type InvolvedKeysWithWithdrawal = { [valIndex: string]: KeyInfo & { withdrawal: WithdrawalWithOffset } };
 
 @Injectable()
 export class WithdrawalsService {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: LoggerService,
+    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
-    protected readonly csm: CsmContract,
+    protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
   ) {}
 
@@ -30,11 +36,9 @@ export class WithdrawalsService {
   ): Promise<InvolvedKeysWithWithdrawal> {
     const withdrawals = this.getFullWithdrawals(blockInfo, keyInfoFn);
     if (!Object.keys(withdrawals).length) return {};
-    const unproven: InvolvedKeysWithWithdrawal = {};
-    for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
-      const proved = await this.csm.isWithdrawalProved('latest', keyWithWithdrawalInfo);
-      if (!proved) unproven[Number(valIndex)] = keyWithWithdrawalInfo;
-    }
+    const entries = Object.entries(withdrawals);
+    const proved = await Promise.all(entries.map(([, k]) => this.stakingModule.isWithdrawalProved(k)));
+    const unproven: InvolvedKeysWithWithdrawal = Object.fromEntries(entries.filter((_, i) => !proved[i]));
     const unprovenCount = Object.keys(unproven).length;
     if (!unprovenCount) {
       this.logger.warn('All full withdrawals from this block are already proved');
@@ -52,19 +56,13 @@ export class WithdrawalsService {
   ): Promise<number> {
     if (!Object.keys(withdrawals).length) return 0;
     const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
-    const state = await this.consensus.getState(blockHeader.header.message.state_root);
+    const state = await this.consensus.getState(toRootHex(blockHeader.header.message.stateRoot));
     // There is a case when the block is not historical regarding the finalized block, but it is historical
     // regarding the transaction execution time. This is possible when long finalization time
     // The transaction will be reverted and the application will try to handle that block again
     if (this.isHistoricalBlock(blockInfo, finalizedHeader)) {
       this.logger.warn('It is historical withdrawal. Processing will take longer than usual');
-      const payloads = await this.sendHistoricalWithdrawalProofs(
-        blockHeader,
-        blockInfo,
-        state,
-        finalizedHeader,
-        withdrawals,
-      );
+      const payloads = await this.sendHistoricalWithdrawalProofs(blockHeader, blockInfo, state, withdrawals);
       return payloads.length;
     }
     const payloads = await this.sendGeneralWithdrawalProofs(blockHeader, blockInfo, state, withdrawals);
@@ -76,10 +74,10 @@ export class WithdrawalsService {
     blockInfo: SupportedBlock,
     state: State,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Promise<WithdrawalsProofPayload[]> {
+  ): Promise<IVerifier.ProcessWithdrawalInputStruct[]> {
     // create proof against the state with withdrawals
-    const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data[0];
-    if (!nextBlockHeader) throw new Error(`Next block header after ${blockHeader.root} not found`);
+    const nextBlockHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data);
+    if (!nextBlockHeader) throw new Error(`Next canonical block header after ${blockHeader.root} not found`);
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
     this.logger.log(`Building withdrawal proof payloads`);
     const payloads = await this.workers.getGeneralWithdrawalProofPayloads({
@@ -91,7 +89,7 @@ export class WithdrawalsService {
       epoch: this.consensus.slotToEpoch(Number(blockHeader.header.message.slot)),
     });
     for (const payload of payloads) {
-      this.logger.log(`📡 Sending withdrawal proof payload for validator index: ${payload.witness.validatorIndex}`);
+      this.logger.log(`📡 Sending withdrawal proof payload for validator index: ${payload.validator.index}`);
       await this.verifier.sendWithdrawalProof(payload);
     }
     return payloads;
@@ -101,17 +99,31 @@ export class WithdrawalsService {
     blockHeader: BlockHeaderResponse,
     blockInfo: SupportedBlock,
     state: State,
-    finalizedHeader: BlockHeaderResponse,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Promise<HistoricalWithdrawalsProofPayload[]> {
-    // create proof against the historical state with withdrawals
-    const nextBlockHeader = (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data[0];
-    if (!nextBlockHeader) throw new Error(`Next block header after ${finalizedHeader.root} not found`);
+  ): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
+    // create proof against the historical state with withdrawals.
+    // Anchor to the freshest finalized header, fetched as late as possible: its root must still be in
+    // the EIP-4788 ring buffer (~27h) when the tx executes. A header captured at the start of the daemon
+    // iteration can age out during slow historical proof generation → RootNotFound() revert.
+    const finalizedHeader = await this.consensus.getBeaconHeader('finalized');
+    const nextBlockHeader = firstCanonical(
+      (await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data,
+    );
+    if (!nextBlockHeader) throw new Error(`Next canonical block header after ${finalizedHeader.root} not found`);
     const nextBlockTs = this.consensus.slotToTimestamp(Number(nextBlockHeader.header.message.slot));
-    const finalizedState = await this.consensus.getState(finalizedHeader.header.message.state_root);
-    const summaryIndex = this.calcSummaryIndex(blockInfo);
-    const summarySlot = this.calcSlotOfSummary(summaryIndex);
-    const summaryState = await this.consensus.getState(summarySlot);
+    const finalizedState = await this.consensus.getState(toRootHex(finalizedHeader.header.message.stateRoot));
+    const summaryResolution = await resolveHistoricalSummaryContext(
+      this.consensus,
+      finalizedHeader,
+      Number(blockInfo.slot),
+    );
+    if (summaryResolution.status === HistoricalSummaryResolutionStatus.BeforeCapella) {
+      throw new Error('Historical summary is not available before Capella fork slot');
+    }
+    if (summaryResolution.status === HistoricalSummaryResolutionStatus.NotHistoricalYet) {
+      throw new Error(`Historical summary is not available yet (summary slot ${summaryResolution.summarySlot})`);
+    }
+    const { summaryState, summaryIndex, rootIndexInSummary } = summaryResolution.context;
     this.logger.log('Building historical withdrawal proof payloads');
     const payloads = await this.workers.getHistoricalWithdrawalProofPayloads({
       headerWithWds: blockHeader,
@@ -122,14 +134,12 @@ export class WithdrawalsService {
       stateWithWds: state,
       blockWithWds: blockInfo,
       summaryIndex,
-      rootIndexInSummary: this.calcRootIndexInSummary(blockInfo),
+      rootIndexInSummary,
       withdrawals,
       epoch: this.consensus.slotToEpoch(Number(blockHeader.header.message.slot)),
     });
     for (const payload of payloads) {
-      this.logger.log(
-        `📡 Sending historical withdrawal proof payload for validator index: ${payload.witness.validatorIndex}`,
-      );
+      this.logger.log(`📡 Sending historical withdrawal proof payload for validator index: ${payload.validator.index}`);
       await this.verifier.sendHistoricalWithdrawalProof(payload);
     }
     return payloads;
@@ -157,22 +167,5 @@ export class WithdrawalsService {
       Number(finalizedHeader.header.message.slot) - Number(blockInfo.slot) >=
       Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT) - finalizationBufferSlots
     );
-  }
-
-  private calcSummaryIndex(blockInfo: SupportedBlock): number {
-    const capellaForkSlot = this.consensus.epochToSlot(Number(this.consensus.beaconConfig.CAPELLA_FORK_EPOCH));
-    const slotsPerHistoricalRoot = Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT);
-    return Math.floor((blockInfo.slot - capellaForkSlot) / slotsPerHistoricalRoot);
-  }
-
-  private calcSlotOfSummary(summaryIndex: number): number {
-    const capellaForkSlot = this.consensus.epochToSlot(Number(this.consensus.beaconConfig.CAPELLA_FORK_EPOCH));
-    const slotsPerHistoricalRoot = Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT);
-    return capellaForkSlot + (summaryIndex + 1) * slotsPerHistoricalRoot;
-  }
-
-  private calcRootIndexInSummary(blockInfo: SupportedBlock): number {
-    const slotsPerHistoricalRoot = Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT);
-    return blockInfo.slot % slotsPerHistoricalRoot;
   }
 }
