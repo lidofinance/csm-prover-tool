@@ -1,8 +1,9 @@
-export const APP_NAME = process.env.npm_package_name;
-export const APP_DESCRIPTION = process.env.npm_package_description;
+import packageInfo from '../../package-info.js';
+
+export const APP_NAME = packageInfo.name;
 
 export const METRICS_URL = '/metrics';
-export const METRICS_PREFIX = `${APP_NAME?.replace(/[- ]/g, '_')}_`;
+export const METRICS_PREFIX = `${APP_NAME.replace(/[- ]/g, '_')}_`;
 
 export const METRIC_BUILD_INFO = `build_info`;
 
