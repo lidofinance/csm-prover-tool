@@ -2,24 +2,33 @@ FROM node:20.12.1-alpine AS building
 
 WORKDIR /app
 
-COPY package.json yarn.lock build-info.json .yarnrc.yml ./
-COPY ./tsconfig*.json ./nest-cli.json ./.swcrc ./
-COPY ./src ./src
-
-RUN corepack enable && corepack prepare yarn@4.12.0 --activate
+# Dependency layer: only files that can change dependency resolution.
+# Source-only changes must not invalidate `yarn install`.
+COPY package.json yarn.lock .yarnrc.yml ./
+RUN corepack enable
 RUN yarn install --immutable && yarn cache clean
+
+# Build layer
+COPY ./tsconfig*.json ./nest-cli.json ./.swcrc ./
+COPY ./build-info.json ./
+COPY ./src ./src
 RUN yarn build
 
-FROM node:20.12.1-alpine
+# Drop devDependencies from node_modules before it is copied to the runtime stage
+RUN yarn workspaces focus --all --production
+
+FROM node:20.12.1-alpine AS production
 
 WORKDIR /app
 
-COPY --from=building /app/dist ./dist
-COPY --from=building /app/node_modules ./node_modules
-COPY ./package.json ./
-COPY ./build-info.json ./
-COPY ./.yarnrc.yml ./
-RUN corepack enable && corepack prepare yarn@4.12.0 --activate
+# What `yarn <script>` used to expand to. No package manager needed at runtime.
+ENV WORKING_MODE=cli
+
+COPY --from=building --chown=node:node /app/dist ./dist
+COPY --from=building --chown=node:node /app/node_modules ./node_modules
+COPY --chown=node:node ./package.json ./build-info.json ./
+
 USER node
 
-ENTRYPOINT ["yarn"]
+# Takes the proof type: `<image> withdrawal --node-operator-id ...`
+ENTRYPOINT ["node", "dist/main.js", "prove"]

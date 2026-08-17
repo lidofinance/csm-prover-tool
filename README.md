@@ -152,6 +152,7 @@ So, according to the algorithm, there are the following statements:
 | KEYSAPI_API_RESPONSE_TIMEOUT_MS         | KeysAPI response timeout in milliseconds                                | no                     | 60_000                        |
 | KEYSAPI_API_MAX_RETRIES                 | Maximum number of KeysAPI retries                                       | no                     | 3                             |
 | START_ROOT                              | Start CL block root for the daemon (defaults to current finalized root) | no                     |                               |
+| HTTP_USER_AGENT                         | `User-Agent` for all outgoing requests. Empty string — send none        | no                     | `csm-prover-tool/<version>`   |
 | ROOTS_PROCESSING_LAG_SLOTS              | Min slot-distance between processing tip and finalized tip. 0 = off     | no                     | 0                             |
 | DAEMON_NODE_OPERATOR_IDS                | Comma-separated node operator IDs to prove (daemon mode only)           | no                     |                               |
 | STAKING_MODULE_ADDRESS                  | Address of the staking module contract                                  | yes                    |                               |
@@ -182,7 +183,10 @@ So, according to the algorithm, there are the following statements:
 | LOG_LEVEL                               | Log level (`error`, `warn`, `info`, `debug`)                            | no                     | info                          |
 | LOG_FORMAT                              | Log format (`simple` or `json`)                                         | no                     | simple                        |
 
-
+> [!NOTE]
+> Outgoing requests are identified as `csm-prover-tool/<version>` so that node operators and RPC
+> providers can attribute traffic instead of rate-limiting an anonymous client. Set `HTTP_USER_AGENT=`
+> (empty) if you prefer not to advertise to a third-party endpoint that you run a CSM prover.
 
 ## Test
 
