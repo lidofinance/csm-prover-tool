@@ -2,13 +2,19 @@ FROM node:20.12.1-alpine AS building
 
 WORKDIR /app
 
-COPY package.json yarn.lock build-info.json .yarnrc.yml ./
-COPY ./tsconfig*.json ./nest-cli.json ./.swcrc ./
-COPY ./src ./src
-
-RUN corepack enable && corepack prepare yarn@4.12.0 --activate
+# Dependency layer: only files that can change dependency resolution.
+# Source-only changes must not invalidate `yarn install`.
+COPY package.json yarn.lock .yarnrc.yml ./
+RUN corepack enable
 RUN yarn install --immutable && yarn cache clean
+
+# Build layer
+COPY ./tsconfig*.json ./nest-cli.json ./.swcrc ./
+COPY ./build-info.json ./
+COPY ./src ./src
 RUN yarn build
+
+# Drop devDependencies from node_modules before it is copied to the runtime stage
 RUN yarn workspaces focus --all --production
 
 FROM node:20.12.1-alpine AS production

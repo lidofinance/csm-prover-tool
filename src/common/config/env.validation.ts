@@ -44,6 +44,11 @@ export class EnvironmentVariables {
   @IsString()
   public START_ROOT?: string;
 
+  // User-Agent for outgoing requests. Unset — derived from build info, empty — not sent.
+  @IsOptional()
+  @IsString()
+  public HTTP_USER_AGENT?: string;
+
   @IsNumber()
   @Min(0)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
