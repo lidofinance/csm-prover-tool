@@ -9,6 +9,7 @@ const { parser } = streamJson;
 
 import type { ELBlockSnapshot, ModuleKeys, ModuleKeysFind, Modules, Status } from './response.interface.js';
 import { ConfigService } from '../../config/config.service.js';
+import { SECOND_MS } from '../../config/env.validation.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { PrometheusService, TrackKeysAPIRequest } from '../../prometheus/index.js';
 import { BaseRestProvider, type RestResponse } from '../base/rest-provider.js';
@@ -39,8 +40,9 @@ export class Keysapi extends BaseRestProvider {
   }
 
   public healthCheck(finalizedTimestamp: number, keysApiMetadata: { elBlockSnapshot: ELBlockSnapshot }): void {
+    // Timestamps are Unix seconds, the configured period is milliseconds.
     if (
-      finalizedTimestamp - keysApiMetadata.elBlockSnapshot.timestamp >
+      (finalizedTimestamp - keysApiMetadata.elBlockSnapshot.timestamp) * SECOND_MS >
       this.config.get('KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS')
     ) {
       throw new Error('KeysApi is outdated');
