@@ -11,6 +11,7 @@ import { Execution } from '../providers/execution/execution.js';
 @Injectable()
 export class VerifierContract {
   private contract: Verifier;
+  private minWithdrawalRatio?: bigint; // immutable in the contract
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
@@ -77,5 +78,10 @@ export class VerifierContract {
 
   public async isPaused(): Promise<boolean> {
     return await this.contract.isPaused();
+  }
+
+  public async getMinWithdrawalRatio(): Promise<bigint> {
+    this.minWithdrawalRatio ??= (await this.contract.MIN_WITHDRAWAL_RATIO()).toBigInt();
+    return this.minWithdrawalRatio;
   }
 }
