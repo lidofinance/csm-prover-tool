@@ -27,7 +27,21 @@ export class BalancesService {
     protected readonly verifier: VerifierContract,
   ) {}
 
-  public isProvableBalance(keyAddedBalanceWei: bigint, balanceGwei: bigint, exitEpoch: bigint): boolean {
+  public isProvableBalance(
+    valIndex: string,
+    keyAddedBalanceWei: bigint,
+    balanceGwei: bigint,
+    exitEpoch: bigint,
+    withdrawableEpoch: bigint,
+    stateEpoch: bigint,
+  ): boolean {
+    if (stateEpoch >= withdrawableEpoch) {
+      // The Verifier reverts with `ValidatorIsWithdrawable`.
+      this.logger.warn(
+        `Validator ${valIndex} is withdrawable since epoch ${withdrawableEpoch} (state epoch ${stateEpoch}). Skipped`,
+      );
+      return false;
+    }
     const minActivationBalanceGwei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE);
     const maxEffectiveBalanceGwei = BigInt(this.consensus.beaconConfig.MAX_EFFECTIVE_BALANCE_ELECTRA);
     const reportableMaxGwei = maxEffectiveBalanceGwei - BigInt(this.config.get('BALANCE_PROOF_TOPUP_STEP_GWEI'));
@@ -49,7 +63,8 @@ export class BalancesService {
     if (keysCount === 0) return {};
 
     const currentBalances = await this.getValidatorBalances(currentState);
-    const currentExitEpochs = await this.getValidatorExitEpochs(currentState);
+    const { slot, valExitEpochs, valWithdrawableEpochs } = await this.getValidatorEpochs(currentState);
+    const stateEpoch = BigInt(this.consensus.slotToEpoch(slot));
     const minActivationBalanceGwei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE);
     const provable: InvolvedKeys = {};
 
@@ -63,9 +78,16 @@ export class BalancesService {
     const addedBalances = await this.stakingModule.getKeyAddedBalances(entries.map(([, keyInfo]) => keyInfo));
 
     entries.forEach(([valIndex, keyInfo], i) => {
-      const balanceToProve = currentBalances[Number(valIndex)];
-      const exitEpochToProve = currentExitEpochs[Number(valIndex)];
-      if (this.isProvableBalance(addedBalances[i], balanceToProve, exitEpochToProve)) {
+      const index = Number(valIndex);
+      const provableBalance = this.isProvableBalance(
+        valIndex,
+        addedBalances[i],
+        currentBalances[index],
+        valExitEpochs[index],
+        valWithdrawableEpochs[index],
+        stateEpoch,
+      );
+      if (provableBalance) {
         provable[valIndex] = keyInfo;
       }
     });
@@ -101,7 +123,7 @@ export class BalancesService {
     return await this.workers.getValidatorBalances({ state });
   }
 
-  private async getValidatorExitEpochs(state: State): Promise<bigint[]> {
+  private async getValidatorEpochs(state: State) {
     return await this.workers.getValidatorExitEpochs({ state });
   }
 

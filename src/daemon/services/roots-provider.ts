@@ -59,15 +59,16 @@ export class RootsProvider {
     const diff = Number(finalizedHeader.header.message.slot) - lastProcessed.slotNumber;
     this.logger.warn(`Diff between last processed and finalized is ${diff} slots`);
     const childHeaders = await this.consensus.getBeaconHeadersByParentRoot(lastProcessed.blockRoot);
-    if (childHeaders.data.length == 0 || !childHeaders.finalized) {
-      this.logger.warn(`No finalized child header for [${lastProcessed.blockRoot}] yet`);
-      return;
-    }
     const canonical = firstCanonical(childHeaders.data);
     if (!canonical) {
       this.logger.warn(
         `Got ${childHeaders.data.length} child header(s) for [${lastProcessed.blockRoot}] but none canonical.`,
       );
+      return;
+    }
+    // Response-level `finalized` is false if any returned sibling is not finalized, so check the canonical child.
+    if (Number(canonical.header.message.slot) > Number(finalizedHeader.header.message.slot)) {
+      this.logger.warn(`No finalized child header for [${lastProcessed.blockRoot}] yet`);
       return;
     }
     this.logger.log(`⏭️ Next root to process [${canonical.root}]. Child of last processed`);

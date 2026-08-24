@@ -9,6 +9,7 @@ const { parser } = streamJson;
 
 import type { ELBlockSnapshot, ModuleKeys, ModuleKeysFind, Modules, Status } from './response.interface.js';
 import { ConfigService } from '../../config/config.service.js';
+import { SECOND_MS } from '../../config/env.validation.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { PrometheusService, TrackKeysAPIRequest } from '../../prometheus/index.js';
 import { BaseRestProvider, type RestResponse } from '../base/rest-provider.js';
@@ -39,8 +40,9 @@ export class Keysapi extends BaseRestProvider {
   }
 
   public healthCheck(finalizedTimestamp: number, keysApiMetadata: { elBlockSnapshot: ELBlockSnapshot }): void {
+    // Timestamps are Unix seconds, the configured period is milliseconds.
     if (
-      finalizedTimestamp - keysApiMetadata.elBlockSnapshot.timestamp >
+      (finalizedTimestamp - keysApiMetadata.elBlockSnapshot.timestamp) * SECOND_MS >
       this.config.get('KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS')
     ) {
       throw new Error('KeysApi is outdated');
@@ -48,24 +50,28 @@ export class Keysapi extends BaseRestProvider {
   }
 
   public async getStatus(): Promise<Status> {
-    const { body } = await this.retryRequest((baseUrl) => this.baseGet(baseUrl, this.endpoints.status));
-    return (await body.json()) as Status;
+    return await this.retryRequest(async (baseUrl) => {
+      const { body } = await this.baseGet(baseUrl, this.endpoints.status);
+      return (await body.json()) as Status;
+    });
   }
 
   public async getModules(): Promise<Modules> {
-    const { body } = await this.retryRequest((baseUrl) => this.baseGet(baseUrl, this.endpoints.modules));
-    return (await body.json()) as Modules;
+    return await this.retryRequest(async (baseUrl) => {
+      const { body } = await this.baseGet(baseUrl, this.endpoints.modules);
+      return (await body.json()) as Modules;
+    });
   }
 
   public async getModuleKeys(module_id: string | number, signal?: AbortSignal): Promise<ModuleKeys> {
-    const resp = await this.retryRequest((baseUrl) =>
-      this.baseGet(baseUrl, this.endpoints.moduleKeys(module_id), { signal }),
-    );
-    // TODO: ignore depositSignature ?
-    const pipeline = chain([resp.body, parser()]);
-    return await new Promise((resolve, reject) => {
-      Assembler.connectTo(pipeline).on('done', (asm) => resolve(asm.current));
-      pipeline.on('error', reject);
+    return await this.retryRequest(async (baseUrl) => {
+      const { body } = await this.baseGet(baseUrl, this.endpoints.moduleKeys(module_id), { signal });
+      // TODO: ignore depositSignature ?
+      const pipeline = chain([body, parser()]);
+      return await new Promise<ModuleKeys>((resolve, reject) => {
+        Assembler.connectTo(pipeline).on('done', (asm) => resolve(asm.current));
+        pipeline.on('error', reject);
+      });
     });
   }
 
@@ -74,10 +80,13 @@ export class Keysapi extends BaseRestProvider {
     keysToFind: string[],
     signal?: AbortSignal,
   ): Promise<ModuleKeysFind> {
-    const { body } = await this.retryRequest((baseUrl) =>
-      this.basePost(baseUrl, this.endpoints.findModuleKeys(module_id), { pubkeys: keysToFind, signal }),
-    );
-    return (await body.json()) as ModuleKeysFind;
+    return await this.retryRequest(async (baseUrl) => {
+      const { body } = await this.basePost(baseUrl, this.endpoints.findModuleKeys(module_id), {
+        pubkeys: keysToFind,
+        signal,
+      });
+      return (await body.json()) as ModuleKeysFind;
+    });
   }
 
   @TrackKeysAPIRequest

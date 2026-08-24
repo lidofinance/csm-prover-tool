@@ -219,23 +219,28 @@ export class KeysIndexer implements OnApplicationBootstrap {
     await this.info.read();
     await this.storage.read();
 
-    if (this.info.data.moduleId == 0) {
-      const modulesResp = await this.keysapi.getModules();
-      const module = modulesResp.data.find(
-        (m: Module) => m.stakingModuleAddress.toLowerCase() === this.info.data.moduleAddress.toLowerCase(),
-      );
-      if (!module) {
-        const error = new ModuleNotFoundError(
-          `Module with address ${this.info.data.moduleAddress} not found! ` +
-            'Update configs if this is the wrong address. Next automatic attempt to find it will be in 1m',
-        );
-        this.logger.error(error.message);
-        await sleep(this.MODULE_NOT_FOUND_NEXT_TRY_MS);
-        throw error;
-      }
-      this.info.data.moduleId = module.id;
-      await this.info.write();
+    const chainId = this.config.get('CHAIN_ID');
+    const status = await this.keysapi.getStatus();
+    if (status.chainId !== chainId) {
+      throw new Error(`KeysApi serves chain ${status.chainId}, but CHAIN_ID is ${chainId}`);
     }
+
+    // Re-resolved on every start instead of trusting the persisted id.
+    const modulesResp = await this.keysapi.getModules();
+    const module = modulesResp.data.find(
+      (m: Module) => m.stakingModuleAddress.toLowerCase() === this.info.data.moduleAddress.toLowerCase(),
+    );
+    if (!module) {
+      const error = new ModuleNotFoundError(
+        `Module with address ${this.info.data.moduleAddress} not found! ` +
+          'Update configs if this is the wrong address. Next automatic attempt to find it will be in 1m',
+      );
+      this.logger.error(error.message);
+      await sleep(this.MODULE_NOT_FOUND_NEXT_TRY_MS);
+      throw error;
+    }
+    this.info.data.moduleId = module.id;
+    await this.info.write();
 
     if (this.info.data.storageStateSlot == 0) {
       this.logger.log(`Init keys data`);
@@ -250,9 +255,26 @@ export class KeysIndexer implements OnApplicationBootstrap {
     }
   }
 
+  private assertModule(module: Module): void {
+    const expected = this.info.data.moduleAddress.toLowerCase();
+    if (module.stakingModuleAddress.toLowerCase() !== expected) {
+      throw new Error(`KeysApi returned keys of module ${module.stakingModuleAddress}, expected ${expected}`);
+    }
+  }
+
+  // For `find` responses, which carry no module metadata. `moduleAddress` is optional in practice.
+  private assertKeysModule(keys: Key[]): void {
+    const expected = this.info.data.moduleAddress.toLowerCase();
+    const alien = keys.find((k) => k.moduleAddress && k.moduleAddress.toLowerCase() !== expected);
+    if (alien) {
+      throw new Error(`KeysApi returned a key of module ${alien.moduleAddress}, expected ${expected}`);
+    }
+  }
+
   private async initStorage(state: State, finalizedSlot: Slot): Promise<number> {
     const stakingModuleKeys = await this.keysapi.getModuleKeys(this.info.data.moduleId);
     this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), stakingModuleKeys.meta);
+    this.assertModule(stakingModuleKeys.data.module);
     const keysMap = new Map<string, { operatorIndex: number; index: number }>();
     stakingModuleKeys.data.keys.forEach((k: Key) => keysMap.set(k.key, { ...k }));
     const { totalValLength, valKeys } = await this.workers.getNewValidatorKeys({
@@ -288,6 +310,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
     this.logger.log(`New appeared validators count: ${newValKeys.length}`);
     const stakingModuleKeys = await this.keysapi.findModuleKeys(this.info.data.moduleId, newValKeys);
     this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), stakingModuleKeys.meta);
+    this.assertKeysModule(stakingModuleKeys.data.keys);
     this.logger.log(`New appeared staking module validators count: ${stakingModuleKeys.data.keys.length}`);
     const valKeysLength = newValKeys.length;
     // Build first, then assign atomically — no partial state visible to concurrent readers.
