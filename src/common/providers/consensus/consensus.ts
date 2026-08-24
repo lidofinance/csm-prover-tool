@@ -120,56 +120,58 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   }
 
   public async getConfig(): Promise<BeaconConfig> {
-    const { body } = await this.retryRequest((baseUrl) => this.baseGet(baseUrl, this.endpoints.config));
-    const jsonBody = (await body.json()) as { data: BeaconConfig };
-    return jsonBody.data;
+    return await this.retryRequest(async (baseUrl) => {
+      const { body } = await this.baseGet(baseUrl, this.endpoints.config);
+      return ((await body.json()) as { data: BeaconConfig }).data;
+    });
   }
 
   public async getGenesis(): Promise<GenesisResponse> {
-    const { body } = await this.retryRequest((baseUrl) => this.baseGet(baseUrl, this.endpoints.genesis));
-    const jsonBody = (await body.json()) as { data: GenesisResponse };
-    return jsonBody.data;
+    return await this.retryRequest(async (baseUrl) => {
+      const { body } = await this.baseGet(baseUrl, this.endpoints.genesis);
+      return ((await body.json()) as { data: GenesisResponse }).data;
+    });
   }
 
   public async getBlockInfo(blockId: BlockId): Promise<SupportedBlock> {
-    return await this.blockInfoCache.getOrFetch(blockId, async () => {
-      const { body, headers } = await this.retryRequest((baseUrl) =>
-        this.baseGet(baseUrl, this.endpoints.blockInfo(blockId)),
-      );
-      // Read the body before parsing the fork, else a bad fork leaks it.
-      const jsonBody = (await body.json()) as { data: { message: JSON } };
-      const forkName = parseFork(headers['eth-consensus-version'] as string);
-      return getSsz(forkName).BeaconBlock.fromJson(jsonBody.data.message);
-    });
+    return await this.blockInfoCache.getOrFetch(blockId, () =>
+      this.retryRequest(async (baseUrl) => {
+        const { body, headers } = await this.baseGet(baseUrl, this.endpoints.blockInfo(blockId));
+        // Read the body before parsing the fork, else a bad fork leaks it.
+        const jsonBody = (await body.json()) as { data: { message: JSON } };
+        const forkName = parseFork(headers['eth-consensus-version'] as string);
+        return getSsz(forkName).BeaconBlock.fromJson(jsonBody.data.message);
+      }),
+    );
   }
 
   public async getBeaconHeader(blockId: BlockId): Promise<BlockHeaderResponse> {
-    return await this.beaconHeaderCache.getOrFetch(blockId, async () => {
-      const { body } = await this.retryRequest((baseUrl) =>
-        this.baseGet(baseUrl, this.endpoints.beaconHeader(blockId)),
-      );
-      const jsonBody = (await body.json()) as { data: BlockHeaderResponseJson };
-      return {
-        ...jsonBody.data,
-        header: ssz.phase0.SignedBeaconBlockHeader.fromJson(jsonBody.data.header),
-      };
-    });
+    return await this.beaconHeaderCache.getOrFetch(blockId, () =>
+      this.retryRequest(async (baseUrl) => {
+        const { body } = await this.baseGet(baseUrl, this.endpoints.beaconHeader(blockId));
+        const jsonBody = (await body.json()) as { data: BlockHeaderResponseJson };
+        return {
+          ...jsonBody.data,
+          header: ssz.phase0.SignedBeaconBlockHeader.fromJson(jsonBody.data.header),
+        };
+      }),
+    );
   }
 
   public async getBeaconHeadersByParentRoot(parentRoot: RootHex): Promise<BeaconHeadersByParentRootResponse> {
-    return await this.childHeadersCache.getOrFetch(parentRoot, async () => {
-      const { body } = await this.retryRequest((baseUrl) =>
-        this.baseGet(baseUrl, this.endpoints.beaconHeadersByParentRoot(parentRoot)),
-      );
-      const jsonBody = (await body.json()) as { finalized: boolean; data: BlockHeaderResponseJson[] };
-      return {
-        finalized: jsonBody.finalized,
-        data: jsonBody.data.map((item) => ({
-          ...item,
-          header: ssz.phase0.SignedBeaconBlockHeader.fromJson(item.header),
-        })),
-      };
-    });
+    return await this.childHeadersCache.getOrFetch(parentRoot, () =>
+      this.retryRequest(async (baseUrl) => {
+        const { body } = await this.baseGet(baseUrl, this.endpoints.beaconHeadersByParentRoot(parentRoot));
+        const jsonBody = (await body.json()) as { finalized: boolean; data: BlockHeaderResponseJson[] };
+        return {
+          finalized: jsonBody.finalized,
+          data: jsonBody.data.map((item) => ({
+            ...item,
+            header: ssz.phase0.SignedBeaconBlockHeader.fromJson(item.header),
+          })),
+        };
+      }),
+    );
   }
 
   public async getState(stateId: StateId, signal?: AbortSignal): Promise<State> {
