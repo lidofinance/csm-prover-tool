@@ -180,11 +180,13 @@ export class BadPerformersService {
       return this.currentStrikesTree;
     }
 
-    const treeData = await this.ipfs.get(treeCid);
-    const tree = StandardMerkleTree.load<StrikesTreeLeaf>(treeData);
-    if (tree.root != treeRoot) {
-      throw new Error(`Unexpected Tree root from Tree CID ${treeCid}`);
-    }
+    const tree = await this.ipfs.get(treeCid, (treeData) => {
+      const loaded = StandardMerkleTree.load<StrikesTreeLeaf>(treeData);
+      if (loaded.root != treeRoot) {
+        throw new Error(`Unexpected Tree root from Tree CID ${treeCid}`);
+      }
+      return loaded;
+    });
     this.logger.log(`🌲 Strikes Tree loaded from IPFS: ${treeCid} with root ${tree.root}`);
     return tree;
   }
