@@ -39,6 +39,9 @@ export class BadPerformersService {
   private currentStrikesThresholdsByCurveId: Map<number, number> = new Map();
   private currentNodeOperatorsCurveIds: Map<number, number> = new Map();
   private lastProcessedStrikesTreeRoot: string | undefined;
+  // Both predicates are monotonic on-chain, so a cached positive is never re-read.
+  private readonly provenEjections = new Set<string>();
+  private readonly provenWithdrawals = new Set<string>();
 
   public getCurrentExitRequestsLimit(): Promise<bigint> {
     return this.strikes.getCurrentExitRequestsLimit();
@@ -52,7 +55,7 @@ export class BadPerformersService {
     if (!isAnyToProcess) return [];
     const badPerfKeys = await this.getBadPerformersKeys(fullKeyInfoFn);
     if (!badPerfKeys) return [];
-    const unproven = await this.getUnprovenKeys(headBlockInfo, badPerfKeys);
+    const unproven = await this.getUnprovenKeys(badPerfKeys);
     if (!unproven) return [];
     const unprovenNonWithdrawn = await this.getNonWithdrawnKeys(unproven);
     if (!unprovenNonWithdrawn) return [];
@@ -177,11 +180,13 @@ export class BadPerformersService {
       return this.currentStrikesTree;
     }
 
-    const treeData = await this.ipfs.get(treeCid);
-    const tree = StandardMerkleTree.load<StrikesTreeLeaf>(treeData);
-    if (tree.root != treeRoot) {
-      throw new Error(`Unexpected Tree root from Tree CID ${treeCid}`);
-    }
+    const tree = await this.ipfs.get(treeCid, (treeData) => {
+      const loaded = StandardMerkleTree.load<StrikesTreeLeaf>(treeData);
+      if (loaded.root != treeRoot) {
+        throw new Error(`Unexpected Tree root from Tree CID ${treeCid}`);
+      }
+      return loaded;
+    });
     this.logger.log(`🌲 Strikes Tree loaded from IPFS: ${treeCid} with root ${tree.root}`);
     return tree;
   }
@@ -269,21 +274,22 @@ export class BadPerformersService {
   }
 
   private async getUnprovenKeys(
-    headBlockInfo: SupportedBlock,
     keys: InvolvedKeysWithBadPerformance,
   ): Promise<InvolvedKeysWithBadPerformance | undefined> {
-    const blockTag = toBlockTagByHash(headBlockInfo.body.executionPayload.blockHash);
-
     this.logger.log('🔍 Searching for unproven bad performers');
 
-    const proved = await Promise.all(keys.map((key) => this.exitPenalties.isEjectionProved(blockTag, key)));
-    const unproven = keys.filter((key, i) => {
-      if (proved[i]) {
-        this.logger.warn(`Validator ${key.validatorIndex} already proven as a bad performer`);
-        return false;
-      }
-      return true;
+    const toCheck = keys.filter((key) => !this.provenEjections.has(key.pubKey));
+    const proved = await Promise.all(toCheck.map((key) => this.exitPenalties.isEjectionProved(key)));
+    toCheck.forEach((key, i) => {
+      if (proved[i]) this.provenEjections.add(key.pubKey);
     });
+
+    const unproven = keys.filter((key) => !this.provenEjections.has(key.pubKey));
+    if (unproven.length < keys.length) {
+      this.logger.warn(
+        `Already proven as bad performers: ${keys.length - unproven.length} (${keys.length - toCheck.length} taken from cache)`,
+      );
+    }
     if (unproven.length == 0) {
       this.logger.log('All keys are already proven as bad performers');
       return undefined;
@@ -297,16 +303,18 @@ export class BadPerformersService {
   ): Promise<InvolvedKeysWithBadPerformance | undefined> {
     this.logger.log('🔍 Searching for non-withdrawn bad performers');
 
-    const withdrawalProved = await Promise.all(keys.map((key) => this.stakingModule.isWithdrawalProved(key)));
-    const nonWithdrawn = keys.filter((key, i) => {
-      if (withdrawalProved[i]) {
-        this.logger.warn(
-          `Validator ${key.validatorIndex} already reported as withdrawn. No need to prove as a bad performer`,
-        );
-        return false;
-      }
-      return true;
+    const toCheck = keys.filter((key) => !this.provenWithdrawals.has(key.pubKey));
+    const withdrawalProved = await Promise.all(toCheck.map((key) => this.stakingModule.isWithdrawalProved(key)));
+    toCheck.forEach((key, i) => {
+      if (withdrawalProved[i]) this.provenWithdrawals.add(key.pubKey);
     });
+
+    const nonWithdrawn = keys.filter((key) => !this.provenWithdrawals.has(key.pubKey));
+    if (nonWithdrawn.length < keys.length) {
+      this.logger.warn(
+        `Already reported as withdrawn: ${keys.length - nonWithdrawn.length} (${keys.length - toCheck.length} taken from cache)`,
+      );
+    }
     if (nonWithdrawn.length == 0) {
       this.logger.log('All bad performers are already reported as withdrawn');
       return undefined;

@@ -43,7 +43,7 @@ export class RootsProcessor {
         await this.prover.handleBalanceChangesInBlock(blockRootToProcess, finalizedHeader, this.keysIndexer.getAllKeys);
       }
     }
-    const indexerIsTrusted = this.keysIndexer.isTrustedForEveryDuty(rootSlot.slotNumber);
+    const indexerIsTrusted = this.keysIndexer.isTrustedForBlock(blockInfoToProcess);
     if (indexerIsTrusted) await this.rootsStack.purge(rootSlot);
     await this.rootsStack.setLastProcessed(rootSlot);
   }

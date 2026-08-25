@@ -8,6 +8,8 @@ import { PrometheusService, TrackIPFSRequest } from '../../prometheus/index.js';
 import { BaseRestProvider, type RestResponse } from '../base/rest-provider.js';
 import { type RequestOptions } from '../base/utils/func.js';
 
+const MAX_RESPONSE_BYTES = 128 * 1024 * 1024;
+
 @Injectable()
 export class Ipfs extends BaseRestProvider {
   private readonly endpoints = {
@@ -32,9 +34,24 @@ export class Ipfs extends BaseRestProvider {
     );
   }
 
-  public async get(cid: string): Promise<any> {
-    const { body } = await this.retryRequest((baseUrl) => this.baseGet(baseUrl, this.endpoints.ipfs(cid)));
-    return await body.json();
+  // `parse` runs inside the retry boundary, so a malformed or unauthenticated artifact rotates gateways.
+  public async get<T>(cid: string, parse: (data: any) => T): Promise<T> {
+    return await this.retryRequest(async (baseUrl) => {
+      const { body, headers } = await this.baseGet(baseUrl, this.endpoints.ipfs(cid));
+      const oversized = new Error(`IPFS response for [${cid}] exceeds ${MAX_RESPONSE_BYTES} bytes`);
+      if (Number(headers['content-length']) > MAX_RESPONSE_BYTES) {
+        await body.dump().catch(() => {});
+        throw oversized;
+      }
+      const chunks: Buffer[] = [];
+      let size = 0;
+      for await (const chunk of body) {
+        size += chunk.length;
+        if (size > MAX_RESPONSE_BYTES) throw oversized;
+        chunks.push(chunk);
+      }
+      return parse(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+    });
   }
 
   @TrackIPFSRequest
