@@ -19,6 +19,7 @@ import {
 } from '../../common/prometheus/index.js';
 import type { FullKeyInfo, KeyInfo } from '../../common/prover/types.js';
 import { Consensus, type State } from '../../common/providers/consensus/consensus.js';
+import type { SupportedBlock } from '../../common/providers/consensus/forks.js';
 import type { BlockHeaderResponse } from '../../common/providers/consensus/response.interface.js';
 import { Keysapi } from '../../common/providers/keysapi/keysapi.js';
 import type { Key, Module } from '../../common/providers/keysapi/response.interface.js';
@@ -126,38 +127,34 @@ export class KeysIndexer implements OnApplicationBootstrap {
     await this.info.write();
   }
 
-  public isTrustedForAnyDuty(slotNumber: Slot): boolean {
-    return (
-      this.isTrustedForBalanceChanges(slotNumber) ||
-      this.isTrustedForSlashings(slotNumber) ||
-      this.isTrustedForFullWithdrawals(slotNumber)
+  // Validators are appended to the state in index order, so every index below `lastValidatorsCount` was
+  // looked up during the last scan. A higher one appeared after it and cannot be judged yet.
+  public isTrustedForBlock(blockInfo: SupportedBlock): boolean {
+    const maxIndex = this.maxReferencedValidatorIndex(blockInfo);
+    const indexed = this.info.data.lastValidatorsCount;
+    if (maxIndex < indexed) return true;
+    this.logger.warn(
+      `🚨 Block references validator ${maxIndex}, beyond the indexed ${indexed}. The root will be processed later again`,
     );
+    return false;
   }
 
-  public isTrustedForEveryDuty(slotNumber: Slot): boolean {
-    const trustedForBalanceChanges = this.isTrustedForBalanceChanges(slotNumber);
-    const trustedForSlashings = this.isTrustedForSlashings(slotNumber);
-    const trustedForFullWithdrawals = this.isTrustedForFullWithdrawals(slotNumber);
-    if (!trustedForBalanceChanges)
-      this.logger.warn(
-        '⚠️ Current keys indexer data might not be ready to detect balance changes. ' +
-          'The root will be processed later again',
-      );
-    if (!trustedForSlashings)
-      this.logger.warn(
-        '🚨 Current keys indexer data might not be ready to detect slashing. ' +
-          'The root will be processed later again',
-      );
-    if (!trustedForFullWithdrawals)
-      this.logger.warn(
-        '⚠️ Current keys indexer data might not be ready to detect full withdrawal. ' +
-          'The root will be processed later again',
-      );
-    return trustedForBalanceChanges && trustedForSlashings && trustedForFullWithdrawals;
+  public isTrustedForSlot(slotNumber: Slot): boolean {
+    return this.info.data.storageStateSlot >= slotNumber;
   }
 
-  public isTrustedForBalanceChanges(slotNumber: Slot): boolean {
-    return this.isTrustedForFullWithdrawals(slotNumber);
+  private maxReferencedValidatorIndex(blockInfo: SupportedBlock): number {
+    let max = -1;
+    for (const wd of blockInfo.body.executionPayload.withdrawals) max = Math.max(max, Number(wd.validatorIndex));
+    for (const prop of blockInfo.body.proposerSlashings) {
+      max = Math.max(max, Number(prop.signedHeader1.message.proposerIndex));
+    }
+    for (const att of blockInfo.body.attesterSlashings) {
+      // The duty slashes the intersection; the union is a cheaper and safely conservative bound.
+      for (const i of att.attestation1.attestingIndices) max = Math.max(max, Number(i));
+      for (const i of att.attestation2.attestingIndices) max = Math.max(max, Number(i));
+    }
+    return max;
   }
 
   private filterKeyInfo(keyInfo: KeyInfo | undefined): KeyInfo | undefined {
@@ -174,25 +171,6 @@ export class KeysIndexer implements OnApplicationBootstrap {
     }
 
     return fullKeyInfo;
-  }
-
-  private isTrustedForSlashings(slotNumber: Slot): boolean {
-    // We are ok with outdated indexer for detection slashing
-    // because of a bunch of delays between deposit and validator appearing
-    const ETH1_FOLLOW_DISTANCE = Number(this.consensus.beaconConfig.ETH1_FOLLOW_DISTANCE); // ~8 hours
-    const EPOCHS_PER_ETH1_VOTING_PERIOD = Number(this.consensus.beaconConfig.EPOCHS_PER_ETH1_VOTING_PERIOD); // ~6.8 hours
-    const safeDelay = ETH1_FOLLOW_DISTANCE + this.consensus.epochToSlot(EPOCHS_PER_ETH1_VOTING_PERIOD);
-    if (this.info.data.storageStateSlot >= slotNumber) return true;
-    return slotNumber - this.info.data.storageStateSlot <= safeDelay; // ~14.8 hours
-  }
-
-  private isTrustedForFullWithdrawals(slotNumber: Slot): boolean {
-    // We are ok with outdated indexer for detection withdrawal
-    // because of MIN_VALIDATOR_WITHDRAWABILITY_DELAY
-    const MIN_VALIDATOR_WITHDRAWABILITY_DELAY = Number(this.consensus.beaconConfig.MIN_VALIDATOR_WITHDRAWABILITY_DELAY);
-    const safeDelay = this.consensus.epochToSlot(MIN_VALIDATOR_WITHDRAWABILITY_DELAY);
-    if (this.info.data.storageStateSlot >= slotNumber) return true;
-    return slotNumber - this.info.data.storageStateSlot <= safeDelay; // ~27 hours
   }
 
   public isInitialized(): boolean {
@@ -312,20 +290,21 @@ export class KeysIndexer implements OnApplicationBootstrap {
     this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), stakingModuleKeys.meta);
     this.assertKeysModule(stakingModuleKeys.data.keys);
     this.logger.log(`New appeared staking module validators count: ${stakingModuleKeys.data.keys.length}`);
-    const valKeysLength = newValKeys.length;
+    const keysMap = new Map<string, Key>();
+    for (const k of stakingModuleKeys.data.keys) {
+      if (k.used) keysMap.set(k.key, k);
+    }
     // Build first, then assign atomically — no partial state visible to concurrent readers.
     const newEntries: KeysIndexerServiceStorage = {};
-    for (const stakingModuleKey of stakingModuleKeys.data.keys) {
-      for (let i = 0; i < valKeysLength; i++) {
-        if (newValKeys[i] != stakingModuleKey.key || !stakingModuleKey.used) continue;
-        const index = i + this.info.data.lastValidatorsCount;
-        newEntries[index] = {
-          operatorId: stakingModuleKey.operatorIndex,
-          keyIndex: stakingModuleKey.index,
-          pubKey: stakingModuleKey.key,
-        };
-      }
-    }
+    newValKeys.forEach((pubKey, i) => {
+      const keyInfo = keysMap.get(pubKey);
+      if (!keyInfo) return;
+      newEntries[i + this.info.data.lastValidatorsCount] = {
+        operatorId: keyInfo.operatorIndex,
+        keyIndex: keyInfo.index,
+        pubKey,
+      };
+    });
     Object.assign(this.storage.data, newEntries);
     return totalValLength;
   }

@@ -39,10 +39,7 @@ type BeaconConfig = {
   FAR_FUTURE_EPOCH: string;
   MAX_EFFECTIVE_BALANCE_ELECTRA: string;
   MIN_ACTIVATION_BALANCE: string;
-  ETH1_FOLLOW_DISTANCE: string;
-  EPOCHS_PER_ETH1_VOTING_PERIOD: string;
   SLOTS_PER_HISTORICAL_ROOT: string;
-  MIN_VALIDATOR_WITHDRAWABILITY_DELAY: string;
 };
 
 const isCacheableConsensusId = (id: string | number): boolean => {
