@@ -343,5 +343,10 @@ const toIntArray = (value: unknown): number[] | undefined | unknown => {
     return undefined;
   }
 
-  return [...new Set(trimmed.split(',').map((part) => Number(part.trim())))];
+  const parts = trimmed.split(',').map((part) => part.trim());
+  // Return as is to fail `@IsArray()`: `Number('')` would silently authorize node operator 0.
+  if (parts.some((part) => !/^\d+$/.test(part))) {
+    return value;
+  }
+  return [...new Set(parts.map(Number))];
 };
