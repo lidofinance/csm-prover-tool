@@ -16,9 +16,12 @@ import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } fr
 
 // according to the research https://hackmd.io/1wM8vqeNTjqt4pC3XoCUKQ?view#Proposed-solution
 const FULL_WITHDRAWAL_MIN_AMOUNT = 8 * 10 ** 9; // 8 ETH in Gwei
+const WEI_PER_GWEI = 1_000_000_000n;
+const MAX_BP = 10_000n; // `MAX_BP` in the Verifier contract
 
 type WithdrawalWithOffset = SupportedWithdrawal & { offset: number };
 export type InvolvedKeysWithWithdrawal = { [valIndex: string]: KeyInfo & { withdrawal: WithdrawalWithOffset } };
+type WithdrawalEntry = [string, InvolvedKeysWithWithdrawal[string]];
 
 @Injectable()
 export class WithdrawalsService {
@@ -38,14 +41,32 @@ export class WithdrawalsService {
     if (!Object.keys(withdrawals).length) return {};
     const entries = Object.entries(withdrawals);
     const proved = await Promise.all(entries.map(([, k]) => this.stakingModule.isWithdrawalProved(k)));
-    const unproven: InvolvedKeysWithWithdrawal = Object.fromEntries(entries.filter((_, i) => !proved[i]));
-    const unprovenCount = Object.keys(unproven).length;
-    if (!unprovenCount) {
+    const unprovenEntries = entries.filter((_, i) => !proved[i]);
+    if (!unprovenEntries.length) {
       this.logger.warn('All full withdrawals from this block are already proved');
       return {};
     }
+    const unproven: InvolvedKeysWithWithdrawal = Object.fromEntries(await this.filterProvable(unprovenEntries));
+    const unprovenCount = Object.keys(unproven).length;
+    if (!unprovenCount) return {};
     this.logger.log(`🔍 Unproven full withdrawals: ${unprovenCount}`);
     return unproven;
+  }
+
+  // The Verifier reverts with `PartialWithdrawal` if the amount is below `MIN_WITHDRAWAL_RATIO` of the expected balance.
+  private async filterProvable(entries: WithdrawalEntry[]): Promise<WithdrawalEntry[]> {
+    const ratioBp = await this.verifier.getMinWithdrawalRatio();
+    const addedBalancesWei = await this.stakingModule.getKeyAddedBalances(entries.map(([, k]) => k));
+    const minActivationBalanceWei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE) * WEI_PER_GWEI;
+    return entries.filter(([valIndex, keyInfo], i) => {
+      const expectedWei = addedBalancesWei[i] + minActivationBalanceWei;
+      const minAmountWei = (expectedWei * ratioBp) / MAX_BP;
+      if (BigInt(keyInfo.withdrawal.amount) * WEI_PER_GWEI >= minAmountWei) return true;
+      this.logger.warn(
+        `Validator ${valIndex} withdrawal is below ${ratioBp}bp of the expected balance ${expectedWei} wei. Skipped`,
+      );
+      return false;
+    });
   }
 
   public async sendWithdrawalProofs(

@@ -75,9 +75,7 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile.cli
-    entrypoint:
-      - yarn
-      - withdrawal
+    entrypoint: [node, dist/main.js, prove, withdrawal]
     container_name: prover-cli-withdrawal
     restart: no
     environment:
@@ -92,9 +90,7 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile.cli
-    entrypoint:
-      - yarn
-      - bad_performer
+    entrypoint: [node, dist/main.js, prove, bad_performer]
     container_name: prover-cli-bad_performer
     restart: no
     environment:

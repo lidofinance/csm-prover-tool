@@ -5,6 +5,7 @@ export class TxExecutionQuestion {
   @Question({
     type: 'confirm',
     askAnswered: true,
+    default: false,
     message: (answers: { txSummary?: string }) =>
       answers.txSummary
         ? `Send this transaction?\n${answers.txSummary}\nConfirm sending?`

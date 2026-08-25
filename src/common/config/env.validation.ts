@@ -44,6 +44,11 @@ export class EnvironmentVariables {
   @IsString()
   public START_ROOT?: string;
 
+  // User-Agent for outgoing requests. Unset — derived from build info, empty — not sent.
+  @IsOptional()
+  @IsString()
+  public HTTP_USER_AGENT?: string;
+
   @IsNumber()
   @Min(0)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
@@ -295,7 +300,7 @@ export function validate(config: Record<string, unknown>) {
   return validatedConfig;
 }
 
-const toBoolean = (value: any): boolean => {
+const toBoolean = (value: any): unknown => {
   if (typeof value === 'boolean') {
     return value;
   }
@@ -316,10 +321,11 @@ const toBoolean = (value: any): boolean => {
     case 'false':
     case 'no':
     case '0':
-    case null:
+    case '':
       return false;
     default:
-      return false;
+      // Return as is to fail `@IsBoolean()` instead of silently coercing a typo to `false`.
+      return value;
   }
 };
 
