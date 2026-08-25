@@ -11,6 +11,12 @@ type BuildInfo = {
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const buildInfoPath = resolve(currentDir, '../build-info.json');
 
-const buildInfo = JSON.parse(readFileSync(buildInfoPath, 'utf8')) as BuildInfo;
+const raw = JSON.parse(readFileSync(buildInfoPath, 'utf8')) as BuildInfo;
+
+// Placeholders are substituted by the release pipeline only, so keep local builds readable.
+const buildInfo: BuildInfo = {
+  ...raw,
+  version: raw.version.startsWith('REPLACE_WITH') ? 'dev' : raw.version,
+};
 
 export default buildInfo;

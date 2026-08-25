@@ -1,6 +1,8 @@
 import { type Dispatcher, request } from 'undici';
 
 import { type RequestOptions, type RequestPolicy, rejectDelay, retrier, urljoin } from './utils/func.js';
+import { type ConfigService } from '../../config/config.service.js';
+import { userAgentHeaders } from '../../helpers/user-agent.js';
 import type { AppLogger } from '../../logger/app-logger.type.js';
 import { type PrometheusService } from '../../prometheus/index.js';
 
@@ -27,6 +29,7 @@ class RequestError extends Error {
 export abstract class BaseRestProvider {
   protected readonly baseUrls: string[];
   protected readonly requestPolicy: RequestPolicy;
+  protected abstract readonly config: ConfigService;
 
   protected constructor(
     urls: Array<string>,
@@ -42,6 +45,13 @@ export abstract class BaseRestProvider {
       maxRetries,
       retryDelay,
     };
+  }
+
+  private buildHeaders(defaults: Record<string, string>, extra?: Record<string, string>): Record<string, string> {
+    const merged = { ...userAgentHeaders(this.config), ...defaults, ...extra };
+    const headers: Record<string, string> = {};
+    for (const [key, value] of Object.entries(merged)) headers[key.toLowerCase()] = value;
+    return headers;
   }
 
   protected async retryRequest<T = RestResponse>(
@@ -97,7 +107,7 @@ export abstract class BaseRestProvider {
       method: 'GET',
       headersTimeout: (options.requestPolicy as RequestPolicy).timeout,
       signal: options.signal,
-      headers: options.headers,
+      headers: this.buildHeaders({}, options.headers),
     });
     if (statusCode !== 200) {
       await body.dump().catch(() => {}); // release the body/socket
@@ -124,9 +134,7 @@ export abstract class BaseRestProvider {
       method: 'POST',
       headersTimeout: (options.requestPolicy as RequestPolicy).timeout,
       signal: options.signal,
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.buildHeaders({ 'content-type': 'application/json' }, options.headers),
       body: JSON.stringify(requestBody),
     });
     if (statusCode !== 200) {

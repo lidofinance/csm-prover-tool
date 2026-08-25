@@ -35,9 +35,8 @@ export class WorkersService {
     return result.valBalances;
   }
 
-  public async getValidatorExitEpochs(args: GetValidatorExitEpochsArgs): Promise<bigint[]> {
-    const result: GetValidatorExitEpochsResult = await this._run('get-validator-exit-epochs', args);
-    return result.valExitEpochs;
+  public async getValidatorExitEpochs(args: GetValidatorExitEpochsArgs): Promise<GetValidatorExitEpochsResult> {
+    return await this._run('get-validator-exit-epochs', args);
   }
 
   public async getSlashedProofPayloads(args: BuildSlashingProofArgs): Promise<IVerifier.ProcessSlashedInputStruct[]> {

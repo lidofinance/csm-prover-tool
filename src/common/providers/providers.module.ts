@@ -2,6 +2,7 @@ import { FallbackProviderModule, type NonEmptyArray } from '@lido-nestjs/executi
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { type DynamicModule, Module } from '@nestjs/common';
 import { ConditionalModule } from '@nestjs/config';
+import { type utils } from 'ethers';
 
 import { Consensus } from './consensus/consensus.js';
 import { DownloadProgressModule } from './consensus/download-progress.module.js';
@@ -10,13 +11,22 @@ import { Ipfs } from './ipfs/ipfs.js';
 import { Keysapi } from './keysapi/keysapi.js';
 import { ConfigService } from '../config/config.service.js';
 import { WorkingMode } from '../config/env.validation.js';
+import { userAgentHeaders } from '../helpers/user-agent.js';
 import { PrometheusService, RequestStatus } from '../prometheus/index.js';
+
+// ethers sends no User-Agent for a plain URL string, so pass ConnectionInfo instead.
+function elUrls(config: ConfigService): NonEmptyArray<utils.ConnectionInfo> {
+  const headers = userAgentHeaders(config);
+  const conn = (url: string): utils.ConnectionInfo => ({ url, headers });
+  const [first, ...rest] = config.get('EL_RPC_URLS') as NonEmptyArray<string>;
+  return [conn(first), ...rest.map(conn)];
+}
 
 const ExecutionDaemon = () =>
   FallbackProviderModule.forRootAsync({
     async useFactory(configService: ConfigService, prometheusService: PrometheusService) {
       return {
-        urls: configService.get('EL_RPC_URLS') as NonEmptyArray<string>,
+        urls: elUrls(configService),
         network: configService.get('CHAIN_ID'),
         maxRetries: configService.get('EL_RPC_MAX_RETRIES'),
         minBackoffMs: configService.get('EL_RPC_RETRY_DELAY_MS'),
@@ -64,7 +74,7 @@ const ExecutionCli = () =>
   FallbackProviderModule.forRootAsync({
     async useFactory(configService: ConfigService) {
       return {
-        urls: configService.get('EL_RPC_URLS') as NonEmptyArray<string>,
+        urls: elUrls(configService),
         network: configService.get('CHAIN_ID'),
         requestPolicy: {
           jsonRpcMaxBatchSize: configService.get('EL_RPC_MAX_BATCH_SIZE'),

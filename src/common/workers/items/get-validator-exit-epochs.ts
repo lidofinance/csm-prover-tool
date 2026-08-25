@@ -12,7 +12,9 @@ export type GetValidatorExitEpochsArgs = {
 };
 
 export type GetValidatorExitEpochsResult = {
+  slot: number;
   valExitEpochs: bigint[];
+  valWithdrawableEpochs: bigint[];
 };
 
 async function getValidatorExitEpochs(): Promise<GetValidatorExitEpochsResult> {
@@ -32,13 +34,15 @@ async function getValidatorExitEpochs(): Promise<GetValidatorExitEpochsResult> {
     totalValLength,
   );
   const valExitEpochs: bigint[] = [];
+  const valWithdrawableEpochs: bigint[] = [];
   for (let i = 0; i < totalValLength; i++) {
     const node = iterator.next().value;
     const v = stateView.validators.type.elementType.tree_toValue(node);
     valExitEpochs.push(epochToBigInt(v.exitEpoch));
+    valWithdrawableEpochs.push(epochToBigInt(v.withdrawableEpoch));
   }
   iterator.return && iterator.return();
-  return { valExitEpochs };
+  return { slot: stateView.slot, valExitEpochs, valWithdrawableEpochs };
 }
 
 getValidatorExitEpochs()
