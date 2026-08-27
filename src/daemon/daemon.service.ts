@@ -9,6 +9,7 @@ import { SingletonTask } from './utils/singleton-task.decorator.js';
 import sleep from './utils/sleep.js';
 import { ConfigService } from '../common/config/config.service.js';
 import { SECOND_MS } from '../common/config/env.validation.js';
+import { ReadinessService } from '../common/health/readiness.service.js';
 import { type AppLogger } from '../common/logger/app-logger.type.js';
 import { APP_NAME, PrometheusService, TrackTask } from '../common/prometheus/index.js';
 import { ProverService } from '../common/prover/prover.service.js';
@@ -26,6 +27,7 @@ export class DaemonService implements OnModuleInit {
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly prometheus: PrometheusService,
+    protected readonly readiness: ReadinessService,
     protected readonly consensus: Consensus,
     protected readonly keysIndexer: KeysIndexer,
     protected readonly rootsProvider: RootsProvider,
@@ -55,6 +57,7 @@ export class DaemonService implements OnModuleInit {
     while (true) {
       try {
         if (!this.keysIndexer.isInitialized()) await this.keysIndexer.initOrReadServiceData();
+        this.readiness.markReady();
         await this.baseRun();
       } catch (e) {
         this.logger.error(e);
