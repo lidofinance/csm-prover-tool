@@ -1,3 +1,5 @@
+import { writeSync } from 'node:fs';
+
 import { Transform, plainToInstance } from 'class-transformer';
 import {
   ArrayMinSize,
@@ -279,9 +281,15 @@ export const ENV_VARIABLE_KEYS = [
   ),
 ] as (keyof EnvironmentVariables)[];
 
+// The app logger is built from this config; `writeSync` survives the `process.exit` below.
+const logStartup = (level: 'warn' | 'error', message: string): void => {
+  const json = process.env.LOG_FORMAT?.toLowerCase().trim() === LogFormat.JSON;
+  writeSync(2, `${json ? JSON.stringify({ level, message }) : `${level}: ${message}`}\n`);
+};
+
 export function validate(config: Record<string, unknown>) {
   if (config.CSM_ADDRESS) {
-    console.warn('CSM_ADDRESS is deprecated, use STAKING_MODULE_ADDRESS instead');
+    logStartup('warn', 'CSM_ADDRESS is deprecated, use STAKING_MODULE_ADDRESS instead');
     if (!config.STAKING_MODULE_ADDRESS) {
       config.STAKING_MODULE_ADDRESS = config.CSM_ADDRESS;
     }
@@ -293,7 +301,8 @@ export function validate(config: Record<string, unknown>) {
   const errors = validateSync(validatedConfig, validatorOptions);
 
   if (errors.length > 0) {
-    console.error(errors.toString());
+    // The last flag prints constraint messages instead of names.
+    logStartup('error', errors.map((e) => e.toString(false, false, '', true)).join(''));
     process.exit(1);
   }
 
