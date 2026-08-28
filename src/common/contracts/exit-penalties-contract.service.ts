@@ -1,4 +1,3 @@
-import { type BlockTag } from '@ethersproject/abstract-provider';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -32,8 +31,8 @@ export class ExitPenaltiesContract {
     this.contract = ExitPenalties__factory.connect(address, this.execution.provider);
   }
 
-  public async isEjectionProved(blockTag: BlockTag, keyInfo: KeyInfo): Promise<boolean> {
-    const data = await this.contract.getExitPenaltyInfo(keyInfo.operatorId, keyInfo.pubKey, { blockTag });
+  public async isEjectionProved(keyInfo: KeyInfo): Promise<boolean> {
+    const data = await this.contract.getExitPenaltyInfo(keyInfo.operatorId, keyInfo.pubKey);
     return data.strikesPenalty.isValue;
   }
 }

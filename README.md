@@ -188,6 +188,18 @@ So, according to the algorithm, there are the following statements:
 > providers can attribute traffic instead of rate-limiting an anonymous client. Set `HTTP_USER_AGENT=`
 > (empty) if you prefer not to advertise to a third-party endpoint that you run a CSM prover.
 
+### Running a backup instance
+
+A second daemon must run as a standby. Two instances on the same root broadcast the same proof: the loser
+pays gas for a revert and, for bad-performance reports, another EIP-7002 fee and a slot of the shared exit quota.
+
+- `ROOTS_PROCESSING_LAG_SLOTS` — `0` on the primary, `150` (~30 min) on the backup. It must outlast the
+  primary's transaction path, ~16 min on defaults
+  (`TX_HIGH_GAS_FEE_MAX_RETRIES * TX_HIGH_GAS_FEE_RETRY_DELAY_MS + TX_MINING_WAITING_TIMEOUT_MS`).
+- `TX_SIGNER_PRIVATE_KEY` — one key per instance, otherwise both populate the same nonce.
+- Storage — one volume per instance; `storage/<STAKING_MODULE_ADDRESS>/` holds the checkpoint and index.
+- First start — the lag gate is skipped while there is no checkpoint, so set `START_ROOT` behind the tip.
+
 ## Test
 
 ```bash

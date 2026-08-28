@@ -53,7 +53,7 @@ export class RootsStack implements OnModuleInit, OnApplicationBootstrap {
       .map(Number)
       .sort((a, b) => a - b);
     for (const slot of sortedSlots) {
-      if (this.keysIndexer.isTrustedForAnyDuty(slot)) {
+      if (this.keysIndexer.isTrustedForSlot(slot)) {
         return { blockRoot: this.storage.data[slot], slotNumber: slot };
       }
     }
