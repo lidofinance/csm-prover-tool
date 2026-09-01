@@ -10,7 +10,6 @@ RUN yarn install --immutable && yarn cache clean
 
 # Build layer
 COPY ./tsconfig*.json ./nest-cli.json ./.swcrc ./
-COPY ./build-info.json ./
 COPY ./src ./src
 RUN yarn build
 
@@ -24,8 +23,15 @@ ENV NODE_ENV=production
 
 COPY --from=building --chown=node:node /app/dist ./dist
 COPY --from=building --chown=node:node /app/node_modules ./node_modules
-COPY --chown=node:node ./package.json ./build-info.json ./
+COPY --chown=node:node ./package.json ./
 RUN mkdir -p ./storage/ && chown -R node:node ./storage/
+
+# Kept last so a tag/commit change invalidates only this layer, not the build.
+ARG BUILD_VERSION=dev
+ARG BUILD_BRANCH=unknown
+ARG BUILD_COMMIT=unknown
+RUN printf '{"version":"%s","branch":"%s","commit":"%s"}\n' \
+  "$BUILD_VERSION" "$BUILD_BRANCH" "$BUILD_COMMIT" > build-info.json
 
 USER node
 
