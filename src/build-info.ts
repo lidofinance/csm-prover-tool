@@ -1,8 +1,22 @@
 import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// Overwritten in the image by the Dockerfile from BUILD_* build args.
-export default JSON.parse(readFileSync(new URL('../build-info.json', import.meta.url), 'utf8')) as {
+type BuildInfo = {
   version: string;
   branch: string;
   commit: string;
 };
+
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const buildInfoPath = resolve(currentDir, '../build-info.json');
+
+const raw = JSON.parse(readFileSync(buildInfoPath, 'utf8')) as BuildInfo;
+
+// Placeholders are substituted by the release pipeline only, so keep local builds readable.
+const buildInfo: BuildInfo = {
+  ...raw,
+  version: raw.version.startsWith('REPLACE_WITH') ? 'dev' : raw.version,
+};
+
+export default buildInfo;
