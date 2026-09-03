@@ -48,14 +48,15 @@ export class BalancesService {
     const reportableMaxGwei = maxEffectiveBalanceGwei - topupStepGwei;
     const keyConfirmedBalanceGwei = keyAddedBalanceWei / 1_000_000_000n;
     const confirmedBalanceGwei = minActivationBalanceGwei + keyConfirmedBalanceGwei;
-    if (reportableMaxGwei <= confirmedBalanceGwei) return false;
+    if (maxEffectiveBalanceGwei <= confirmedBalanceGwei) return false;
     if (balanceGwei <= confirmedBalanceGwei) return false;
 
     const balanceDeltaGwei = balanceGwei - confirmedBalanceGwei;
-    // The bar is lower for an exiting validator: the proof reverts once it becomes withdrawable.
+    // An increase below one top-up step is accrued rewards, not a top-up.
+    if (balanceDeltaGwei < topupStepGwei) return false;
     return (
       balanceDeltaGwei > BigInt(this.config.get('BALANCE_PROOF_MIN_DELTA_GWEI')) ||
-      (exitEpoch !== FAR_FUTURE_EPOCH && balanceDeltaGwei >= topupStepGwei) ||
+      exitEpoch !== FAR_FUTURE_EPOCH ||
       balanceGwei >= reportableMaxGwei
     );
   }
