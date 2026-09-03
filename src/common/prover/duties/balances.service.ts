@@ -44,13 +44,16 @@ export class BalancesService {
     }
     const minActivationBalanceGwei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE);
     const maxEffectiveBalanceGwei = BigInt(this.consensus.beaconConfig.MAX_EFFECTIVE_BALANCE_ELECTRA);
-    const reportableMaxGwei = maxEffectiveBalanceGwei - BigInt(this.config.get('BALANCE_PROOF_TOPUP_STEP_GWEI'));
+    const topupStepGwei = BigInt(this.config.get('BALANCE_PROOF_TOPUP_STEP_GWEI'));
+    const reportableMaxGwei = maxEffectiveBalanceGwei - topupStepGwei;
     const keyConfirmedBalanceGwei = keyAddedBalanceWei / 1_000_000_000n;
     const confirmedBalanceGwei = minActivationBalanceGwei + keyConfirmedBalanceGwei;
-    if (reportableMaxGwei <= confirmedBalanceGwei) return false;
+    if (maxEffectiveBalanceGwei <= confirmedBalanceGwei) return false;
     if (balanceGwei <= confirmedBalanceGwei) return false;
 
     const balanceDeltaGwei = balanceGwei - confirmedBalanceGwei;
+    // An increase below one top-up step is accrued rewards, not a top-up.
+    if (balanceDeltaGwei < topupStepGwei) return false;
     return (
       balanceDeltaGwei > BigInt(this.config.get('BALANCE_PROOF_MIN_DELTA_GWEI')) ||
       exitEpoch !== FAR_FUTURE_EPOCH ||
