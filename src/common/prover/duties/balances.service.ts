@@ -44,16 +44,18 @@ export class BalancesService {
     }
     const minActivationBalanceGwei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE);
     const maxEffectiveBalanceGwei = BigInt(this.consensus.beaconConfig.MAX_EFFECTIVE_BALANCE_ELECTRA);
-    const reportableMaxGwei = maxEffectiveBalanceGwei - BigInt(this.config.get('BALANCE_PROOF_TOPUP_STEP_GWEI'));
+    const topupStepGwei = BigInt(this.config.get('BALANCE_PROOF_TOPUP_STEP_GWEI'));
+    const reportableMaxGwei = maxEffectiveBalanceGwei - topupStepGwei;
     const keyConfirmedBalanceGwei = keyAddedBalanceWei / 1_000_000_000n;
     const confirmedBalanceGwei = minActivationBalanceGwei + keyConfirmedBalanceGwei;
     if (reportableMaxGwei <= confirmedBalanceGwei) return false;
     if (balanceGwei <= confirmedBalanceGwei) return false;
 
     const balanceDeltaGwei = balanceGwei - confirmedBalanceGwei;
+    // The bar is lower for an exiting validator: the proof reverts once it becomes withdrawable.
     return (
       balanceDeltaGwei > BigInt(this.config.get('BALANCE_PROOF_MIN_DELTA_GWEI')) ||
-      exitEpoch !== FAR_FUTURE_EPOCH ||
+      (exitEpoch !== FAR_FUTURE_EPOCH && balanceDeltaGwei >= topupStepGwei) ||
       balanceGwei >= reportableMaxGwei
     );
   }
