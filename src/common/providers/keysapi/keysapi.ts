@@ -1,11 +1,10 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import streamChain from 'stream-chain';
-import streamJson from 'stream-json';
-import Assembler from 'stream-json/Assembler.js';
+import { parserStream } from 'stream-json';
+import Assembler from 'stream-json/assembler.js';
 
 const { chain } = streamChain;
-const { parser } = streamJson;
 
 import type { ELBlockSnapshot, ModuleKeys, ModuleKeysFind, Modules, Status } from './response.interface.js';
 import { ConfigService } from '../../config/config.service.js';
@@ -67,9 +66,9 @@ export class Keysapi extends BaseRestProvider {
     return await this.retryRequest(async (baseUrl) => {
       const { body } = await this.baseGet(baseUrl, this.endpoints.moduleKeys(module_id), { signal });
       // TODO: ignore depositSignature ?
-      const pipeline = chain([body, parser()]);
+      const pipeline = chain([body, parserStream()]);
       return await new Promise<ModuleKeys>((resolve, reject) => {
-        Assembler.connectTo(pipeline).on('done', (asm) => resolve(asm.current));
+        Assembler.connectTo<ModuleKeys>(pipeline, { onDone: (asm) => resolve(asm.current!) });
         pipeline.on('error', reject);
       });
     });
