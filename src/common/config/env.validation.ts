@@ -105,6 +105,11 @@ export class EnvironmentVariables {
   @IsNumber()
   @Min(0)
   @Transform(({ value }) => parseFloat(value), { toClassOnly: true })
+  public TX_MIN_BASE_FEE_GWEI = 1;
+
+  @IsNumber()
+  @Min(0)
+  @Transform(({ value }) => parseFloat(value), { toClassOnly: true })
   public TX_MAX_BASE_FEE_GWEI = 50;
 
   @IsNumber()
@@ -303,6 +308,17 @@ export function validate(config: Record<string, unknown>) {
   if (errors.length > 0) {
     // The last flag prints constraint messages instead of names.
     logStartup('error', errors.map((e) => e.toString(false, false, '', true)).join(''));
+    process.exit(1);
+  }
+
+  if (
+    validatedConfig.TX_MAX_BASE_FEE_GWEI > 0 &&
+    validatedConfig.TX_MIN_BASE_FEE_GWEI > validatedConfig.TX_MAX_BASE_FEE_GWEI
+  ) {
+    logStartup(
+      'error',
+      `TX_MIN_BASE_FEE_GWEI (${validatedConfig.TX_MIN_BASE_FEE_GWEI}) must not exceed TX_MAX_BASE_FEE_GWEI (${validatedConfig.TX_MAX_BASE_FEE_GWEI})`,
+    );
     process.exit(1);
   }
 
