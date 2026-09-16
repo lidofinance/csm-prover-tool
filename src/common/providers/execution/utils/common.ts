@@ -6,13 +6,14 @@
 export const bigIntMax = (...args: bigint[]) => args.reduce((m, e) => (e > m ? e : m));
 export const bigIntMin = (...args: bigint[]) => args.reduce((m, e) => (e < m ? e : m));
 export const percentile = (arr: bigint[], p: number) => {
-  arr.sort((a, b) => Number(a - b));
-  const index = (p / 100) * (arr.length - 1);
+  // NOTE: copy before sorting, the caller's array keeps its chronological order
+  const sorted = [...arr].sort((a, b) => Number(a - b));
+  const index = (p / 100) * (sorted.length - 1);
   if (Number.isInteger(index)) {
-    return arr[index];
+    return sorted[index];
   } else {
     const lower = Math.floor(index);
     const upper = Math.ceil(index);
-    return (arr[lower] + arr[upper]) / 2n;
+    return (sorted[lower] + sorted[upper]) / 2n;
   }
 };

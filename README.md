@@ -165,6 +165,7 @@ So, according to the algorithm, there are the following statements:
 | TX_GAS_PRIORITY_FEE_PERCENTILE          | Percentile of recent priority fees used as the target                   | no                     | 25                            |
 | TX_GAS_FEE_HISTORY_DAYS                 | Days of base fee history used for gas acceptance check                  | no                     | 1                             |
 | TX_GAS_FEE_HISTORY_PERCENTILE           | Percentile of base fee history used for gas acceptance check            | no                     | 50                            |
+| TX_MIN_BASE_FEE_GWEI                    | Base fee floor (gwei); tx sent at once below it. 0 = disabled            | no                     | 1                             |
 | TX_MAX_BASE_FEE_GWEI                    | Absolute base fee ceiling (gwei); tx held back above it. 0 = disabled    | no                     | 50                            |
 | TX_GAS_LIMIT                            | Hard cap on transaction gas limit                                       | no                     | 2_000_000                     |
 | TX_GAS_LIMIT_BUFFER_PERCENT             | Safety buffer added on top of `estimateGas` result (percent)            | no                     | 20                            |
