@@ -238,6 +238,16 @@ export class Execution {
         return false;
       }
     }
+    // NOTE: the check below is relative to recent history, so it holds back cheap
+    // transactions for a saving that is not worth the delay
+    const minBaseFeeGwei = this.config.get('TX_MIN_BASE_FEE_GWEI');
+    if (minBaseFeeGwei > 0) {
+      const floor = utils.parseUnits(String(minBaseFeeGwei), 'gwei').toBigInt();
+      if (current <= floor) {
+        this.logger.log(`✅ Current base fee is below the always-send floor (${minBaseFeeGwei} Gwei)! ${info}`);
+        return true;
+      }
+    }
     if (current > recommended) {
       this.logger.warn(`📛 Current gas fee is HIGH! ${info}`);
       return false;
