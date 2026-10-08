@@ -15,6 +15,7 @@ describe('Daemon (e2e)', () => {
     })
       .overrideProvider(Consensus)
       .useValue({
+        genesisTimestamp: 0,
         onModuleInit: jest.fn().mockResolvedValue(undefined),
       })
       .overrideProvider(ContractsInitializer)

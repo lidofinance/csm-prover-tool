@@ -43,7 +43,7 @@ async function getNewValidatorKeys(): Promise<GetNewValidatorKeysResult> {
     const v = stateView.validators.type.elementType.tree_toValue(node);
     valKeys.push(toHex(v.pubkey));
   }
-  iterator.return && iterator.return();
+  iterator.return?.();
   return { totalValLength, valKeys };
 }
 
