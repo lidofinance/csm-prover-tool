@@ -31,7 +31,19 @@ export class SlashingsService {
     if (!Object.keys(slashings).length) return {};
     const entries = Object.entries(slashings);
     const proved = await Promise.all(entries.map(([, keyInfo]) => this.stakingModule.isSlashingProved(keyInfo)));
-    const unproven: InvolvedKeys = Object.fromEntries(entries.filter((_, i) => !proved[i]));
+    const unprovenEntries = entries.filter((_, i) => !proved[i]);
+    const withdrawn = await Promise.all(
+      unprovenEntries.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo)),
+    );
+    const unproven: InvolvedKeys = {};
+    unprovenEntries.forEach(([valIndex, keyInfo], i) => {
+      if (withdrawn[i]) {
+        // The Verifier reverts with `SlashingPenaltyIsNotApplicable`.
+        this.logger.warn(`Validator ${valIndex} withdrawal is already proved. Skipped`);
+        return;
+      }
+      unproven[valIndex] = keyInfo;
+    });
     const unprovenCount = Object.keys(unproven).length;
     if (!unprovenCount) {
       this.logger.log('No slashings to prove');
