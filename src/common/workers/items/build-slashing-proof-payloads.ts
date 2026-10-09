@@ -33,6 +33,10 @@ async function buildSlashingProofPayloads(): Promise<IVerifier.ProcessSlashedInp
   const payloads = [];
   for (const [valIndex, keyInfo] of Object.entries(slashings)) {
     const validator = stateView.validators.getReadonly(Number(valIndex));
+    if (!validator.slashed) {
+      WorkerLogger.warn(`Validator ${valIndex} is not slashed in the finalized state. Skipped`);
+      continue;
+    }
     WorkerLogger.log(`Generating validator [${valIndex}] proof`);
     const validatorProof = await generateValidatorProof(stateView, Number(valIndex));
     WorkerLogger.log('Verifying validator proof locally');
