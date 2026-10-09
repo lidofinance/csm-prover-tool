@@ -95,14 +95,28 @@ export class BalancesService {
       }
     });
 
-    const provableCount = Object.keys(provable).length;
+    const provableEntries = Object.entries(provable);
+    const withdrawn = await Promise.all(
+      provableEntries.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo)),
+    );
+    const unwithdrawn: InvolvedKeys = {};
+    provableEntries.forEach(([valIndex, keyInfo], i) => {
+      if (withdrawn[i]) {
+        // The Verifier reverts with `UnreportableBalance`.
+        this.logger.warn(`Validator ${valIndex} withdrawal is already proved. Skipped`);
+        return;
+      }
+      unwithdrawn[valIndex] = keyInfo;
+    });
+
+    const provableCount = Object.keys(unwithdrawn).length;
     if (!provableCount) {
       this.logger.log('No additional balances to prove');
       return {};
     }
 
     this.logger.warn(`🔍 Provable additional balances: ${provableCount}`);
-    return provable;
+    return unwithdrawn;
   }
 
   public async sendBalanceChangeProofs(
