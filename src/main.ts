@@ -88,9 +88,17 @@ async function failBootstrap(appName: string, error: unknown, app?: INestApplica
   const message = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack : undefined;
 
-  logger ? logger.error(`Failed to initialize ${appName}: ${message}`) : console.error(message);
+  if (logger) {
+    logger.error(`Failed to initialize ${appName}: ${message}`);
+  } else {
+    console.error(message);
+  }
   if (stack) {
-    logger ? logger.error(stack) : console.error(stack);
+    if (logger) {
+      logger.error(stack);
+    } else {
+      console.error(stack);
+    }
   }
   Logger.flush();
 

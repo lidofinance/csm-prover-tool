@@ -41,7 +41,7 @@ async function getValidatorExitEpochs(): Promise<GetValidatorExitEpochsResult> {
     valExitEpochs.push(epochToBigInt(v.exitEpoch));
     valWithdrawableEpochs.push(epochToBigInt(v.withdrawableEpoch));
   }
-  iterator.return && iterator.return();
+  iterator.return?.();
   return { slot: stateView.slot, valExitEpochs, valWithdrawableEpochs };
 }
 

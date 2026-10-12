@@ -179,7 +179,7 @@ So, according to the algorithm, there are the following statements:
 | BALANCE_PROOF_MIN_DELTA_GWEI            | Minimum balance increase above confirmed level to trigger a proof       | no                     | 512_000_000_000 (512 ETH)     |
 | BALANCE_PROOF_TOPUP_STEP_GWEI           | Report a balance change this far below MaxEB (top-up step); 0 = at MaxEB | no                     | 2_000_000_000 (2 ETH)         |
 | KEYS_INDEXER_RUNNING_PERIOD_MS          | How often the keys indexer re-syncs with KeysAPI                        | no                     | 10_800_000 (3 hours)          |
-| KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS | Max age of KeysAPI data considered fresh enough to trust                | no                     | 28_800_000 (8 hours)          |
+| KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS | Max age of KeysAPI data considered fresh enough to trust                | no                     | 384_000 (1 epoch); max 768_000 (2 epochs) |
 | HTTP_PORT                               | Port for the metrics/health HTTP server                                 | no                     | 8080                          |
 | LOG_LEVEL                               | Log level (`error`, `warn`, `info`, `debug`)                            | no                     | info                          |
 | LOG_FORMAT                              | Log format (`simple` or `json`)                                         | no                     | simple                        |

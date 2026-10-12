@@ -1,4 +1,4 @@
-FROM node:20.12.1-alpine AS building
+FROM node:20.20.2-alpine AS building
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ RUN yarn build
 # Drop devDependencies from node_modules before it is copied to the runtime stage
 RUN yarn workspaces focus --all --production
 
-FROM node:20.12.1-alpine AS production
+FROM node:20.20.2-alpine AS production
 
 WORKDIR /app
 ENV NODE_ENV=production

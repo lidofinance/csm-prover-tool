@@ -152,8 +152,11 @@ export class EnvironmentVariables {
 
   @IsNumber()
   @Min(384000) // epoch time in ms
+  // A deposit reaches the finalized state no sooner than 2 epochs later:
+  // https://github.com/ethereum/consensus-specs/blob/master/specs/electra/beacon-chain.md#new-process_pending_deposits
+  @Max(768000)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS: number = 8 * HOUR_MS;
+  public KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS: number = 384000;
 
   @IsNumber()
   @Min(1025)

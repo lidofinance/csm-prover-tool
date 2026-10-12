@@ -1,10 +1,8 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import streamChain from 'stream-chain';
+import { chain } from 'stream-chain';
 import { parserStream } from 'stream-json';
 import Assembler from 'stream-json/assembler.js';
-
-const { chain } = streamChain;
 
 import type { ELBlockSnapshot, ModuleKeys, ModuleKeysFind, Modules, Status } from './response.interface.js';
 import { ConfigService } from '../../config/config.service.js';
