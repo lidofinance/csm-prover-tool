@@ -15,6 +15,7 @@ import {
 } from './response.interface.js';
 import { ConfigService } from '../../config/config.service.js';
 import { LruCache } from '../../helpers/lru.js';
+import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { PrometheusService, TrackCLRequest } from '../../prometheus/index.js';
 import { BaseRestProvider, type RestResponse } from '../base/rest-provider.js';
@@ -40,6 +41,7 @@ type BeaconConfig = {
   MAX_EFFECTIVE_BALANCE_ELECTRA: string;
   MIN_ACTIVATION_BALANCE: string;
   SLOTS_PER_HISTORICAL_ROOT: string;
+  MIN_VALIDATOR_WITHDRAWABILITY_DELAY: string;
 };
 
 const isCacheableConsensusId = (id: string | number): boolean => {
@@ -67,7 +69,6 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   private readonly childHeadersCache = new LruCache<RootHex, BeaconHeadersByParentRootResponse>(16, {
     shouldCacheValue: (resp) => resp.finalized && resp.data.length > 0,
   });
-
   private readonly endpoints = {
     config: 'eth/v1/config/spec',
     version: 'eth/v1/node/version',
@@ -75,6 +76,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     blockInfo: (blockId: BlockId): string => `eth/v2/beacon/blocks/${blockId}`,
     beaconHeader: (blockId: BlockId): string => `eth/v1/beacon/headers/${blockId}`,
     beaconHeadersByParentRoot: (parentRoot: RootHex): string => `eth/v1/beacon/headers?parent_root=${parentRoot}`,
+    executionPayloadEnvelope: (blockId: BlockId): string => `eth/v1/beacon/execution_payload_envelopes/${blockId}`,
     state: (stateId: StateId): string => `eth/v2/debug/beacon/states/${stateId}`,
   };
 
@@ -169,6 +171,21 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
         };
       }),
     );
+  }
+
+  public async getExecutionPayloadEnvelope(blockRoot: RootHex) {
+    const { body } = await this.retryRequest((baseUrl) =>
+      this.baseGet(baseUrl, this.endpoints.executionPayloadEnvelope(blockRoot)),
+    );
+    const json = (await body.json()) as { version: string; execution_optimistic: boolean; data: unknown };
+    if (json.version !== 'gloas' || json.execution_optimistic) {
+      throw new Error(`Execution payload envelope [${blockRoot}] is not validated Gloas data`);
+    }
+    const envelope = ssz.gloas.SignedExecutionPayloadEnvelope.fromJson(json.data);
+    if (toRootHex(envelope.message.beaconBlockRoot) !== blockRoot.toLowerCase()) {
+      throw new Error(`Execution payload envelope does not match beacon block [${blockRoot}]`);
+    }
+    return envelope.message;
   }
 
   public async getState(stateId: StateId, signal?: AbortSignal): Promise<State> {

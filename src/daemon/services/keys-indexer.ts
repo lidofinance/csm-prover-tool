@@ -37,6 +37,9 @@ type KeysIndexerServiceStorage = {
   [valIndex: string]: KeyInfo;
 };
 
+// keys-api rejects request bodies over ~1 MB with HTTP 413 (~10k pubkeys)
+const KEYSAPI_FIND_KEYS_CHUNK_SIZE = 5000;
+
 export class ModuleNotFoundError extends Error {}
 
 @Injectable()
@@ -130,6 +133,12 @@ export class KeysIndexer implements OnApplicationBootstrap {
   // Validators are appended to the state in index order, so every index below `lastValidatorsCount` was
   // looked up during the last scan. A higher one appeared after it and cannot be judged yet.
   public isTrustedForBlock(blockInfo: SupportedBlock): boolean {
+    if (!this.isTrustedForFullWithdrawals(blockInfo.slot)) {
+      this.logger.warn(
+        '⚠️ Current keys indexer data might not be ready to detect full withdrawal. The root will be processed later again',
+      );
+      return false;
+    }
     const maxIndex = this.maxReferencedValidatorIndex(blockInfo);
     const indexed = this.info.data.lastValidatorsCount;
     if (maxIndex < indexed) return true;
@@ -145,7 +154,6 @@ export class KeysIndexer implements OnApplicationBootstrap {
 
   private maxReferencedValidatorIndex(blockInfo: SupportedBlock): number {
     let max = -1;
-    for (const wd of blockInfo.body.executionPayload.withdrawals) max = Math.max(max, Number(wd.validatorIndex));
     for (const prop of blockInfo.body.proposerSlashings) {
       max = Math.max(max, Number(prop.signedHeader1.message.proposerIndex));
     }
@@ -155,6 +163,15 @@ export class KeysIndexer implements OnApplicationBootstrap {
       for (const i of att.attestation2.attestingIndices) max = Math.max(max, Number(i));
     }
     return max;
+  }
+
+  private isTrustedForFullWithdrawals(slotNumber: Slot): boolean {
+    // We are ok with outdated indexer for detection withdrawal
+    // because of MIN_VALIDATOR_WITHDRAWABILITY_DELAY
+    const MIN_VALIDATOR_WITHDRAWABILITY_DELAY = Number(this.consensus.beaconConfig.MIN_VALIDATOR_WITHDRAWABILITY_DELAY);
+    const safeDelay = this.consensus.epochToSlot(MIN_VALIDATOR_WITHDRAWABILITY_DELAY);
+    if (this.info.data.storageStateSlot >= slotNumber) return true;
+    return slotNumber - this.info.data.storageStateSlot <= safeDelay; // ~27 hours
   }
 
   private filterKeyInfo(keyInfo: KeyInfo | undefined): KeyInfo | undefined {
@@ -286,12 +303,17 @@ export class KeysIndexer implements OnApplicationBootstrap {
       return totalValLength;
     }
     this.logger.log(`New appeared validators count: ${newValKeys.length}`);
-    const stakingModuleKeys = await this.keysapi.findModuleKeys(this.info.data.moduleId, newValKeys);
-    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), stakingModuleKeys.meta);
-    this.assertKeysModule(stakingModuleKeys.data.keys);
-    this.logger.log(`New appeared staking module validators count: ${stakingModuleKeys.data.keys.length}`);
+    const stakingModuleKeys: Key[] = [];
+    for (let i = 0; i < newValKeys.length; i += KEYSAPI_FIND_KEYS_CHUNK_SIZE) {
+      const chunk = newValKeys.slice(i, i + KEYSAPI_FIND_KEYS_CHUNK_SIZE);
+      const found = await this.keysapi.findModuleKeys(this.info.data.moduleId, chunk);
+      this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), found.meta);
+      this.assertKeysModule(found.data.keys);
+      stakingModuleKeys.push(...found.data.keys);
+    }
+    this.logger.log(`New appeared staking module validators count: ${stakingModuleKeys.length}`);
     const keysMap = new Map<string, Key>();
-    for (const k of stakingModuleKeys.data.keys) {
+    for (const k of stakingModuleKeys) {
       if (k.used) keysMap.set(k.key, k);
     }
     // Build first, then assign atomically — no partial state visible to concurrent readers.

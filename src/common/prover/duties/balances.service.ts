@@ -5,13 +5,14 @@ import { ConfigService } from '../../config/config.service.js';
 import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
 import type { IVerifier } from '../../contracts/types/Verifier.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
-import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus, type State } from '../../providers/consensus/consensus.js';
 import { FAR_FUTURE_EPOCH } from '../../providers/consensus/epoch.js';
-import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
+import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { Execution } from '../../providers/execution/execution.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo } from '../types.js';
+import { type ExecutionAnchor, getExecutionAnchor } from '../utils/execution-anchor.js';
 import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../utils/historical-summary.js';
 
 export type InvolvedKeys = { [valIndex: string]: KeyInfo };
@@ -23,6 +24,7 @@ export class BalancesService {
     protected readonly config: ConfigService,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
+    protected readonly execution: Execution,
     protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
   ) {}
@@ -65,8 +67,10 @@ export class BalancesService {
     const keysCount = Object.keys(keys).length;
     if (keysCount === 0) return {};
 
-    const currentBalances = await this.getValidatorBalances(currentState);
-    const { slot, valExitEpochs, valWithdrawableEpochs } = await this.getValidatorEpochs(currentState);
+    const { slot, validators } = await this.workers.getValidatorsInfo({
+      state: currentState,
+      indices: Object.keys(keys).map(Number),
+    });
     const stateEpoch = BigInt(this.consensus.slotToEpoch(slot));
     const minActivationBalanceGwei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE);
     const provable: InvolvedKeys = {};
@@ -75,19 +79,19 @@ export class BalancesService {
     // processing; they retry next block. A balance <= MIN_ACTIVATION_BALANCE can never be provable (confirmed
     // balance is always >= MIN_ACTIVATION_BALANCE), so drop those before the on-chain confirmed-balance reads.
     const entries = Object.entries(keys).filter(([valIndex]) => {
-      const balance = currentBalances[Number(valIndex)];
-      return balance !== undefined && balance > minActivationBalanceGwei;
+      const info = validators[Number(valIndex)];
+      return info !== undefined && info.balance > minActivationBalanceGwei;
     });
     const addedBalances = await this.stakingModule.getKeyAddedBalances(entries.map(([, keyInfo]) => keyInfo));
 
     entries.forEach(([valIndex, keyInfo], i) => {
-      const index = Number(valIndex);
+      const info = validators[Number(valIndex)];
       const provableBalance = this.isProvableBalance(
         valIndex,
         addedBalances[i],
-        currentBalances[index],
-        valExitEpochs[index],
-        valWithdrawableEpochs[index],
+        info.balance,
+        info.exitEpoch,
+        info.withdrawableEpoch,
         stateEpoch,
       );
       if (provableBalance) {
@@ -121,42 +125,39 @@ export class BalancesService {
 
   public async sendBalanceChangeProofs(
     blockHeader: BlockHeaderResponse,
-    recentHeader: BlockHeaderResponse,
     state: State,
     balanceChanges: InvolvedKeys,
   ): Promise<number> {
     if (!Object.keys(balanceChanges).length) return 0;
-    if (this.isHistoricalBlock(blockHeader, recentHeader)) {
+    const anchor = await getExecutionAnchor(this.execution, this.consensus);
+    if (this.isHistoricalBlock(blockHeader, anchor.header)) {
       this.logger.warn('Balance proof block is historical. Processing will take longer than usual');
-      const payloads = await this.sendHistoricalBalanceProofs(blockHeader, state, balanceChanges);
+      const payloads = await this.sendHistoricalBalanceProofs(blockHeader, state, anchor, balanceChanges);
       return payloads.length;
     }
 
-    const payloads = await this.sendGeneralBalanceProofs(blockHeader, state, balanceChanges);
+    const payloads = await this.sendGeneralBalanceProofs(blockHeader, state, anchor, balanceChanges);
     return payloads.length;
-  }
-
-  private async getValidatorBalances(state: State): Promise<bigint[]> {
-    return await this.workers.getValidatorBalances({ state });
-  }
-
-  private async getValidatorEpochs(state: State) {
-    return await this.workers.getValidatorExitEpochs({ state });
   }
 
   private async sendGeneralBalanceProofs(
     blockHeader: BlockHeaderResponse,
     state: State,
+    anchor: ExecutionAnchor,
     balanceChanges: InvolvedKeys,
   ): Promise<IVerifier.ProcessBalanceProofInputStruct[]> {
-    const nextHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data);
-    if (!nextHeader) throw new Error(`Next canonical block header after ${blockHeader.root} not found`);
-    const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
+    const balanceSlot = Number(blockHeader.header.message.slot);
+    const recentSlot = Number(anchor.header.header.message.slot);
+    if (recentSlot <= balanceSlot) {
+      throw new Error(`Balance block slot ${balanceSlot} is not in recent block_roots at slot ${recentSlot}`);
+    }
     this.logger.log('Building balance proof payloads');
     const payloads = await this.workers.getBalanceProofPayloads({
-      currentHeader: blockHeader,
-      nextHeaderTimestamp: nextHeaderTs,
-      state,
+      balanceHeader: blockHeader,
+      recentHeader: anchor.header,
+      rootsTimestamp: anchor.timestamp,
+      balanceState: state,
+      recentState: anchor.state,
       keys: balanceChanges,
     });
 
@@ -170,18 +171,12 @@ export class BalancesService {
   private async sendHistoricalBalanceProofs(
     blockHeader: BlockHeaderResponse,
     state: State,
+    anchor: ExecutionAnchor,
     balanceChanges: InvolvedKeys,
   ): Promise<IVerifier.ProcessHistoricalBalanceProofInputStruct[]> {
-    // Get the freshest finalized header: A header captured at the start of the daemon iteration
-    // can age out during slow historical proof generation → RootNotFound() revert.
-    const recentHeader = await this.consensus.getBeaconHeader('finalized');
-    const nextHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(recentHeader.root)).data);
-    if (!nextHeader) throw new Error(`Next canonical block header after ${recentHeader.root} not found`);
-    const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
-    const recentState = await this.consensus.getState(toRootHex(recentHeader.header.message.stateRoot));
     const summaryResolution = await resolveHistoricalSummaryContext(
       this.consensus,
-      recentHeader,
+      anchor.header,
       Number(blockHeader.header.message.slot),
     );
     if (summaryResolution.status === HistoricalSummaryResolutionStatus.BeforeCapella) {
@@ -195,10 +190,10 @@ export class BalancesService {
     this.logger.log('Building historical balance proof payloads');
     const payloads = await this.workers.getHistoricalBalanceProofPayloads({
       headerWithBalances: blockHeader,
-      recentHeader,
-      nextToRecentHeaderTimestamp: nextHeaderTs,
+      recentHeader: anchor.header,
+      rootsTimestamp: anchor.timestamp,
       stateWithBalances: state,
-      recentState,
+      recentState: anchor.state,
       summaryState,
       summaryIndex,
       rootIndexInSummary,
