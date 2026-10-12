@@ -37,6 +37,9 @@ type KeysIndexerServiceStorage = {
   [valIndex: string]: KeyInfo;
 };
 
+// keys-api rejects request bodies over ~1 MB with HTTP 413 (~10k pubkeys)
+const KEYSAPI_FIND_KEYS_CHUNK_SIZE = 5000;
+
 export class ModuleNotFoundError extends Error {}
 
 @Injectable()
@@ -300,12 +303,17 @@ export class KeysIndexer implements OnApplicationBootstrap {
       return totalValLength;
     }
     this.logger.log(`New appeared validators count: ${newValKeys.length}`);
-    const stakingModuleKeys = await this.keysapi.findModuleKeys(this.info.data.moduleId, newValKeys);
-    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), stakingModuleKeys.meta);
-    this.assertKeysModule(stakingModuleKeys.data.keys);
-    this.logger.log(`New appeared staking module validators count: ${stakingModuleKeys.data.keys.length}`);
+    const stakingModuleKeys: Key[] = [];
+    for (let i = 0; i < newValKeys.length; i += KEYSAPI_FIND_KEYS_CHUNK_SIZE) {
+      const chunk = newValKeys.slice(i, i + KEYSAPI_FIND_KEYS_CHUNK_SIZE);
+      const found = await this.keysapi.findModuleKeys(this.info.data.moduleId, chunk);
+      this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), found.meta);
+      this.assertKeysModule(found.data.keys);
+      stakingModuleKeys.push(...found.data.keys);
+    }
+    this.logger.log(`New appeared staking module validators count: ${stakingModuleKeys.length}`);
     const keysMap = new Map<string, Key>();
-    for (const k of stakingModuleKeys.data.keys) {
+    for (const k of stakingModuleKeys) {
       if (k.used) keysMap.set(k.key, k);
     }
     // Build first, then assign atomically — no partial state visible to concurrent readers.
