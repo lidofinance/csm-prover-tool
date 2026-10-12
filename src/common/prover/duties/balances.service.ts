@@ -67,8 +67,10 @@ export class BalancesService {
     const keysCount = Object.keys(keys).length;
     if (keysCount === 0) return {};
 
-    const currentBalances = await this.getValidatorBalances(currentState);
-    const { slot, valExitEpochs, valWithdrawableEpochs } = await this.getValidatorEpochs(currentState);
+    const { slot, validators } = await this.workers.getValidatorsInfo({
+      state: currentState,
+      indices: Object.keys(keys).map(Number),
+    });
     const stateEpoch = BigInt(this.consensus.slotToEpoch(slot));
     const minActivationBalanceGwei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE);
     const provable: InvolvedKeys = {};
@@ -77,19 +79,19 @@ export class BalancesService {
     // processing; they retry next block. A balance <= MIN_ACTIVATION_BALANCE can never be provable (confirmed
     // balance is always >= MIN_ACTIVATION_BALANCE), so drop those before the on-chain confirmed-balance reads.
     const entries = Object.entries(keys).filter(([valIndex]) => {
-      const balance = currentBalances[Number(valIndex)];
-      return balance !== undefined && balance > minActivationBalanceGwei;
+      const info = validators[Number(valIndex)];
+      return info !== undefined && info.balance > minActivationBalanceGwei;
     });
     const addedBalances = await this.stakingModule.getKeyAddedBalances(entries.map(([, keyInfo]) => keyInfo));
 
     entries.forEach(([valIndex, keyInfo], i) => {
-      const index = Number(valIndex);
+      const info = validators[Number(valIndex)];
       const provableBalance = this.isProvableBalance(
         valIndex,
         addedBalances[i],
-        currentBalances[index],
-        valExitEpochs[index],
-        valWithdrawableEpochs[index],
+        info.balance,
+        info.exitEpoch,
+        info.withdrawableEpoch,
         stateEpoch,
       );
       if (provableBalance) {
@@ -136,14 +138,6 @@ export class BalancesService {
 
     const payloads = await this.sendGeneralBalanceProofs(blockHeader, state, anchor, balanceChanges);
     return payloads.length;
-  }
-
-  private async getValidatorBalances(state: State): Promise<bigint[]> {
-    return await this.workers.getValidatorBalances({ state });
-  }
-
-  private async getValidatorEpochs(state: State) {
-    return await this.workers.getValidatorExitEpochs({ state });
   }
 
   private async sendGeneralBalanceProofs(
