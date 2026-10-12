@@ -19,7 +19,7 @@ import { WorkerLogger } from '../worker-logger.js';
 export type BuildHistoricalBalanceProofArgs = {
   headerWithBalances: BlockHeaderResponse;
   recentHeader: BlockHeaderResponse;
-  nextToRecentHeaderTimestamp: number;
+  rootsTimestamp: number;
   stateWithBalances: State;
   recentState: State;
   summaryState: State;
@@ -32,7 +32,7 @@ async function buildHistoricalBalanceProofPayloads(): Promise<IVerifier.ProcessH
   const {
     headerWithBalances,
     recentHeader,
-    nextToRecentHeaderTimestamp,
+    rootsTimestamp,
     stateWithBalances,
     recentState,
     summaryState,
@@ -92,7 +92,7 @@ async function buildHistoricalBalanceProofPayloads(): Promise<IVerifier.ProcessH
     payloads.push({
       recentBlock: {
         header: toBeaconHeaderStruct(recentHeader),
-        rootsTimestamp: nextToRecentHeaderTimestamp,
+        rootsTimestamp,
       },
       historicalBlock: {
         header: toBeaconHeaderStruct(headerWithBalances),

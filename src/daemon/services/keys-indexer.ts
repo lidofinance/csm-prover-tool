@@ -130,6 +130,12 @@ export class KeysIndexer implements OnApplicationBootstrap {
   // Validators are appended to the state in index order, so every index below `lastValidatorsCount` was
   // looked up during the last scan. A higher one appeared after it and cannot be judged yet.
   public isTrustedForBlock(blockInfo: SupportedBlock): boolean {
+    if (!this.isTrustedForFullWithdrawals(blockInfo.slot)) {
+      this.logger.warn(
+        '⚠️ Current keys indexer data might not be ready to detect full withdrawal. The root will be processed later again',
+      );
+      return false;
+    }
     const maxIndex = this.maxReferencedValidatorIndex(blockInfo);
     const indexed = this.info.data.lastValidatorsCount;
     if (maxIndex < indexed) return true;
@@ -145,9 +151,6 @@ export class KeysIndexer implements OnApplicationBootstrap {
 
   private maxReferencedValidatorIndex(blockInfo: SupportedBlock): number {
     let max = -1;
-    if ('executionPayload' in blockInfo.body) {
-      for (const wd of blockInfo.body.executionPayload.withdrawals) max = Math.max(max, Number(wd.validatorIndex));
-    }
     for (const prop of blockInfo.body.proposerSlashings) {
       max = Math.max(max, Number(prop.signedHeader1.message.proposerIndex));
     }
@@ -157,6 +160,15 @@ export class KeysIndexer implements OnApplicationBootstrap {
       for (const i of att.attestation2.attestingIndices) max = Math.max(max, Number(i));
     }
     return max;
+  }
+
+  private isTrustedForFullWithdrawals(slotNumber: Slot): boolean {
+    // We are ok with outdated indexer for detection withdrawal
+    // because of MIN_VALIDATOR_WITHDRAWABILITY_DELAY
+    const MIN_VALIDATOR_WITHDRAWABILITY_DELAY = Number(this.consensus.beaconConfig.MIN_VALIDATOR_WITHDRAWABILITY_DELAY);
+    const safeDelay = this.consensus.epochToSlot(MIN_VALIDATOR_WITHDRAWABILITY_DELAY);
+    if (this.info.data.storageStateSlot >= slotNumber) return true;
+    return slotNumber - this.info.data.storageStateSlot <= safeDelay; // ~27 hours
   }
 
   private filterKeyInfo(keyInfo: KeyInfo | undefined): KeyInfo | undefined {

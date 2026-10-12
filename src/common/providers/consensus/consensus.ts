@@ -15,6 +15,7 @@ import {
 } from './response.interface.js';
 import { ConfigService } from '../../config/config.service.js';
 import { LruCache } from '../../helpers/lru.js';
+import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { PrometheusService, TrackCLRequest } from '../../prometheus/index.js';
 import { BaseRestProvider, type RestResponse } from '../base/rest-provider.js';
@@ -40,6 +41,7 @@ type BeaconConfig = {
   MAX_EFFECTIVE_BALANCE_ELECTRA: string;
   MIN_ACTIVATION_BALANCE: string;
   SLOTS_PER_HISTORICAL_ROOT: string;
+  MIN_VALIDATOR_WITHDRAWABILITY_DELAY: string;
 };
 
 const isCacheableConsensusId = (id: string | number): boolean => {
@@ -180,7 +182,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
       throw new Error(`Execution payload envelope [${blockRoot}] is not validated Gloas data`);
     }
     const envelope = ssz.gloas.SignedExecutionPayloadEnvelope.fromJson(json.data);
-    if (Buffer.from(envelope.message.beaconBlockRoot).toString('hex') !== blockRoot.slice(2).toLowerCase()) {
+    if (toRootHex(envelope.message.beaconBlockRoot) !== blockRoot.toLowerCase()) {
       throw new Error(`Execution payload envelope does not match beacon block [${blockRoot}]`);
     }
     return envelope.message;

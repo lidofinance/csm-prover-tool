@@ -21,7 +21,7 @@ import { WorkerLogger } from '../worker-logger.js';
 export type BuildHistoricalWithdrawalProofArgs = {
   headerWithWds: BlockHeaderResponse;
   finalHeader: BlockHeaderResponse;
-  nextToFinalizedHeaderTimestamp: number;
+  rootsTimestamp: number;
   finalizedState: State;
   summaryState: State;
   stateWithWds: State;
@@ -36,7 +36,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
   const {
     headerWithWds,
     finalHeader,
-    nextToFinalizedHeaderTimestamp,
+    rootsTimestamp,
     finalizedState,
     summaryState,
     stateWithWds,
@@ -84,7 +84,6 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
       stateWithWdsView,
       blockWithWdsView,
       keyWithWithdrawalInfo.withdrawal.offset,
-      stateWithWds.forkName,
     );
     WorkerLogger.log('Generating historical state proof');
     const historicalStateProof = await generateHistoricalStateProof(
@@ -105,12 +104,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
       stateWithWdsView.hashTreeRoot(),
       withdrawalProof.gindex,
       withdrawalProof.witnesses,
-      getWithdrawalView(
-        stateWithWdsView,
-        blockWithWdsView,
-        keyWithWithdrawalInfo.withdrawal.offset,
-        stateWithWds.forkName,
-      ).hashTreeRoot(),
+      getWithdrawalView(stateWithWdsView, blockWithWdsView, keyWithWithdrawalInfo.withdrawal.offset).hashTreeRoot(),
     );
     WorkerLogger.log('Verifying historical state proof locally');
     verifyProof(
@@ -134,7 +128,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
       },
       recentBlock: {
         header: toBeaconHeaderStruct(finalHeader),
-        rootsTimestamp: nextToFinalizedHeaderTimestamp,
+        rootsTimestamp,
       },
       withdrawalBlock: {
         header: toBeaconHeaderStruct(headerWithWds),

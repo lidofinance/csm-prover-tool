@@ -13,7 +13,7 @@ import type { IValidatorStrikes } from '../../contracts/types/Strikes.js';
 import { toBlockTagByHash } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus } from '../../providers/consensus/consensus.js';
-import type { SupportedBlock } from '../../providers/consensus/forks.js';
+import { type SupportedBlock, isGloasBlock } from '../../providers/consensus/forks.js';
 import { Ipfs } from '../../providers/ipfs/ipfs.js';
 import type { FullKeyInfo, FullKeyInfoByPubKeyFn } from '../types.js';
 
@@ -350,7 +350,7 @@ export class BadPerformersService {
   }
 
   private getExecutionBlockHash(block: SupportedBlock): Uint8Array {
-    if ('executionPayload' in block.body) return block.body.executionPayload.blockHash;
+    if (!isGloasBlock(block)) return block.body.executionPayload.blockHash;
     return block.body.signedExecutionPayloadBid.message.parentBlockHash;
   }
 

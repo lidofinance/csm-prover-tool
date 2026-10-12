@@ -5,7 +5,6 @@ import { ConfigService } from '../../config/config.service.js';
 import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
 import type { IVerifier } from '../../contracts/types/Verifier.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
-import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus, type State } from '../../providers/consensus/consensus.js';
 import { FAR_FUTURE_EPOCH } from '../../providers/consensus/epoch.js';
@@ -13,10 +12,10 @@ import type { BlockHeaderResponse } from '../../providers/consensus/response.int
 import { Execution } from '../../providers/execution/execution.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo } from '../types.js';
+import { type ExecutionAnchor, getExecutionAnchor } from '../utils/execution-anchor.js';
 import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../utils/historical-summary.js';
 
 export type InvolvedKeys = { [valIndex: string]: KeyInfo };
-type ExecutionAnchor = { header: BlockHeaderResponse; state: State; timestamp: number };
 
 @Injectable()
 export class BalancesService {
@@ -128,7 +127,7 @@ export class BalancesService {
     balanceChanges: InvolvedKeys,
   ): Promise<number> {
     if (!Object.keys(balanceChanges).length) return 0;
-    const anchor = await this.getExecutionAnchor();
+    const anchor = await getExecutionAnchor(this.execution, this.consensus);
     if (this.isHistoricalBlock(blockHeader, anchor.header)) {
       this.logger.warn('Balance proof block is historical. Processing will take longer than usual');
       const payloads = await this.sendHistoricalBalanceProofs(blockHeader, state, anchor, balanceChanges);
@@ -155,8 +154,7 @@ export class BalancesService {
   ): Promise<IVerifier.ProcessBalanceProofInputStruct[]> {
     const balanceSlot = Number(blockHeader.header.message.slot);
     const recentSlot = Number(anchor.header.header.message.slot);
-    const historicalRootLimit = Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT);
-    if (recentSlot <= balanceSlot || recentSlot - balanceSlot > historicalRootLimit) {
+    if (recentSlot <= balanceSlot) {
       throw new Error(`Balance block slot ${balanceSlot} is not in recent block_roots at slot ${recentSlot}`);
     }
     this.logger.log('Building balance proof payloads');
@@ -199,7 +197,7 @@ export class BalancesService {
     const payloads = await this.workers.getHistoricalBalanceProofPayloads({
       headerWithBalances: blockHeader,
       recentHeader: anchor.header,
-      nextToRecentHeaderTimestamp: anchor.timestamp,
+      rootsTimestamp: anchor.timestamp,
       stateWithBalances: state,
       recentState: anchor.state,
       summaryState,
@@ -214,13 +212,6 @@ export class BalancesService {
     }
 
     return payloads;
-  }
-
-  private async getExecutionAnchor(): Promise<ExecutionAnchor> {
-    const { root, timestamp } = await this.execution.getFinalizedBeaconAnchor();
-    const header = await this.consensus.getBeaconHeader(root);
-    const state = await this.consensus.getState(toRootHex(header.header.message.stateRoot));
-    return { header, state, timestamp };
   }
 
   private isHistoricalBlock(blockHeader: BlockHeaderResponse, recentHeader: BlockHeaderResponse): boolean {

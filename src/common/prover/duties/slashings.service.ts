@@ -3,13 +3,13 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
-import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus } from '../../providers/consensus/consensus.js';
 import type { SupportedBlock } from '../../providers/consensus/forks.js';
 import { Execution } from '../../providers/execution/execution.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo, KeyInfoFn } from '../types.js';
+import { getExecutionAnchor } from '../utils/execution-anchor.js';
 
 export type InvolvedKeys = { [valIndex: string]: KeyInfo };
 
@@ -56,13 +56,15 @@ export class SlashingsService {
 
   public async sendSlashingProofs(slashings: InvolvedKeys): Promise<number> {
     if (!Object.keys(slashings).length) return 0;
-    const { root, timestamp } = await this.execution.getFinalizedBeaconAnchor();
-    const finalizedHeader = await this.consensus.getBeaconHeader(root);
-    const finalizedState = await this.consensus.getState(toRootHex(finalizedHeader.header.message.stateRoot));
+    const {
+      header: finalizedHeader,
+      state: finalizedState,
+      timestamp,
+    } = await getExecutionAnchor(this.execution, this.consensus);
     this.logger.log(`Building slashing proof payloads`);
     const payloads = await this.workers.getSlashedProofPayloads({
       currentHeader: finalizedHeader,
-      nextHeaderTimestamp: timestamp,
+      rootsTimestamp: timestamp,
       state: finalizedState,
       slashings: slashings,
     });

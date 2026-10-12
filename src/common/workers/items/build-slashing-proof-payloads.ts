@@ -16,13 +16,13 @@ import { WorkerLogger } from '../worker-logger.js';
 
 export type BuildSlashingProofArgs = {
   currentHeader: BlockHeaderResponse;
-  nextHeaderTimestamp: number;
+  rootsTimestamp: number;
   state: State;
   slashings: InvolvedKeys;
 };
 
 async function buildSlashingProofPayloads(): Promise<IVerifier.ProcessSlashedInputStruct[]> {
-  const { currentHeader, nextHeaderTimestamp, state, slashings } = workerData as BuildSlashingProofArgs;
+  const { currentHeader, rootsTimestamp, state, slashings } = workerData as BuildSlashingProofArgs;
   //
   // Get views
   //
@@ -51,7 +51,7 @@ async function buildSlashingProofPayloads(): Promise<IVerifier.ProcessSlashedInp
       },
       recentBlock: {
         header: toBeaconHeaderStruct(currentHeader),
-        rootsTimestamp: nextHeaderTimestamp,
+        rootsTimestamp,
       },
     });
   }

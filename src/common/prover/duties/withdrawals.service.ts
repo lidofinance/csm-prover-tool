@@ -8,11 +8,12 @@ import { VerifierContract } from '../../contracts/verifier-contract.service.js';
 import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus, type State } from '../../providers/consensus/consensus.js';
-import type { SupportedBlock, SupportedWithdrawal } from '../../providers/consensus/forks.js';
+import { type SupportedBlock, type SupportedWithdrawal, isGloasBlock } from '../../providers/consensus/forks.js';
 import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
 import { Execution } from '../../providers/execution/execution.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo, KeyInfoFn } from '../types.js';
+import { type ExecutionAnchor, getExecutionAnchor } from '../utils/execution-anchor.js';
 import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../utils/historical-summary.js';
 
 // according to the research https://hackmd.io/1wM8vqeNTjqt4pC3XoCUKQ?view#Proposed-solution
@@ -23,7 +24,6 @@ const MAX_BP = 10_000n; // `MAX_BP` in the Verifier contract
 type WithdrawalWithOffset = SupportedWithdrawal & { offset: number };
 export type InvolvedKeysWithWithdrawal = { [valIndex: string]: KeyInfo & { withdrawal: WithdrawalWithOffset } };
 type WithdrawalEntry = [string, InvolvedKeysWithWithdrawal[string]];
-type ExecutionAnchor = { header: BlockHeaderResponse; state: State; timestamp: number };
 
 @Injectable()
 export class WithdrawalsService {
@@ -80,7 +80,7 @@ export class WithdrawalsService {
     withdrawals: InvolvedKeysWithWithdrawal,
   ): Promise<number> {
     if (!Object.keys(withdrawals).length) return 0;
-    const anchor = await this.getExecutionAnchor();
+    const anchor = await getExecutionAnchor(this.execution, this.consensus);
     // There is a case when the block is not historical regarding the finalized block, but it is historical
     // regarding the transaction execution time. This is possible when long finalization time
     // The transaction will be reverted and the application will try to handle that block again
@@ -101,17 +101,16 @@ export class WithdrawalsService {
     withdrawals: InvolvedKeysWithWithdrawal,
   ): Promise<IVerifier.ProcessWithdrawalInputStruct[]> {
     const withdrawalSlot = Number(blockHeader.header.message.slot);
-    const { header: recentHeader, state: recentState, timestamp: nextBlockTs } = anchor;
+    const { header: recentHeader, state: recentState, timestamp: rootsTimestamp } = anchor;
     const recentSlot = Number(recentHeader.header.message.slot);
-    const historicalRootLimit = Number(this.consensus.beaconConfig.SLOTS_PER_HISTORICAL_ROOT);
-    if (recentSlot <= withdrawalSlot || recentSlot - withdrawalSlot > historicalRootLimit) {
+    if (recentSlot <= withdrawalSlot) {
       throw new Error(`Withdrawal block slot ${withdrawalSlot} is not in recent block_roots at slot ${recentSlot}`);
     }
     this.logger.log(`Building withdrawal proof payloads`);
     const payloads = await this.workers.getGeneralWithdrawalProofPayloads({
       withdrawalHeader: blockHeader,
       recentHeader,
-      nextHeaderTimestamp: nextBlockTs,
+      rootsTimestamp,
       withdrawalState: state,
       recentState,
       withdrawalBlock: blockInfo,
@@ -133,10 +132,10 @@ export class WithdrawalsService {
     withdrawals: InvolvedKeysWithWithdrawal,
   ): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
     // create proof against the historical state with withdrawals.
-    // Anchor to the freshest finalized header, fetched as late as possible: its root must still be in
+    // The anchor is fetched by `sendWithdrawalProofs` right before proof generation: its root must still be in
     // the EIP-4788 ring buffer (~27h) when the tx executes. A header captured at the start of the daemon
     // iteration can age out during slow historical proof generation → RootNotFound() revert.
-    const { header: finalizedHeader, state: finalizedState, timestamp: nextBlockTs } = anchor;
+    const { header: finalizedHeader, state: finalizedState, timestamp: rootsTimestamp } = anchor;
     const summaryResolution = await resolveHistoricalSummaryContext(
       this.consensus,
       finalizedHeader,
@@ -153,7 +152,7 @@ export class WithdrawalsService {
     const payloads = await this.workers.getHistoricalWithdrawalProofPayloads({
       headerWithWds: blockHeader,
       finalHeader: finalizedHeader,
-      nextToFinalizedHeaderTimestamp: nextBlockTs,
+      rootsTimestamp,
       finalizedState,
       summaryState,
       stateWithWds: state,
@@ -185,28 +184,21 @@ export class WithdrawalsService {
   }
 
   private async getWithdrawals(blockRoot: RootHex, blockInfo: SupportedBlock): Promise<SupportedWithdrawal[]> {
-    if ('executionPayload' in blockInfo.body) return blockInfo.body.executionPayload.withdrawals;
+    if (!isGloasBlock(blockInfo)) return blockInfo.body.executionPayload.withdrawals;
 
     const childHeaders = await this.consensus.getBeaconHeadersByParentRoot(blockRoot);
     const childHeader = childHeaders.finalized && firstCanonical(childHeaders.data);
     if (!childHeader) throw new Error(`Finalized canonical child for Gloas block [${blockRoot}] is not available yet`);
 
     const childBlock = await this.consensus.getBlockInfo(childHeader.root);
-    if ('executionPayload' in childBlock.body) throw new Error(`Expected Gloas child block [${childHeader.root}]`);
+    if (!isGloasBlock(childBlock)) throw new Error(`Expected Gloas child block [${childHeader.root}]`);
     const payloadIsFull =
       toRootHex(childBlock.body.signedExecutionPayloadBid.message.parentBlockHash) ===
       toRootHex(blockInfo.body.signedExecutionPayloadBid.message.blockHash);
     if (!payloadIsFull) return [];
 
     const envelope = await this.consensus.getExecutionPayloadEnvelope(blockRoot);
-    return envelope.payload.withdrawals as SupportedWithdrawal[];
-  }
-
-  private async getExecutionAnchor(): Promise<ExecutionAnchor> {
-    const { root, timestamp } = await this.execution.getFinalizedBeaconAnchor();
-    const header = await this.consensus.getBeaconHeader(root);
-    const state = await this.consensus.getState(toRootHex(header.header.message.stateRoot));
-    return { header, state, timestamp };
+    return envelope.payload.withdrawals;
   }
 
   private isHistoricalBlock(blockInfo: SupportedBlock, finalizedHeader: BlockHeaderResponse): boolean {

@@ -2,14 +2,12 @@ import { createHash } from 'node:crypto';
 
 import { ProofType, type SingleProof, Tree, concatGindices, createProof } from '@chainsafe/persistent-merkle-tree';
 import type { BlockTag } from '@ethersproject/abstract-provider';
-import { ForkName } from '@lodestar/params';
 import { type RootHex, ssz } from '@lodestar/types';
 
 import type { BeaconBlockHeaderStruct, ValidatorStruct, WithdrawalStruct } from '../contracts/types/Verifier.js';
 import { epochToBigInt } from '../providers/consensus/epoch.js';
 import type {
   SupportedBlockView,
-  SupportedForkKey,
   SupportedStateView,
   SupportedValidatorView,
   SupportedWithdrawal,
@@ -25,9 +23,8 @@ export async function generateWithdrawalProof(
   stateView: SupportedStateView,
   blockView: SupportedBlockView,
   withdrawalOffset: number,
-  forkName: SupportedForkKey,
 ): Promise<SingleProof> {
-  if (forkName === ForkName.gloas) {
+  if ('payloadExpectedWithdrawals' in stateView) {
     const gI = stateView.type.getPathInfo(['payloadExpectedWithdrawals', withdrawalOffset]).gindex;
     return createProof(stateView.node, { type: ProofType.single, gindex: gI }) as SingleProof;
   }
@@ -59,12 +56,8 @@ export function getWithdrawalView(
   stateView: SupportedStateView,
   blockView: SupportedBlockView,
   withdrawalOffset: number,
-  forkName: SupportedForkKey,
 ) {
-  if (forkName === ForkName.gloas) {
-    if (!('payloadExpectedWithdrawals' in stateView)) {
-      throw new Error('Expected withdrawals are missing in Gloas state');
-    }
+  if ('payloadExpectedWithdrawals' in stateView) {
     return stateView.payloadExpectedWithdrawals.get(withdrawalOffset);
   }
   if (!('executionPayload' in blockView.body)) throw new Error('Execution payload is missing before Gloas');

@@ -22,7 +22,7 @@ import { WorkerLogger } from '../worker-logger.js';
 export type BuildGeneralWithdrawalProofArgs = {
   withdrawalHeader: BlockHeaderResponse;
   recentHeader: BlockHeaderResponse;
-  nextHeaderTimestamp: number;
+  rootsTimestamp: number;
   withdrawalState: State;
   recentState: State;
   withdrawalBlock: SupportedBlock;
@@ -34,7 +34,7 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.Process
   const {
     withdrawalHeader,
     recentHeader,
-    nextHeaderTimestamp,
+    rootsTimestamp,
     withdrawalState,
     recentState,
     withdrawalBlock,
@@ -85,7 +85,6 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.Process
       stateView,
       withdrawalBlockView,
       keyWithWithdrawalInfo.withdrawal.offset,
-      withdrawalState.forkName,
     );
     WorkerLogger.log('Verifying validator proof locally');
     verifyProof(stateView.hashTreeRoot(), validatorProof.gindex, validatorProof.witnesses, validator.hashTreeRoot());
@@ -94,12 +93,7 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.Process
       stateView.hashTreeRoot(),
       withdrawalProof.gindex,
       withdrawalProof.witnesses,
-      getWithdrawalView(
-        stateView,
-        withdrawalBlockView,
-        keyWithWithdrawalInfo.withdrawal.offset,
-        withdrawalState.forkName,
-      ).hashTreeRoot(),
+      getWithdrawalView(stateView, withdrawalBlockView, keyWithWithdrawalInfo.withdrawal.offset).hashTreeRoot(),
     );
     payloads.push({
       withdrawal: {
@@ -116,7 +110,7 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.Process
       },
       recentBlock: {
         header: toBeaconHeaderStruct(recentHeader),
-        rootsTimestamp: nextHeaderTimestamp,
+        rootsTimestamp,
       },
       withdrawalBlock: {
         header: toBeaconHeaderStruct(withdrawalHeader),
