@@ -2,8 +2,11 @@ import { parentPort, workerData } from 'node:worker_threads';
 
 import type { IVerifier } from '../../contracts/types/Verifier.js';
 import {
+  beaconHeaderRoot,
+  generateBlockRootsProof,
   generateValidatorProof,
   generateWithdrawalProof,
+  getWithdrawalView,
   toBeaconHeaderStruct,
   toHex,
   toValidatorStruct,
@@ -17,28 +20,46 @@ import type { BlockHeaderResponse } from '../../providers/consensus/response.int
 import { WorkerLogger } from '../worker-logger.js';
 
 export type BuildGeneralWithdrawalProofArgs = {
-  currentHeader: BlockHeaderResponse;
-  nextHeaderTimestamp: number;
-  state: State;
-  currentBlock: SupportedBlock;
+  withdrawalHeader: BlockHeaderResponse;
+  recentHeader: BlockHeaderResponse;
+  rootsTimestamp: number;
+  withdrawalState: State;
+  recentState: State;
+  withdrawalBlock: SupportedBlock;
   withdrawals: InvolvedKeysWithWithdrawal;
   epoch: number;
 };
 
 async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.ProcessWithdrawalInputStruct[]> {
-  const { currentHeader, nextHeaderTimestamp, state, currentBlock, withdrawals, epoch } =
-    workerData as BuildGeneralWithdrawalProofArgs;
+  const {
+    withdrawalHeader,
+    recentHeader,
+    rootsTimestamp,
+    withdrawalState,
+    recentState,
+    withdrawalBlock,
+    withdrawals,
+    epoch,
+  } = workerData as BuildGeneralWithdrawalProofArgs;
   //
   // Get views
   //
-  const stateView = getSsz(state.forkName).BeaconState.deserializeToView(state.bodyBytes);
-  const currentBlockView = getSsz(state.forkName).BeaconBlock.toView(currentBlock);
+  const stateView = getSsz(withdrawalState.forkName).BeaconState.deserializeToView(withdrawalState.bodyBytes);
+  const recentStateView = getSsz(recentState.forkName).BeaconState.deserializeToView(recentState.bodyBytes);
+  const withdrawalBlockView = getSsz(withdrawalState.forkName).BeaconBlock.toView(withdrawalBlock);
+  const blockRootsProof = await generateBlockRootsProof(recentStateView, Number(withdrawalHeader.header.message.slot));
+  verifyProof(
+    recentStateView.hashTreeRoot(),
+    blockRootsProof.gindex,
+    blockRootsProof.witnesses,
+    beaconHeaderRoot(withdrawalHeader),
+  );
   //
   //
   //
   const payloads = [];
   for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
-    const validator = stateView.validators.getReadonly(Number(valIndex));
+    const validator = stateView.validators.get(Number(valIndex));
     if (toHex(validator.pubkey) != keyWithWithdrawalInfo.pubKey) {
       WorkerLogger.error(
         `Validator ${valIndex} pubkey mismatch with key from the contract 
@@ -62,7 +83,7 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.Process
     WorkerLogger.log('Generating withdrawal proof');
     const withdrawalProof = await generateWithdrawalProof(
       stateView,
-      currentBlockView,
+      withdrawalBlockView,
       keyWithWithdrawalInfo.withdrawal.offset,
     );
     WorkerLogger.log('Verifying validator proof locally');
@@ -72,9 +93,7 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.Process
       stateView.hashTreeRoot(),
       withdrawalProof.gindex,
       withdrawalProof.witnesses,
-      currentBlockView.body.executionPayload.withdrawals
-        .getReadonly(keyWithWithdrawalInfo.withdrawal.offset)
-        .hashTreeRoot(),
+      getWithdrawalView(stateView, withdrawalBlockView, keyWithWithdrawalInfo.withdrawal.offset).hashTreeRoot(),
     );
     payloads.push({
       withdrawal: {
@@ -89,9 +108,13 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.Process
         object: toValidatorStruct(validator),
         proof: validatorProof.witnesses.map(toHex),
       },
+      recentBlock: {
+        header: toBeaconHeaderStruct(recentHeader),
+        rootsTimestamp,
+      },
       withdrawalBlock: {
-        header: toBeaconHeaderStruct(currentHeader),
-        rootsTimestamp: nextHeaderTimestamp,
+        header: toBeaconHeaderStruct(withdrawalHeader),
+        proof: blockRootsProof.witnesses.map(toHex),
       },
     });
   }

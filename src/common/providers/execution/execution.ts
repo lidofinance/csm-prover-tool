@@ -1,6 +1,7 @@
 import { type TransactionReceipt, type TransactionResponse } from '@ethersproject/abstract-provider';
 import { MAX_BLOCKCOUNT, SimpleFallbackJsonRpcBatchProvider } from '@lido-nestjs/execution';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
+import type { RootHex } from '@lodestar/types';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { type PopulatedTransaction, Wallet, utils } from 'ethers';
 import { InquirerService } from 'nest-commander';
@@ -53,6 +54,17 @@ export class Execution {
   ) {
     const key = this.config.get('TX_SIGNER_PRIVATE_KEY');
     if (key) this.signer = new Wallet(key, this.provider);
+  }
+
+  public async getFinalizedBeaconAnchor(): Promise<{ root: RootHex; timestamp: number }> {
+    const block = (await this.provider.perform('getBlock', {
+      blockTag: 'finalized',
+      includeTransactions: false,
+    })) as { parentBeaconBlockRoot?: RootHex; timestamp?: string };
+    if (!block.parentBeaconBlockRoot || !block.timestamp) {
+      throw new Error('Finalized execution block does not contain a parent beacon block root');
+    }
+    return { root: block.parentBeaconBlockRoot, timestamp: Number(block.timestamp) };
   }
 
   public async execute(

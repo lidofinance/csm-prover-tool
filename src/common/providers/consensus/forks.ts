@@ -1,7 +1,7 @@
 import { ForkName } from '@lodestar/params';
 import { sszTypesFor } from '@lodestar/types';
 
-const SUPPORTED_FORKS = [ForkName.capella, ForkName.deneb, ForkName.electra, ForkName.fulu] as const;
+const SUPPORTED_FORKS = [ForkName.capella, ForkName.deneb, ForkName.electra, ForkName.fulu, ForkName.gloas] as const;
 
 export type SupportedForkKey = (typeof SUPPORTED_FORKS)[number];
 type ForkSsz = ReturnType<typeof sszTypesFor<SupportedForkKey>>;
@@ -11,6 +11,7 @@ export type SupportedBlockView = ReturnType<ForkSsz['BeaconBlock']['toView']>;
 export type SupportedStateView = ReturnType<ForkSsz['BeaconState']['toView']>;
 export type SupportedWithdrawal = ReturnType<ForkSsz['Withdrawal']['fromJson']>;
 export type SupportedValidatorView = ReturnType<ForkSsz['Validator']['toView']>;
+type GloasBlock = ReturnType<ReturnType<typeof sszTypesFor<ForkName.gloas>>['BeaconBlock']['fromJson']>;
 
 export function parseFork(forkName: string): SupportedForkKey {
   if (!(SUPPORTED_FORKS as readonly string[]).includes(forkName)) {
@@ -21,4 +22,8 @@ export function parseFork(forkName: string): SupportedForkKey {
 
 export function getSsz(forkName: SupportedForkKey): ForkSsz {
   return sszTypesFor(forkName);
+}
+
+export function isGloasBlock(block: SupportedBlock): block is GloasBlock {
+  return 'signedExecutionPayloadBid' in block.body;
 }
