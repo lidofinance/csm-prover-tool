@@ -9,7 +9,7 @@
   "type": "module",
   "packageManager": "yarn@4.12.0",
   "engines": {
-    "node": "20.20.2",
+    "node": "24.22.1",
     "yarn": "4.12.0"
   },
   "scripts": {
@@ -80,7 +80,7 @@
     "@swc/jest": "^0.2.39",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
-    "@types/node": "^20.19.43",
+    "@types/node": "^24.19.2",
     "@types/supertest": "^7.2.1",
     "@typescript-eslint/eslint-plugin": "^8.71.1",
     "@typescript-eslint/parser": "^8.71.1",
