@@ -3,13 +3,13 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
+import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus } from '../../providers/consensus/consensus.js';
 import type { SupportedBlock } from '../../providers/consensus/forks.js';
-import { Execution } from '../../providers/execution/execution.js';
+import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo, KeyInfoFn } from '../types.js';
-import { getExecutionAnchor } from '../utils/execution-anchor.js';
 
 export type InvolvedKeys = { [valIndex: string]: KeyInfo };
 
@@ -19,7 +19,6 @@ export class SlashingsService {
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
-    protected readonly execution: Execution,
     protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
   ) {}
@@ -54,17 +53,16 @@ export class SlashingsService {
     return unproven;
   }
 
-  public async sendSlashingProofs(slashings: InvolvedKeys): Promise<number> {
+  public async sendSlashingProofs(finalizedHeader: BlockHeaderResponse, slashings: InvolvedKeys): Promise<number> {
     if (!Object.keys(slashings).length) return 0;
-    const {
-      header: finalizedHeader,
-      state: finalizedState,
-      timestamp,
-    } = await getExecutionAnchor(this.execution, this.consensus);
+    const finalizedState = await this.consensus.getState(toRootHex(finalizedHeader.header.message.stateRoot));
+    const nextHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(finalizedHeader.root)).data);
+    if (!nextHeader) throw new Error(`Next canonical block header after ${finalizedHeader.root} not found`);
+    const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
     this.logger.log(`Building slashing proof payloads`);
     const payloads = await this.workers.getSlashedProofPayloads({
       currentHeader: finalizedHeader,
-      rootsTimestamp: timestamp,
+      nextHeaderTimestamp: nextHeaderTs,
       state: finalizedState,
       slashings: slashings,
     });

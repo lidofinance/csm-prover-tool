@@ -5,7 +5,6 @@ import {
   generateHistoricalStateProof,
   generateValidatorProof,
   generateWithdrawalProof,
-  getWithdrawalView,
   toBeaconHeaderStruct,
   toHex,
   toValidatorStruct,
@@ -21,7 +20,7 @@ import { WorkerLogger } from '../worker-logger.js';
 export type BuildHistoricalWithdrawalProofArgs = {
   headerWithWds: BlockHeaderResponse;
   finalHeader: BlockHeaderResponse;
-  rootsTimestamp: number;
+  nextToFinalizedHeaderTimestamp: number;
   finalizedState: State;
   summaryState: State;
   stateWithWds: State;
@@ -36,7 +35,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
   const {
     headerWithWds,
     finalHeader,
-    rootsTimestamp,
+    nextToFinalizedHeaderTimestamp,
     finalizedState,
     summaryState,
     stateWithWds,
@@ -58,7 +57,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
   //
   const payloads = [];
   for (const [valIndex, keyWithWithdrawalInfo] of Object.entries(withdrawals)) {
-    const validator = stateWithWdsView.validators.get(Number(valIndex));
+    const validator = stateWithWdsView.validators.getReadonly(Number(valIndex));
     if (toHex(validator.pubkey) != keyWithWithdrawalInfo.pubKey) {
       WorkerLogger.error(
         `Validator ${valIndex} pubkey mismatch with key from the contract 
@@ -104,7 +103,9 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
       stateWithWdsView.hashTreeRoot(),
       withdrawalProof.gindex,
       withdrawalProof.witnesses,
-      getWithdrawalView(stateWithWdsView, blockWithWdsView, keyWithWithdrawalInfo.withdrawal.offset).hashTreeRoot(),
+      blockWithWdsView.body.executionPayload.withdrawals
+        .getReadonly(keyWithWithdrawalInfo.withdrawal.offset)
+        .hashTreeRoot(),
     );
     WorkerLogger.log('Verifying historical state proof locally');
     verifyProof(
@@ -128,7 +129,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
       },
       recentBlock: {
         header: toBeaconHeaderStruct(finalHeader),
-        rootsTimestamp,
+        rootsTimestamp: nextToFinalizedHeaderTimestamp,
       },
       withdrawalBlock: {
         header: toBeaconHeaderStruct(headerWithWds),
