@@ -1,4 +1,4 @@
-FROM node:20.20.2-alpine AS building
+FROM node:24.22.1-alpine AS building
 
 WORKDIR /app
 
@@ -6,7 +6,7 @@ WORKDIR /app
 # Source-only changes must not invalidate `yarn install`.
 COPY package.json yarn.lock .yarnrc.yml ./
 RUN corepack enable
-RUN yarn install --immutable && yarn cache clean
+RUN yarn install --immutable
 
 # Build layer
 COPY ./tsconfig*.json ./nest-cli.json ./.swcrc ./
@@ -17,7 +17,10 @@ RUN yarn build
 # Drop devDependencies from node_modules before it is copied to the runtime stage
 RUN yarn workspaces focus --all --production
 
-FROM node:20.20.2-alpine AS production
+# Only the node binary, no npm/corepack/yarn; keep the Alpine version in sync with the building stage image
+FROM alpine:3.24 AS production
+RUN apk add --no-cache libstdc++ && addgroup -g 1000 node && adduser -u 1000 -G node -s /bin/sh -D node
+COPY --from=building /usr/local/bin/node /usr/local/bin/node
 
 WORKDIR /app
 ENV NODE_ENV=production
@@ -30,6 +33,6 @@ RUN mkdir -p ./storage/ && chown -R node:node ./storage/
 USER node
 
 HEALTHCHECK --interval=60s --timeout=10s --retries=3 \
-  CMD sh -c "wget -nv -t1 --spider http://127.0.0.1:$HTTP_PORT/health" || exit 1
+  CMD wget -nv -t1 --spider "http://127.0.0.1:${HTTP_PORT:-8080}/health" || exit 1
 
 CMD ["node", "dist/main.js"]
