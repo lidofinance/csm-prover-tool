@@ -17,7 +17,10 @@ RUN yarn build
 # Drop devDependencies from node_modules before it is copied to the runtime stage
 RUN yarn workspaces focus --all --production
 
-FROM node:24.22.1-alpine AS production
+# Only the node binary, no npm/corepack/yarn; keep the Alpine version in sync with the building stage image
+FROM alpine:3.24 AS production
+RUN apk add --no-cache libstdc++ && addgroup -g 1000 node && adduser -u 1000 -G node -s /bin/sh -D node
+COPY --from=building /usr/local/bin/node /usr/local/bin/node
 
 WORKDIR /app
 
