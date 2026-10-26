@@ -76,6 +76,7 @@ export class ProveCommand extends CommandRunner {
           sentCount = await this.prover.handleWithdrawalsInBlock(
             withdrawalBlockRoot,
             withdrawalBlockInfo,
+            finalizedHeader,
             this.keyInfoFn,
           );
           break;
@@ -86,7 +87,7 @@ export class ProveCommand extends CommandRunner {
         case 'slashing':
           this.ensureClBlock(this.options.clBlock);
           const slashingBlockInfo = await this.consensus.getBlockInfo(this.options.clBlock);
-          sentCount = await this.prover.handleSlashingsInBlock(slashingBlockInfo, this.keyInfoFn);
+          sentCount = await this.prover.handleSlashingsInBlock(slashingBlockInfo, finalizedHeader, this.keyInfoFn);
           break;
         case 'balance':
           this.ensureClBlock(this.options.clBlock);
@@ -94,7 +95,7 @@ export class ProveCommand extends CommandRunner {
             throw new Error('Balance change proving is not supported for this module');
           }
           const { root: balanceBlockRoot } = await this.consensus.getBeaconHeader(this.options.clBlock);
-          sentCount = await this.prover.handleBalanceChangesInBlock(balanceBlockRoot, () => ({
+          sentCount = await this.prover.handleBalanceChangesInBlock(balanceBlockRoot, finalizedHeader, () => ({
             [this.options.validatorIndex]: this.getSelectedKeyInfo(),
           }));
           break;

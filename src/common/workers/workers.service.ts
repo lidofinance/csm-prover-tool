@@ -13,7 +13,8 @@ import type { BuildHistoricalBalanceProofArgs } from './items/build-historical-b
 import type { BuildHistoricalWithdrawalProofArgs } from './items/build-historical-wd-proof-payloads.js';
 import type { BuildSlashingProofArgs } from './items/build-slashing-proof-payloads.js';
 import type { GetNewValidatorKeysArgs, GetNewValidatorKeysResult } from './items/get-new-validator-keys.js';
-import type { GetValidatorsInfoArgs, GetValidatorsInfoResult } from './items/get-validators-info.js';
+import type { GetValidatorBalancesArgs, GetValidatorBalancesResult } from './items/get-validator-balances.js';
+import type { GetValidatorExitEpochsArgs, GetValidatorExitEpochsResult } from './items/get-validator-exit-epochs.js';
 import { ParentLoggerMessage } from './worker-logger.js';
 import type { IVerifier } from '../contracts/types/Verifier.js';
 
@@ -29,8 +30,13 @@ export class WorkersService {
     return await this._run('get-new-validator-keys', args);
   }
 
-  public async getValidatorsInfo(args: GetValidatorsInfoArgs): Promise<GetValidatorsInfoResult> {
-    return await this._run('get-validators-info', args);
+  public async getValidatorBalances(args: GetValidatorBalancesArgs): Promise<bigint[]> {
+    const result: GetValidatorBalancesResult = await this._run('get-validator-balances', args);
+    return result.valBalances;
+  }
+
+  public async getValidatorExitEpochs(args: GetValidatorExitEpochsArgs): Promise<GetValidatorExitEpochsResult> {
+    return await this._run('get-validator-exit-epochs', args);
   }
 
   public async getSlashedProofPayloads(args: BuildSlashingProofArgs): Promise<IVerifier.ProcessSlashedInputStruct[]> {
