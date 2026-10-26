@@ -6,7 +6,7 @@ WORKDIR /app
 # Source-only changes must not invalidate `yarn install`.
 COPY package.json yarn.lock .yarnrc.yml ./
 RUN corepack enable
-RUN yarn install --immutable && yarn cache clean
+RUN yarn install --immutable
 
 # Build layer
 COPY ./tsconfig*.json ./nest-cli.json ./.swcrc ./

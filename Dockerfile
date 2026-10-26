@@ -6,7 +6,7 @@ WORKDIR /app
 # Source-only changes must not invalidate `yarn install`.
 COPY package.json yarn.lock .yarnrc.yml ./
 RUN corepack enable
-RUN yarn install --immutable && yarn cache clean
+RUN yarn install --immutable
 
 # Build layer
 COPY ./tsconfig*.json ./nest-cli.json ./.swcrc ./
@@ -33,6 +33,6 @@ RUN mkdir -p ./storage/ && chown -R node:node ./storage/
 USER node
 
 HEALTHCHECK --interval=60s --timeout=10s --retries=3 \
-  CMD sh -c "wget -nv -t1 --spider http://127.0.0.1:$HTTP_PORT/health" || exit 1
+  CMD wget -nv -t1 --spider "http://127.0.0.1:${HTTP_PORT:-8080}/health" || exit 1
 
 CMD ["node", "dist/main.js"]
