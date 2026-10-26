@@ -99,6 +99,11 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^6.0.3"
   },
+  "resolutions": {
+    "multer@npm:2.4.0": "2.5.0",
+    "ws@npm:8.18.0": "8.22.0",
+    "uuid@npm:^9.0.1": "11.1.1"
+  },
   "jest": {
     "moduleFileExtensions": [
       "js",
