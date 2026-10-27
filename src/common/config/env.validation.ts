@@ -56,6 +56,11 @@ export class EnvironmentVariables {
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public ROOTS_PROCESSING_LAG_SLOTS = 0;
 
+  @IsNumber()
+  @Min(1)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public ROOTS_ORPHAN_REWIND_EPOCHS = 1;
+
   @IsNotEmpty()
   @IsString()
   public STAKING_MODULE_ADDRESS: string;

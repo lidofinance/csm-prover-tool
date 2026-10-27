@@ -34,6 +34,7 @@ The tool is a daemon that listens to the CL and EL and reports bad performers, w
    > - Return the root from roots stack if exists and keys indexer is healthy enough to be trusted completely to process this root
    > - *When no any processed roots yet* Return `START_ROOT` or the last finalized root if `START_ROOT` is not set
    > - Return a finalized child root of the last processed root
+   > - Rewind `ROOTS_ORPHAN_REWIND_EPOCHS` epochs back to a canonical finalized block if the last processed root is not confirmed on the finalized chain (e.g. reorged out)
    > - Sleep 12s if nothing to process and **return to the step 0**
 3. Process the root.
    > The processor does the following:
@@ -154,6 +155,7 @@ So, according to the algorithm, there are the following statements:
 | START_ROOT                              | Start CL block root for the daemon (defaults to current finalized root) | no                     |                               |
 | HTTP_USER_AGENT                         | `User-Agent` for all outgoing requests. Empty string — send none        | no                     | `csm-prover-tool/<version>`   |
 | ROOTS_PROCESSING_LAG_SLOTS              | Min slot-distance between processing tip and finalized tip. 0 = off     | no                     | 0                             |
+| ROOTS_ORPHAN_REWIND_EPOCHS              | Epochs to rewind when the last processed root is not confirmed on the finalized chain | no                     | 1                             |
 | DAEMON_NODE_OPERATOR_IDS                | Comma-separated node operator IDs to prove (daemon mode only)           | no                     |                               |
 | STAKING_MODULE_ADDRESS                  | Address of the staking module contract                                  | yes                    |                               |
 | VERIFIER_ADDRESS                        | Address of the verifier contract                                        | no                     |                               |

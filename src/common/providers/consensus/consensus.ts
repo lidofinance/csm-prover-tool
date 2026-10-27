@@ -17,7 +17,7 @@ import { ConfigService } from '../../config/config.service.js';
 import { LruCache } from '../../helpers/lru.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { PrometheusService, TrackCLRequest } from '../../prometheus/index.js';
-import { BaseRestProvider, type RestResponse } from '../base/rest-provider.js';
+import { BaseRestProvider, RequestError, type RestResponse } from '../base/rest-provider.js';
 import { type RequestOptions } from '../base/utils/func.js';
 
 type BlockHeaderResponseJson = {
@@ -63,6 +63,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   private readonly blockInfoCache = new LruCache<BlockId, SupportedBlock>(16, { shouldCache: isCacheableConsensusId });
   private readonly beaconHeaderCache = new LruCache<BlockId, BlockHeaderResponse>(16, {
     shouldCache: isCacheableConsensusId,
+    shouldCacheValue: (resp) => resp.finalized,
   });
   private readonly childHeadersCache = new LruCache<RootHex, BeaconHeadersByParentRootResponse>(16, {
     shouldCacheValue: (resp) => resp.finalized && resp.data.length > 0,
@@ -146,13 +147,24 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
     return await this.beaconHeaderCache.getOrFetch(blockId, () =>
       this.retryRequest(async (baseUrl) => {
         const { body } = await this.baseGet(baseUrl, this.endpoints.beaconHeader(blockId));
-        const jsonBody = (await body.json()) as { data: BlockHeaderResponseJson };
+        const jsonBody = (await body.json()) as { finalized: boolean; data: BlockHeaderResponseJson };
         return {
           ...jsonBody.data,
+          finalized: jsonBody.finalized,
           header: ssz.phase0.SignedBeaconBlockHeader.fromJson(jsonBody.data.header),
         };
       }),
     );
+  }
+
+  // A 404 that survives all retries means an empty slot or an unknown block, not a failure.
+  public async findBeaconHeader(blockId: BlockId): Promise<BlockHeaderResponse | undefined> {
+    try {
+      return await this.getBeaconHeader(blockId);
+    } catch (e) {
+      if (e instanceof RequestError && e.statusCode === 404) return undefined;
+      throw e;
+    }
   }
 
   public async getBeaconHeadersByParentRoot(parentRoot: RootHex): Promise<BeaconHeadersByParentRootResponse> {
@@ -164,6 +176,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
           finalized: jsonBody.finalized,
           data: jsonBody.data.map((item) => ({
             ...item,
+            finalized: jsonBody.finalized,
             header: ssz.phase0.SignedBeaconBlockHeader.fromJson(item.header),
           })),
         };
