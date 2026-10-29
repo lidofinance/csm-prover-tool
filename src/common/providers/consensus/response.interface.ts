@@ -24,6 +24,7 @@ function isOneOf<T extends readonly string[]>(value: unknown, values: T): value 
 export type BlockHeaderResponse = {
   root: RootHex;
   canonical: boolean;
+  finalized: boolean;
   header: phase0.SignedBeaconBlockHeader;
 };
 

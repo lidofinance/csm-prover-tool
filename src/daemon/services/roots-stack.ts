@@ -88,6 +88,16 @@ export class RootsStack implements OnModuleInit, OnApplicationBootstrap {
     await this.info.write();
   }
 
+  public async rewind(rs: RootSlot): Promise<void> {
+    this.info.data.lastProcessedRootSlot = rs;
+    for (const slot of Object.keys(this.storage.data).map(Number)) {
+      if (slot > rs.slotNumber) delete this.storage.data[slot];
+    }
+    await this.storage.write();
+    await this.info.write();
+    this.prometheus.rootsRewindsCount.inc();
+  }
+
   private async initOrReadServiceData() {
     const storageDir = getModuleStorageDir(this.config.get('STAKING_MODULE_ADDRESS'));
     this.info = new Low<RootsStackServiceInfo>(new JSONFile(join(storageDir, 'roots-stack-info.json')), {
