@@ -36,6 +36,7 @@ function elOptions(configService: ConfigService, prometheusService?: PrometheusS
       batchAggregationWaitMs: configService.get('EL_RPC_BATCH_AGGREGATION_WAIT_MS'),
     },
     logSuccessfulAttempts: false,
+    logRetries: false,
     fetchMiddlewares: prometheusService && [
       async (next, ctx) => {
         const targetName = new URL(ctx.provider.connection.url).hostname;
