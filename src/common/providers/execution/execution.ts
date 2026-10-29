@@ -1,11 +1,12 @@
 import { type TransactionReceipt, type TransactionResponse } from '@ethersproject/abstract-provider';
-import { MAX_BLOCKCOUNT, SimpleFallbackJsonRpcBatchProvider } from '@lido-nestjs/execution';
+import { MAX_BLOCKCOUNT } from '@lido-nestjs/execution';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { type PopulatedTransaction, Wallet, utils } from 'ethers';
 import { InquirerService } from 'nest-commander';
 import { oraPromise as spinnerFor } from 'ora';
 
+import { MulticallBatchProvider } from './multicall-batch-provider.js';
 import { bigIntMax, bigIntMin, percentile } from './utils/common.js';
 import { ConfigService } from '../../config/config.service.js';
 import { WorkingMode } from '../../config/env.validation.js';
@@ -49,7 +50,7 @@ export class Execution {
     protected readonly config: ConfigService,
     @Optional() protected readonly prometheus: PrometheusService,
     @Optional() protected readonly inquirerService: InquirerService,
-    public readonly provider: SimpleFallbackJsonRpcBatchProvider,
+    public readonly provider: MulticallBatchProvider,
   ) {
     const key = this.config.get('TX_SIGNER_PRIVATE_KEY');
     if (key) this.signer = new Wallet(key, this.provider);

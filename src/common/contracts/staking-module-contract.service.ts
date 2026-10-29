@@ -1,11 +1,18 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
+import { utils } from 'ethers';
 
 import { type Csm, Csm__factory } from './types/index.js';
 import { ConfigService } from '../config/config.service.js';
 import { type AppLogger } from '../logger/app-logger.type.js';
 import type { KeyInfo } from '../prover/types.js';
 import { Execution } from '../providers/execution/execution.js';
+
+// 8 keys per getSigningKeys call; one aggregate3 holds 170 such calls, i.e. 1,360 keys at ~7.5M gas, well under the eth_call gas cap nodes enforce (geth: 50M)
+const KEYS_PER_CALL = 8;
+const PUBKEY_BYTES = 48;
+
+export type KeysRange = { operatorId: number; from: number; to: number };
 
 @Injectable()
 export class StakingModuleContract {
@@ -69,6 +76,49 @@ export class StakingModuleContract {
 
   public async isSlashingProved(keyInfo: KeyInfo): Promise<boolean> {
     return await this.contract.isValidatorSlashed(keyInfo.operatorId, keyInfo.keyIndex);
+  }
+
+  public async getNodeOperatorsCount(blockNumber: number): Promise<number> {
+    return (await this.contract.getNodeOperatorsCount({ blockTag: blockNumber })).toNumber();
+  }
+
+  public async getDepositedKeysCounts(operatorIds: number[], blockNumber: number): Promise<number[]> {
+    return await Promise.all(
+      operatorIds.map(
+        async (operatorId) =>
+          (await this.contract.getNodeOperator(operatorId, { blockTag: blockNumber })).totalDepositedKeys,
+      ),
+    );
+  }
+
+  public async getDepositedKeys(ranges: KeysRange[], blockNumber: number): Promise<KeyInfo[]> {
+    const chunks: Promise<KeyInfo[]>[] = [];
+    for (const { operatorId, from, to } of ranges) {
+      for (let start = from; start < to; start += KEYS_PER_CALL) {
+        chunks.push(this.getKeysChunk(operatorId, start, Math.min(start + KEYS_PER_CALL, to), blockNumber));
+      }
+    }
+    return (await Promise.all(chunks)).flat();
+  }
+
+  private async getKeysChunk(operatorId: number, from: number, to: number, blockNumber: number): Promise<KeyInfo[]> {
+    // getSigningKeys returns the pubkeys glued together, 48 bytes each
+    const bytes = await this.contract.getSigningKeys(operatorId, from, to - from, { blockTag: blockNumber });
+    if (utils.hexDataLength(bytes) !== (to - from) * PUBKEY_BYTES) {
+      throw new Error(
+        `Unexpected getSigningKeys length for operator ${operatorId} [${from}, ${to}): ${utils.hexDataLength(bytes)}`,
+      );
+    }
+    const keys: KeyInfo[] = [];
+    for (let keyIndex = from; keyIndex < to; keyIndex++) {
+      const offset = (keyIndex - from) * PUBKEY_BYTES;
+      keys.push({
+        operatorId,
+        keyIndex,
+        pubKey: utils.hexDataSlice(bytes, offset, offset + PUBKEY_BYTES).toLowerCase(),
+      });
+    }
+    return keys;
   }
 
   public async getNodeOperatorKey(nodeOperatorId: string | number, keyIndex: string | number): Promise<string> {

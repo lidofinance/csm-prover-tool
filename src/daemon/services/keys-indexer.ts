@@ -1,13 +1,14 @@
 import { join } from 'node:path';
 
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
-import type { RootHex, Slot } from '@lodestar/types';
+import type { Slot } from '@lodestar/types';
 import { Inject, Injectable, type OnApplicationBootstrap } from '@nestjs/common';
 import { Low } from 'lowdb';
 import { JSONFile } from 'lowdb/node';
 
 import { ConfigService } from '../../common/config/config.service.js';
 import { WorkingMode } from '../../common/config/env.validation.js';
+import { type KeysRange, StakingModuleContract } from '../../common/contracts/staking-module-contract.service.js';
 import { toRootHex } from '../../common/helpers/proofs.js';
 import { getModuleStorageDir } from '../../common/helpers/storage.js';
 import { type AppLogger } from '../../common/logger/app-logger.type.js';
@@ -18,17 +19,13 @@ import {
   PrometheusService,
 } from '../../common/prometheus/index.js';
 import type { FullKeyInfo, KeyInfo } from '../../common/prover/types.js';
-import { Consensus, type State } from '../../common/providers/consensus/consensus.js';
+import { Consensus } from '../../common/providers/consensus/consensus.js';
 import type { SupportedBlock } from '../../common/providers/consensus/forks.js';
 import type { BlockHeaderResponse } from '../../common/providers/consensus/response.interface.js';
-import { Keysapi } from '../../common/providers/keysapi/keysapi.js';
-import type { Key, Module } from '../../common/providers/keysapi/response.interface.js';
 import { WorkersService } from '../../common/workers/workers.service.js';
-import sleep from '../utils/sleep.js';
 
 type KeysIndexerServiceInfo = {
   moduleAddress: string;
-  moduleId: number;
   storageStateSlot: number;
   lastValidatorsCount: number;
 };
@@ -37,12 +34,8 @@ type KeysIndexerServiceStorage = {
   [valIndex: string]: KeyInfo;
 };
 
-export class ModuleNotFoundError extends Error {}
-
 @Injectable()
 export class KeysIndexer implements OnApplicationBootstrap {
-  public MODULE_NOT_FOUND_NEXT_TRY_MS = 60000;
-
   private info: Low<KeysIndexerServiceInfo>;
   private storage: Low<KeysIndexerServiceStorage>;
 
@@ -52,7 +45,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
     protected readonly prometheus: PrometheusService,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
-    protected readonly keysapi: Keysapi,
+    protected readonly stakingModule: StakingModuleContract,
   ) {}
 
   public async onApplicationBootstrap(): Promise<void> {
@@ -93,38 +86,69 @@ export class KeysIndexer implements OnApplicationBootstrap {
     if (this.info.data.storageStateSlot == slot) {
       return false;
     }
-    // TODO: do we have to check integrity of data here? when `this.info` says one thing and `this.storage` another
     const storageTimestamp = this.consensus.slotToTimestamp(this.info.data.storageStateSlot) * 1000;
     return this.config.get('KEYS_INDEXER_RUNNING_PERIOD_MS') < Date.now() - storageTimestamp;
   }
 
   public async update(finalizedHeader: BlockHeaderResponse): Promise<void> {
-    const slot = Number(finalizedHeader.header.message.slot);
-    const stateRoot = toRootHex(finalizedHeader.header.message.stateRoot);
     // We shouldn't wait for task to finish
     // to avoid block processing if indexing fails or stuck
-    await this.baseRun(
-      stateRoot,
-      slot,
-      async (validators, finalizedSlot) => await this.updateStorage(validators, finalizedSlot),
-    );
-  }
-
-  private async baseRun(
-    stateRoot: RootHex,
-    finalizedSlot: Slot,
-    stateDataProcessingCallback: (state: State, finalizedSlot: Slot) => Promise<number>,
-  ): Promise<void> {
     this.logger.log(`🔑 Keys indexer is running`);
+    const finalizedSlot = Number(finalizedHeader.header.message.slot);
+    const stateRoot = toRootHex(finalizedHeader.header.message.stateRoot);
+    const finalizedBlock = await this.consensus.getBlockInfo(finalizedHeader.root);
+    const blockNumber = finalizedBlock.body.executionPayload.blockNumber;
+    // EL is read before the state download so that an EL failure does not cost a state download
+    const keysMap = await this.readNewKeys(blockNumber);
+
     this.logger.log(`Get validators. State root [${stateRoot}]`);
     const state = await this.consensus.getState(stateRoot);
-    // TODO: do we need to store already full withdrawn keys ?
-    const totalValLength = await stateDataProcessingCallback(state, finalizedSlot);
+    const lastValidatorsCount = this.info.data.lastValidatorsCount;
+    const { totalValLength, valKeys } = await this.workers.getNewValidatorKeys({ state, lastValidatorsCount });
+    this.logger.log(`Total validators count: ${totalValLength}, new: ${valKeys.length}`);
+    // Build first, then assign atomically — no partial state visible to concurrent readers.
+    const newEntries: KeysIndexerServiceStorage = {};
+    valKeys.forEach((pubKey, i) => {
+      const keyInfo = keysMap.get(pubKey);
+      if (!keyInfo) return;
+      newEntries[lastValidatorsCount + i] = keyInfo;
+    });
+    Object.assign(this.storage.data, newEntries);
     this.logger.log(`Staking module validators count: ${Object.keys(this.storage.data).length}`);
     this.info.data.storageStateSlot = finalizedSlot;
     this.info.data.lastValidatorsCount = totalValLength;
     await this.storage.write();
     await this.info.write();
+  }
+
+  private async readNewKeys(blockNumber: number): Promise<Map<string, KeyInfo>> {
+    const allowedIds = this.config.get('DAEMON_NODE_OPERATOR_IDS');
+    const operatorIds = allowedIds?.length
+      ? allowedIds
+      : Array.from({ length: await this.stakingModule.getNodeOperatorsCount(blockNumber) }, (_, i) => i);
+
+    // Keys are deposited in index order and never change after that, so keys below the cursor are already indexed
+    const cursors = new Map<number, number>();
+    for (const { operatorId, keyIndex } of Object.values(this.storage.data)) {
+      cursors.set(operatorId, Math.max(cursors.get(operatorId) ?? 0, keyIndex + 1));
+    }
+
+    const depositedCounts = await this.stakingModule.getDepositedKeysCounts(operatorIds, blockNumber);
+    const ranges: KeysRange[] = [];
+    operatorIds.forEach((operatorId, i) => {
+      const from = cursors.get(operatorId) ?? 0;
+      const deposited = depositedCounts[i];
+      if (deposited < from) {
+        throw new Error(`Operator ${operatorId} has ${deposited} deposited keys, but the key ${from - 1} is indexed`);
+      }
+      if (deposited > from) ranges.push({ operatorId, from, to: deposited });
+    });
+
+    const keys = await this.stakingModule.getDepositedKeys(ranges, blockNumber);
+    this.logger.log(`Read ${keys.length} deposited keys of ${operatorIds.length} operators`);
+    const keysMap = new Map<string, KeyInfo>();
+    for (const key of keys) keysMap.set(key.pubKey, key);
+    return keysMap;
   }
 
   // Validators are appended to the state in index order, so every index below `lastValidatorsCount` was
@@ -174,7 +198,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
   }
 
   public isInitialized(): boolean {
-    return Boolean(this.info?.data?.moduleId) && (this.info?.data?.storageStateSlot ?? 0) > 0;
+    return (this.info?.data?.storageStateSlot ?? 0) > 0;
   }
 
   public async initOrReadServiceData() {
@@ -182,7 +206,6 @@ export class KeysIndexer implements OnApplicationBootstrap {
     const storageDir = getModuleStorageDir(moduleAddress);
     const defaultInfo: KeysIndexerServiceInfo = {
       moduleAddress,
-      moduleId: 0,
       storageStateSlot: 0,
       lastValidatorsCount: 0,
     };
@@ -197,116 +220,10 @@ export class KeysIndexer implements OnApplicationBootstrap {
     await this.info.read();
     await this.storage.read();
 
-    const chainId = this.config.get('CHAIN_ID');
-    const status = await this.keysapi.getStatus();
-    if (status.chainId !== chainId) {
-      throw new Error(`KeysApi serves chain ${status.chainId}, but CHAIN_ID is ${chainId}`);
-    }
-
-    // Re-resolved on every start instead of trusting the persisted id.
-    const modulesResp = await this.keysapi.getModules();
-    const module = modulesResp.data.find(
-      (m: Module) => m.stakingModuleAddress.toLowerCase() === this.info.data.moduleAddress.toLowerCase(),
-    );
-    if (!module) {
-      const error = new ModuleNotFoundError(
-        `Module with address ${this.info.data.moduleAddress} not found! ` +
-          'Update configs if this is the wrong address. Next automatic attempt to find it will be in 1m',
-      );
-      this.logger.error(error.message);
-      await sleep(this.MODULE_NOT_FOUND_NEXT_TRY_MS);
-      throw error;
-    }
-    this.info.data.moduleId = module.id;
-    await this.info.write();
-
     if (this.info.data.storageStateSlot == 0) {
       this.logger.log(`Init keys data`);
-      const finalized = await this.consensus.getBeaconHeader('finalized');
-      const finalizedSlot = Number(finalized.header.message.slot);
-      const stateRoot = toRootHex(finalized.header.message.stateRoot);
-      await this.baseRun(
-        stateRoot,
-        finalizedSlot,
-        async (state, finalizedSlot): Promise<number> => await this.initStorage(state, finalizedSlot),
-      );
+      await this.update(await this.consensus.getBeaconHeader('finalized'));
     }
-  }
-
-  private assertModule(module: Module): void {
-    const expected = this.info.data.moduleAddress.toLowerCase();
-    if (module.stakingModuleAddress.toLowerCase() !== expected) {
-      throw new Error(`KeysApi returned keys of module ${module.stakingModuleAddress}, expected ${expected}`);
-    }
-  }
-
-  // For `find` responses, which carry no module metadata. `moduleAddress` is optional in practice.
-  private assertKeysModule(keys: Key[]): void {
-    const expected = this.info.data.moduleAddress.toLowerCase();
-    const alien = keys.find((k) => k.moduleAddress && k.moduleAddress.toLowerCase() !== expected);
-    if (alien) {
-      throw new Error(`KeysApi returned a key of module ${alien.moduleAddress}, expected ${expected}`);
-    }
-  }
-
-  private async initStorage(state: State, finalizedSlot: Slot): Promise<number> {
-    const stakingModuleKeys = await this.keysapi.getModuleKeys(this.info.data.moduleId);
-    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), stakingModuleKeys.meta);
-    this.assertModule(stakingModuleKeys.data.module);
-    const keysMap = new Map<string, { operatorIndex: number; index: number }>();
-    stakingModuleKeys.data.keys.forEach((k: Key) => keysMap.set(k.key, { ...k }));
-    const { totalValLength, valKeys } = await this.workers.getNewValidatorKeys({
-      state,
-      lastValidatorsCount: 0,
-    });
-    this.logger.log(`Total validators count: ${totalValLength}`);
-    for (let i = 0; i < totalValLength; i++) {
-      const pubKey = valKeys[i];
-      const keyInfo = keysMap.get(pubKey);
-      if (!keyInfo) continue;
-      this.storage.data[i] = {
-        operatorId: keyInfo.operatorIndex,
-        keyIndex: keyInfo.index,
-        pubKey: pubKey,
-      };
-    }
-    return totalValLength;
-  }
-
-  private async updateStorage(state: State, finalizedSlot: Slot): Promise<number> {
-    // TODO: should we think about re-using validator indexes?
-    // TODO: should we think about changing WC for existing old vaidators ?
-    const { totalValLength, valKeys: newValKeys } = await this.workers.getNewValidatorKeys({
-      state,
-      lastValidatorsCount: this.info.data.lastValidatorsCount,
-    });
-    this.logger.log(`Total validators count: ${totalValLength}`);
-    if (newValKeys.length == 0) {
-      this.logger.log(`No new validators in the state`);
-      return totalValLength;
-    }
-    this.logger.log(`New appeared validators count: ${newValKeys.length}`);
-    const stakingModuleKeys = await this.keysapi.findModuleKeys(this.info.data.moduleId, newValKeys);
-    this.keysapi.healthCheck(this.consensus.slotToTimestamp(finalizedSlot), stakingModuleKeys.meta);
-    this.assertKeysModule(stakingModuleKeys.data.keys);
-    this.logger.log(`New appeared staking module validators count: ${stakingModuleKeys.data.keys.length}`);
-    const keysMap = new Map<string, Key>();
-    for (const k of stakingModuleKeys.data.keys) {
-      if (k.used) keysMap.set(k.key, k);
-    }
-    // Build first, then assign atomically — no partial state visible to concurrent readers.
-    const newEntries: KeysIndexerServiceStorage = {};
-    newValKeys.forEach((pubKey, i) => {
-      const keyInfo = keysMap.get(pubKey);
-      if (!keyInfo) return;
-      newEntries[i + this.info.data.lastValidatorsCount] = {
-        operatorId: keyInfo.operatorIndex,
-        keyIndex: keyInfo.index,
-        pubKey,
-      };
-    });
-    Object.assign(this.storage.data, newEntries);
-    return totalValLength;
   }
 
   private setMetrics() {

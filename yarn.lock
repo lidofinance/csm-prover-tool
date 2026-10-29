@@ -5536,8 +5536,6 @@ __metadata:
     reflect-metadata: "npm:^0.2.2"
     rxjs: "npm:^7.8.2"
     source-map-support: "npm:^0.5.21"
-    stream-chain: "npm:^4.2.6"
-    stream-json: "npm:^3.7.0"
     supertest: "npm:^7.3.1"
     ts-jest: "npm:^29.4.14"
     ts-loader: "npm:^9.6.2"
@@ -10542,22 +10540,6 @@ __metadata:
     es-errors: "npm:^1.3.0"
     internal-slot: "npm:^1.1.0"
   checksum: 10c0/de4e45706bb4c0354a4b1122a2b8cc45a639e86206807ce0baf390ee9218d3ef181923fa4d2b67443367c491aa255c5fbaa64bb74648e3c5b48299928af86c09
-  languageName: node
-  linkType: hard
-
-"stream-chain@npm:^4.2.5, stream-chain@npm:^4.2.6":
-  version: 4.2.6
-  resolution: "stream-chain@npm:4.2.6"
-  checksum: 10c0/bcfec082d8ab57ff612b23c64e5917f47db1a6111954ca6a5f5fefe2e8d1c4be6962a8cd41c23fd2dda02e3b73077d7ef73adcd2bb5f8d183d294ab1c22219a1
-  languageName: node
-  linkType: hard
-
-"stream-json@npm:^3.7.0":
-  version: 3.7.0
-  resolution: "stream-json@npm:3.7.0"
-  dependencies:
-    stream-chain: "npm:^4.2.5"
-  checksum: 10c0/5f56acbd01245580f947697de546f469c67714656ee31765631972841aed336984a25ebeb70fcb6cccf1c638827a9655d552a4f7a4ab9687bf26463e0cf24394
   languageName: node
   linkType: hard
 
