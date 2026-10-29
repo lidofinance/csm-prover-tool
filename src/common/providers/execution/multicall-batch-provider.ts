@@ -1,4 +1,4 @@
-import { type BlockTag, SimpleFallbackJsonRpcBatchProvider } from '@lido-nestjs/execution';
+import { AllProvidersFailedError, type BlockTag, SimpleFallbackJsonRpcBatchProvider } from '@lido-nestjs/execution';
 import { utils } from 'ethers';
 
 import { type Multicall3, Multicall3__factory } from '../../contracts/types/index.js';
@@ -11,6 +11,8 @@ const BATCH_SIZE_BYTES = 17_000;
 type CallParams = { transaction: { to?: string; data?: string }; blockTag: BlockTag };
 
 type CallException = { code?: string; error?: { code?: number | string; message?: string } };
+
+type NodeError = { code?: number | string; message?: string; reason?: string; status?: number };
 
 type PendingCall = {
   to: string;
@@ -78,7 +80,14 @@ export class MulticallBatchProvider extends SimpleFallbackJsonRpcBatchProvider {
       try {
         await this.sendBatch(batch, blockTag);
       } catch (e) {
-        batches.slice(i).forEach((rest) => rest.forEach(({ reject }) => reject(e)));
+        const cause = e instanceof AllProvidersFailedError ? e.cause : e;
+        const { code, message, reason, status } = ((cause as CallException)?.error ?? cause ?? {}) as NodeError;
+        // The node's reason instead of an error carrying the whole aggregate3 calldata
+        const error = new Error(
+          `EL read at block ${blockTag} failed: ${JSON.stringify({ code, message: reason ?? message, status })}`,
+          { cause: e },
+        );
+        batches.slice(i).forEach((rest) => rest.forEach(({ reject }) => reject(error)));
         return;
       }
     }
@@ -104,13 +113,17 @@ export class MulticallBatchProvider extends SimpleFallbackJsonRpcBatchProvider {
       batch.map(({ to, data }) => ({ target: to, callData: data, allowFailure: true })),
       { blockTag },
     );
-    batch.forEach((call, i) => this.settle(call, results[i]));
+    batch.forEach((call, i) => this.settle(call, results[i], blockTag));
   }
 
   private settle(
     { to, data, resolve, reject }: PendingCall,
     [success, returnData]: Multicall3.ResultStructOutput,
+    blockTag: string,
   ): void {
+    // Which call of the batch reverted, ready to replay
+    if (!success)
+      this.logger.warn(`EL call reverted at block ${blockTag}: ${JSON.stringify({ to, data, revert: returnData })}`);
     // Revert data without a selector could decode as a valid result, so only selector-prefixed data goes back to ethers to decode
     if (success || utils.hexDataLength(returnData) % 32 === 4) return resolve(returnData);
     reject(
