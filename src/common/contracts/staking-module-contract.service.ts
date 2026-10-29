@@ -11,6 +11,8 @@ import { Execution } from '../providers/execution/execution.js';
 // 8 keys per getSigningKeys call; one aggregate3 holds 170 such calls, i.e. 1,360 keys at ~7.5M gas, well under the eth_call gas cap nodes enforce (geth: 50M)
 const KEYS_PER_CALL = 8;
 const PUBKEY_BYTES = 48;
+// 16 keys per getKeyConfirmedBalances call; one aggregate3 holds 170 such calls, i.e. 2,720 keys at ~8.5M gas, under the 10M batch target
+const BALANCE_KEYS_PER_CALL = 16;
 
 export type KeysRange = { operatorId: number; from: number; to: number };
 
@@ -50,32 +52,33 @@ export class StakingModuleContract {
     }
   }
 
-  public async getKeyAddedBalances(keyInfos: KeyInfo[]): Promise<bigint[]> {
-    // Fetch each operator's candidate keys as one contiguous getKeyConfirmedBalances range
-    const operatorIds = [...new Set(keyInfos.map((k) => k.operatorId))];
-    const rangeByOperator: Record<number, { start: number; balances: bigint[] }> = {};
+  public async getKeyAddedBalances(keyInfos: KeyInfo[], blockNumber: number): Promise<bigint[]> {
+    // Fetch each operator's candidate keys as contiguous getKeyConfirmedBalances ranges of at most BALANCE_KEYS_PER_CALL keys
+    const ranges: KeysRange[] = [];
+    const sorted = [...keyInfos].sort((a, b) => a.operatorId - b.operatorId || a.keyIndex - b.keyIndex);
+    for (const { operatorId, keyIndex } of sorted) {
+      const last = ranges.at(-1);
+      if (last?.operatorId === operatorId && keyIndex < last.from + BALANCE_KEYS_PER_CALL) last.to = keyIndex + 1;
+      else ranges.push({ operatorId, from: keyIndex, to: keyIndex + 1 });
+    }
+    const balances = new Map<string, bigint>();
     await Promise.all(
-      operatorIds.map(async (operatorId) => {
-        const keyIndexes = keyInfos.filter((k) => k.operatorId === operatorId).map((k) => k.keyIndex);
-        const start = Math.min(...keyIndexes);
-        const count = Math.max(...keyIndexes) - start + 1;
-        const balances = await this.contract.getKeyConfirmedBalances(operatorId, start, count);
-        rangeByOperator[operatorId] = { start, balances: balances.map((b) => b.toBigInt()) };
+      ranges.map(async ({ operatorId, from, to }) => {
+        const chunk = await this.contract.getKeyConfirmedBalances(operatorId, from, to - from, {
+          blockTag: blockNumber,
+        });
+        chunk.forEach((balance, i) => balances.set(`${operatorId}_${from + i}`, balance.toBigInt()));
       }),
     );
-
-    return keyInfos.map(({ operatorId, keyIndex }) => {
-      const { start, balances } = rangeByOperator[operatorId];
-      return balances[keyIndex - start];
-    });
+    return keyInfos.map(({ operatorId, keyIndex }) => balances.get(`${operatorId}_${keyIndex}`)!);
   }
 
-  public async isWithdrawalProved(keyInfo: KeyInfo): Promise<boolean> {
-    return await this.contract.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex);
+  public async isWithdrawalProved(keyInfo: KeyInfo, blockNumber: number): Promise<boolean> {
+    return await this.contract.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex, { blockTag: blockNumber });
   }
 
-  public async isSlashingProved(keyInfo: KeyInfo): Promise<boolean> {
-    return await this.contract.isValidatorSlashed(keyInfo.operatorId, keyInfo.keyIndex);
+  public async isSlashingProved(keyInfo: KeyInfo, blockNumber: number): Promise<boolean> {
+    return await this.contract.isValidatorSlashed(keyInfo.operatorId, keyInfo.keyIndex, { blockTag: blockNumber });
   }
 
   public async getNodeOperatorsCount(blockNumber: number): Promise<number> {

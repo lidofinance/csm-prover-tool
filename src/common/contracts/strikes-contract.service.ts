@@ -1,4 +1,3 @@
-import { type BlockTag } from '@ethersproject/abstract-provider';
 import { AddressZero } from '@ethersproject/constants';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
@@ -111,11 +110,11 @@ export class StrikesContract {
     return info.currentExitRequestsLimit.toBigInt();
   }
 
-  public async getTreeCid(blockTag: BlockTag): Promise<string> {
-    return await this.contract.treeCid({ blockTag });
+  public async getTreeCid(blockNumber: number): Promise<string> {
+    return await this.contract.treeCid({ blockTag: blockNumber });
   }
 
-  public async getTreeRoot(blockTag: BlockTag): Promise<string> {
-    return await this.contract.treeRoot({ blockTag });
+  public async getTreeRoot(blockNumber: number): Promise<string> {
+    return await this.contract.treeRoot({ blockTag: blockNumber });
   }
 }
