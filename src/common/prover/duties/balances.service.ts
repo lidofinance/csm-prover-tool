@@ -10,6 +10,7 @@ import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus, type State } from '../../providers/consensus/consensus.js';
 import { FAR_FUTURE_EPOCH } from '../../providers/consensus/epoch.js';
 import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
+import { Execution } from '../../providers/execution/execution.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo } from '../types.js';
 import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../utils/historical-summary.js';
@@ -25,6 +26,7 @@ export class BalancesService {
     protected readonly consensus: Consensus,
     protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
+    protected readonly execution: Execution,
   ) {}
 
   public isProvableBalance(
@@ -81,7 +83,15 @@ export class BalancesService {
       const info = validatorsInfo[Number(valIndex)];
       return info !== undefined && info.balance > minActivationBalanceGwei;
     });
-    const addedBalances = await this.stakingModule.getKeyAddedBalances(entries.map(([, keyInfo]) => keyInfo));
+    if (!entries.length) {
+      this.logger.log('No additional balances to prove');
+      return {};
+    }
+    const blockNumber = await this.execution.provider.getBlockNumber();
+    const addedBalances = await this.stakingModule.getKeyAddedBalances(
+      entries.map(([, keyInfo]) => keyInfo),
+      blockNumber,
+    );
 
     entries.forEach(([valIndex, keyInfo], i) => {
       const { balance, exitEpoch, withdrawableEpoch } = validatorsInfo[Number(valIndex)];
@@ -100,7 +110,7 @@ export class BalancesService {
 
     const provableEntries = Object.entries(provable);
     const withdrawn = await Promise.all(
-      provableEntries.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo)),
+      provableEntries.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo, blockNumber)),
     );
     const unwithdrawn: InvolvedKeys = {};
     provableEntries.forEach(([valIndex, keyInfo], i) => {

@@ -7,6 +7,7 @@ import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus, type State } from '../../providers/consensus/consensus.js';
 import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
+import { Execution } from '../../providers/execution/execution.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo } from '../types.js';
 
@@ -23,6 +24,7 @@ export class WithdrawnService {
     protected readonly consensus: Consensus,
     protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
+    protected readonly execution: Execution,
   ) {}
 
   public async getUnprovenWithdrawn(state: State, keys: InvolvedKeys): Promise<InvolvedKeys> {
@@ -37,7 +39,13 @@ export class WithdrawnService {
       return info !== undefined && !info.slashed && info.withdrawableEpoch <= stateEpoch;
     });
     const toCheck = candidates.filter(([, keyInfo]) => !this.provenWithdrawn.has(keyInfo.pubKey));
-    const proved = await Promise.all(toCheck.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo)));
+    let proved: boolean[] = [];
+    if (toCheck.length) {
+      const blockNumber = await this.execution.provider.getBlockNumber();
+      proved = await Promise.all(
+        toCheck.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo, blockNumber)),
+      );
+    }
     const unproven: InvolvedKeys = {};
     toCheck.forEach(([valIndex, keyInfo], i) => {
       if (proved[i]) this.provenWithdrawn.add(keyInfo.pubKey);
