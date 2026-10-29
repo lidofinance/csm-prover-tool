@@ -25,6 +25,7 @@ export const METRIC_DATA_ACTUALITY = `data_actuality`;
 export const METRIC_LAST_PROCESSED_SLOT_NUMBER = `last_processed_slot_number`;
 export const METRIC_ROOTS_STACK_SIZE = `roots_stack_size`;
 export const METRIC_ROOTS_STACK_OLDEST_SLOT = `roots_stack_oldest_slot`;
+export const METRIC_ROOTS_REWINDS_COUNT = `roots_rewinds_count`;
 
 export const METRIC_KEYS_INDEXER_STORAGE_STATE_SLOT = `keys_indexer_storage_state_slot`;
 export const METRIC_KEYS_INDEXER_ALL_VALIDATORS_COUNT = `keys_indexer_all_validators_count`;

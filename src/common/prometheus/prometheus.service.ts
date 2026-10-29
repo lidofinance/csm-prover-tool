@@ -16,6 +16,7 @@ import {
   METRIC_OUTGOING_KEYSAPI_REQUESTS_COUNT,
   METRIC_OUTGOING_KEYSAPI_REQUESTS_DURATION_SECONDS,
   METRIC_ROOTS_PROCESSING_LAG_SLOTS,
+  METRIC_ROOTS_REWINDS_COUNT,
   METRIC_TASK_DURATION_SECONDS,
   METRIC_TASK_RESULT_COUNT,
   METRIC_TRANSACTION_COUNTER,
@@ -132,6 +133,11 @@ export class PrometheusService {
   public highGasFeeInterruptionsCount = this.getOrCreateMetric('Counter', {
     name: METRIC_HIGH_GAS_FEE_INTERRUPTIONS_COUNT,
     help: 'Count of high gas fee interruptions',
+  });
+
+  public rootsRewindsCount = this.getOrCreateMetric('Counter', {
+    name: METRIC_ROOTS_REWINDS_COUNT,
+    help: 'Count of rewinds of the last processed root',
   });
 
   public transactionCount = this.getOrCreateMetric('Gauge', {
