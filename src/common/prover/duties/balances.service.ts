@@ -77,11 +77,17 @@ export class BalancesService {
     const provable: InvolvedKeys = {};
 
     // Validators not yet in the state are skipped — keys data can be more recent than the state due to async
-    // processing; they retry next block. A balance <= MIN_ACTIVATION_BALANCE can never be provable (confirmed
-    // balance is always >= MIN_ACTIVATION_BALANCE), so drop those before the on-chain confirmed-balance reads.
+    // processing; they retry next block. A balance below MIN_ACTIVATION_BALANCE + one top-up step can never be
+    // provable (confirmed balance is always >= MIN_ACTIVATION_BALANCE and smaller increases are rewards), so drop
+    // those before the on-chain confirmed-balance reads.
+    const topupStepGwei = BigInt(this.config.get('BALANCE_PROOF_TOPUP_STEP_GWEI'));
     const entries = Object.entries(keys).filter(([valIndex]) => {
       const info = validatorsInfo[Number(valIndex)];
-      return info !== undefined && info.balance > minActivationBalanceGwei;
+      return (
+        info !== undefined &&
+        info.balance > minActivationBalanceGwei &&
+        info.balance - minActivationBalanceGwei >= topupStepGwei
+      );
     });
     if (!entries.length) {
       this.logger.log('No additional balances to prove');

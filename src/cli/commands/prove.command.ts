@@ -10,6 +10,7 @@ import { type AppLogger } from '../../common/logger/app-logger.type.js';
 import { ProverService } from '../../common/prover/prover.service.js';
 import type { FullKeyInfoByPubKeyFn, KeyInfoFn } from '../../common/prover/types.js';
 import { Consensus } from '../../common/providers/consensus/consensus.js';
+import { Execution } from '../../common/providers/execution/execution.js';
 import {
   PROOF_TYPES,
   validateClBlock,
@@ -51,6 +52,7 @@ export class ProveCommand extends CommandRunner {
     protected readonly consensus: Consensus,
     protected readonly prover: ProverService,
     protected readonly verifier: VerifierContract,
+    protected readonly execution: Execution,
   ) {
     super();
   }
@@ -62,7 +64,12 @@ export class ProveCommand extends CommandRunner {
       this.options = await this.inquirerService.ask('proof-input', { ...options, proofType });
       this.logger.debug!(this.options);
 
-      this.pubkey = await this.stakingModule.getNodeOperatorKey(this.options.nodeOperatorId, this.options.keyIndex);
+      const blockNumber = await this.execution.provider.getBlockNumber();
+      this.pubkey = await this.stakingModule.getNodeOperatorKey(
+        Number(this.options.nodeOperatorId),
+        Number(this.options.keyIndex),
+        blockNumber,
+      );
       this.logger.debug!(`Validator public key: ${this.pubkey}`);
 
       const finalizedHeader = await this.consensus.getBeaconHeader('finalized');
