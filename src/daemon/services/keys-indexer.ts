@@ -8,7 +8,7 @@ import { JSONFile } from 'lowdb/node';
 
 import { ConfigService } from '../../common/config/config.service.js';
 import { WorkingMode } from '../../common/config/env.validation.js';
-import { type KeysRange, StakingModuleContract } from '../../common/contracts/staking-module-contract.service.js';
+import { StakingModuleContract } from '../../common/contracts/staking-module-contract.service.js';
 import { toRootHex } from '../../common/helpers/proofs.js';
 import { getModuleStorageDir } from '../../common/helpers/storage.js';
 import { type AppLogger } from '../../common/logger/app-logger.type.js';
@@ -134,17 +134,23 @@ export class KeysIndexer implements OnApplicationBootstrap {
     }
 
     const depositedCounts = await this.stakingModule.getDepositedKeysCounts(operatorIds, blockNumber);
-    const ranges: KeysRange[] = [];
+    const reads: Promise<KeyInfo>[] = [];
     operatorIds.forEach((operatorId, i) => {
       const from = cursors.get(operatorId) ?? 0;
       const deposited = depositedCounts[i];
       if (deposited < from) {
         throw new Error(`Operator ${operatorId} has ${deposited} deposited keys, but the key ${from - 1} is indexed`);
       }
-      if (deposited > from) ranges.push({ operatorId, from, to: deposited });
+      for (let keyIndex = from; keyIndex < deposited; keyIndex++) {
+        reads.push(
+          this.stakingModule
+            .getNodeOperatorKey(operatorId, keyIndex, blockNumber)
+            .then((pubKey) => ({ operatorId, keyIndex, pubKey })),
+        );
+      }
     });
 
-    const keys = await this.stakingModule.getDepositedKeys(ranges, blockNumber);
+    const keys = await Promise.all(reads);
     this.logger.log(`Read ${keys.length} deposited keys of ${operatorIds.length} operators`);
     const keysMap = new Map<string, KeyInfo>();
     for (const key of keys) keysMap.set(key.pubKey, key);
