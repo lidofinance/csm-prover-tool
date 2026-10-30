@@ -31,7 +31,7 @@ The tool is a daemon that listens to the CL and EL and reports bad performers, w
    > It is necessary at the first startup. All subsequent runs of the indexer will be performed when necessary and independently of the main processing
 2. Choose the next block service to process.
    > The provider chooses the next root with the following priority:
-   > - Return the root from roots stack if exists and keys indexer is healthy enough to be trusted completely to process this root
+   > - Return the oldest root from the roots stack once the keys indexer covers its slot
    > - *When no any processed roots yet* Return `START_ROOT` or the last finalized root if `START_ROOT` is not set
    > - Return a finalized child root of the last processed root
    > - Rewind `ROOTS_ORPHAN_REWIND_EPOCHS` epochs back to a canonical finalized block if the last processed root is not confirmed on the finalized chain (e.g. reorged out)
@@ -39,17 +39,16 @@ The tool is a daemon that listens to the CL and EL and reports bad performers, w
 3. Process the root.
    > The processor does the following:
    > - Get the block info from CL by the root
-   > - If the current state of keys indexer is outdated (~15-27h behind from the block) to be trusted completely, add the block root to roots stack
+   > - Add the root to the roots stack
    > - If the block has a slashing or withdrawal, report it to the CS Module
    > - At the first block of each epoch, check and report additional balance changes
-   > - If the current state of keys indexer is healthy enough to be trusted completely, remove the root from roots stack
+   > - Remove the root from the roots stack if the keys indexer knows every validator the block references
 4. Build and send proofs to the CS Module contract when reportable events are found.
 
 So, according to the algorithm, there are the following statements:
 1. We always go sequentially by the finalized roots of blocks, taking the next one by the root of the previous one. In this way, we avoid missing any blocks.
 2. If for some reason the daemon crashes, it will start from the last root running before the crash when it is launched
-3. If for some reason KeysAPI crashed or CL node stopped giving validators, we can use the previously successfully received data to guarantee that our slashings will report for another ~15h and withdrawals for ~27h (because of the new validators appearing time and `MIN_VALIDATOR_WITHDRAWABILITY_DELAY`)
-   If any of these time thresholds are breached, we cannot guarantee the correct key ownership determination. That's why we put the root block in the stack just in case, to process it again later when KeysAPI and CL node are well.
+3. If the keys indexer lags behind (EL or CL node failures), roots are still processed with the last indexed keys: new validators can't be slashed for ~15h or withdrawn for ~27h after they appear (`MIN_VALIDATOR_WITHDRAWABILITY_DELAY`). A root whose block references a validator unknown to the indexer stays in the roots stack and is processed again once the indexer catches up.
 
 </details>
 
@@ -148,15 +147,11 @@ So, according to the algorithm, there are the following statements:
 | CL_API_RETRY_DELAY_MS                   | Delay between CL API retries in milliseconds                            | no                     | 500                           |
 | CL_API_RESPONSE_TIMEOUT_MS              | CL API response timeout in milliseconds                                 | no                     | 60_000                        |
 | CL_API_MAX_RETRIES                      | Maximum number of CL API retries                                        | no                     | 3                             |
-| KEYSAPI_API_URLS                        | Comma-separated list of KeysAPI URLs                                    | yes (daemon mode only) |                               |
-| KEYSAPI_API_RETRY_DELAY_MS              | Delay between KeysAPI retries in milliseconds                           | no                     | 500                           |
-| KEYSAPI_API_RESPONSE_TIMEOUT_MS         | KeysAPI response timeout in milliseconds                                | no                     | 60_000                        |
-| KEYSAPI_API_MAX_RETRIES                 | Maximum number of KeysAPI retries                                       | no                     | 3                             |
 | START_ROOT                              | Start CL block root for the daemon (defaults to current finalized root) | no                     |                               |
 | HTTP_USER_AGENT                         | `User-Agent` for all outgoing requests. Empty string — send none        | no                     | `csm-prover-tool/<version>`   |
 | ROOTS_PROCESSING_LAG_SLOTS              | Min slot-distance between processing tip and finalized tip. 0 = off     | no                     | 0                             |
 | ROOTS_ORPHAN_REWIND_EPOCHS              | Epochs to rewind when the last processed root is not confirmed on the finalized chain | no                     | 1                             |
-| DAEMON_NODE_OPERATOR_IDS                | Comma-separated node operator IDs to prove (daemon mode only)           | no                     |                               |
+| DAEMON_NODE_OPERATOR_IDS                | Comma-separated node operator IDs to index and prove (daemon mode only); all if unset | no                     |                               |
 | STAKING_MODULE_ADDRESS                  | Address of the staking module contract                                  | yes                    |                               |
 | VERIFIER_ADDRESS                        | Address of the verifier contract                                        | no                     |                               |
 | STRIKES_ADDRESS                         | Address of the strikes contract                                         | no                     |                               |
@@ -180,11 +175,12 @@ So, according to the algorithm, there are the following statements:
 | WORKER_TIMEOUT_MS                       | Timeout before a proof worker is forcibly terminated                    | no                     | 1_800_000 (30 min)            |
 | BALANCE_PROOF_MIN_DELTA_GWEI            | Minimum balance increase above confirmed level to trigger a proof       | no                     | 512_000_000_000 (512 ETH)     |
 | BALANCE_PROOF_TOPUP_STEP_GWEI           | Report a balance change this far below MaxEB (top-up step); 0 = at MaxEB | no                     | 2_000_000_000 (2 ETH)         |
-| KEYS_INDEXER_RUNNING_PERIOD_MS          | How often the keys indexer re-syncs with KeysAPI                        | no                     | 10_800_000 (3 hours)          |
-| KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS | Max age of KeysAPI data considered fresh enough to trust                | no                     | 384_000 (1 epoch); max 768_000 (2 epochs) |
+| KEYS_INDEXER_RUNNING_PERIOD_MS          | How often the keys indexer checks finalized EL keys and CL validators  | no                     | 10_800_000 (3 hours)          |
 | HTTP_PORT                               | Port for the metrics/health HTTP server                                 | no                     | 8080                          |
 | LOG_LEVEL                               | Log level (`error`, `warn`, `info`, `debug`)                            | no                     | info                          |
 | LOG_FORMAT                              | Log format (`simple` or `json`)                                         | no                     | simple                        |
+
+> Adding an operator that already has validators to `DAEMON_NODE_OPERATOR_IDS`: delete `keys-indexer-info.json` and `keys-indexer-storage.json` from the module storage directory and restart, otherwise its existing validators are not indexed.
 
 > [!NOTE]
 > Outgoing requests are identified as `csm-prover-tool/<version>` so that node operators and RPC

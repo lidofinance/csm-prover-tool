@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 
 import { ProofType, type SingleProof, Tree, concatGindices, createProof } from '@chainsafe/persistent-merkle-tree';
-import type { BlockTag } from '@ethersproject/abstract-provider';
 import type { RootHex } from '@lodestar/types';
 
 import type { BeaconBlockHeaderStruct, ValidatorStruct, WithdrawalStruct } from '../contracts/types/Verifier.js';
@@ -97,10 +96,6 @@ export function verifyProof(root: Uint8Array, gI: bigint, proof: Uint8Array[], v
 
 export function toHex(value: Uint8Array) {
   return '0x' + Buffer.from(value).toString('hex');
-}
-
-export function toBlockTagByHash(hashBytes: Uint8Array): BlockTag {
-  return { blockHash: toHex(hashBytes) } as unknown as BlockTag;
 }
 
 export function toRootHex(value: RootHex | Uint8Array): RootHex {
