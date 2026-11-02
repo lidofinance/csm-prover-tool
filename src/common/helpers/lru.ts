@@ -8,6 +8,7 @@ export type LruCacheOptions<TKey extends string | number, TValue> = {
 export class LruCache<TKey extends string | number, TValue> {
   private readonly items = new Map<string, TValue>();
   private readonly inFlight = new Map<string, Promise<TValue>>();
+  private generation = 0;
   private readonly shouldCache: (key: TKey) => boolean;
   private readonly shouldCacheValue: (value: TValue) => boolean;
   private readonly keyToString: (key: TKey) => string;
@@ -37,26 +38,28 @@ export class LruCache<TKey extends string | number, TValue> {
     const inFlight = this.inFlight.get(cacheKey);
     if (inFlight) return await inFlight;
 
-    const promise = (async () => {
-      try {
-        const value = await fetcher();
-        if (this.shouldCacheValue(value)) {
-          this.items.set(cacheKey, value);
-          if (this.items.size > this.capacity) {
-            const oldestKey = this.items.keys().next().value;
-            if (oldestKey !== undefined) this.items.delete(oldestKey);
-          }
+    const generation = this.generation;
+    const promise: Promise<TValue> = (async () => {
+      const value = await fetcher();
+      if (generation === this.generation && this.shouldCacheValue(value)) {
+        this.items.set(cacheKey, value);
+        if (this.items.size > this.capacity) {
+          const oldestKey = this.items.keys().next().value;
+          if (oldestKey !== undefined) this.items.delete(oldestKey);
         }
-        return value;
-      } finally {
-        this.inFlight.delete(cacheKey);
       }
-    })();
+      return value;
+    })().finally(() => {
+      if (this.inFlight.get(cacheKey) === promise) this.inFlight.delete(cacheKey);
+    });
     this.inFlight.set(cacheKey, promise);
     return await promise;
   }
 
   public clear(): void {
+    // Fetches started before clear() must neither store their value nor be joined afterwards.
+    this.generation++;
     this.items.clear();
+    this.inFlight.clear();
   }
 }
