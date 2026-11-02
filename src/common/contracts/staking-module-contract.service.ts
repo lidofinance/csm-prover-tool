@@ -43,36 +43,36 @@ export class StakingModuleContract {
     }
   }
 
-  public async getKeyAddedBalances(keyInfos: KeyInfo[]): Promise<bigint[]> {
-    // Fetch each operator's candidate keys as one contiguous getKeyConfirmedBalances range
-    const operatorIds = [...new Set(keyInfos.map((k) => k.operatorId))];
-    const rangeByOperator: Record<number, { start: number; balances: bigint[] }> = {};
-    await Promise.all(
-      operatorIds.map(async (operatorId) => {
-        const keyIndexes = keyInfos.filter((k) => k.operatorId === operatorId).map((k) => k.keyIndex);
-        const start = Math.min(...keyIndexes);
-        const count = Math.max(...keyIndexes) - start + 1;
-        const balances = await this.contract.getKeyConfirmedBalances(operatorId, start, count);
-        rangeByOperator[operatorId] = { start, balances: balances.map((b) => b.toBigInt()) };
-      }),
+  public async getKeyAddedBalances(keyInfos: KeyInfo[], blockNumber: number): Promise<bigint[]> {
+    const balances = await Promise.all(
+      keyInfos.map(({ operatorId, keyIndex }) =>
+        this.contract.getKeyConfirmedBalances(operatorId, keyIndex, 1, { blockTag: blockNumber }),
+      ),
     );
-
-    return keyInfos.map(({ operatorId, keyIndex }) => {
-      const { start, balances } = rangeByOperator[operatorId];
-      return balances[keyIndex - start];
-    });
+    return balances.map(([balance]) => balance.toBigInt());
   }
 
-  public async isWithdrawalProved(keyInfo: KeyInfo): Promise<boolean> {
-    return await this.contract.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex);
+  public async isWithdrawalProved(keyInfo: KeyInfo, blockNumber: number): Promise<boolean> {
+    return await this.contract.isValidatorWithdrawn(keyInfo.operatorId, keyInfo.keyIndex, { blockTag: blockNumber });
   }
 
-  public async isSlashingProved(keyInfo: KeyInfo): Promise<boolean> {
-    return await this.contract.isValidatorSlashed(keyInfo.operatorId, keyInfo.keyIndex);
+  public async isSlashingProved(keyInfo: KeyInfo, blockNumber: number): Promise<boolean> {
+    return await this.contract.isValidatorSlashed(keyInfo.operatorId, keyInfo.keyIndex, { blockTag: blockNumber });
   }
 
-  public async getNodeOperatorKey(nodeOperatorId: string | number, keyIndex: string | number): Promise<string> {
-    return await this.contract.getSigningKeys(nodeOperatorId, keyIndex, 1);
+  public async getNodeOperatorsCount(blockNumber: number): Promise<number> {
+    return (await this.contract.getNodeOperatorsCount({ blockTag: blockNumber })).toNumber();
+  }
+
+  public async getDepositedKeysCounts(operatorIds: number[], blockNumber: number): Promise<number[]> {
+    const operators = await Promise.all(
+      operatorIds.map((operatorId) => this.contract.getNodeOperator(operatorId, { blockTag: blockNumber })),
+    );
+    return operators.map(({ totalDepositedKeys }) => totalDepositedKeys);
+  }
+
+  public async getNodeOperatorKey(nodeOperatorId: number, keyIndex: number, blockNumber: number): Promise<string> {
+    return await this.contract.getSigningKeys(nodeOperatorId, keyIndex, 1, { blockTag: blockNumber });
   }
 
   public async getAccountingAddress(): Promise<string> {

@@ -1,4 +1,3 @@
-import { type BlockTag } from '@ethersproject/abstract-provider';
 import { Injectable } from '@nestjs/common';
 import { LRUCache } from 'lru-cache';
 
@@ -21,16 +20,16 @@ export class AccountingContract {
     this.contract = Accounting__factory.connect(accounting, this.execution.provider);
   }
 
-  public async getCurvesCount(blockTag: BlockTag): Promise<number> {
-    const count = await this.contract.getCurvesCount({ blockTag });
+  public async getCurvesCount(blockNumber: number): Promise<number> {
+    const count = await this.contract.getCurvesCount({ blockTag: blockNumber });
     return count.toNumber();
   }
 
-  public async getBondCurveId(blockTag: BlockTag, nodeOperatorId: number): Promise<number> {
-    const cacheKey = `${JSON.stringify(blockTag)}_${nodeOperatorId}`;
+  public async getBondCurveId(blockNumber: number, nodeOperatorId: number): Promise<number> {
+    const cacheKey = `${blockNumber}_${nodeOperatorId}`;
     let curveId = this.bondCurveIdCache.get(cacheKey);
     if (curveId === undefined) {
-      curveId = (await this.contract.getBondCurveId(nodeOperatorId, { blockTag })).toNumber();
+      curveId = (await this.contract.getBondCurveId(nodeOperatorId, { blockTag: blockNumber })).toNumber();
       this.bondCurveIdCache.set(cacheKey, curveId);
     }
     return curveId;

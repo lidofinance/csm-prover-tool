@@ -31,8 +31,8 @@ export class ExitPenaltiesContract {
     this.contract = ExitPenalties__factory.connect(address, this.execution.provider);
   }
 
-  public async isEjectionProved(keyInfo: KeyInfo): Promise<boolean> {
-    const data = await this.contract.getExitPenaltyInfo(keyInfo.operatorId, keyInfo.pubKey);
+  public async isEjectionProved(keyInfo: KeyInfo, blockNumber: number): Promise<boolean> {
+    const data = await this.contract.getExitPenaltyInfo(keyInfo.operatorId, keyInfo.pubKey, { blockTag: blockNumber });
     return data.strikesPenalty.isValue;
   }
 }

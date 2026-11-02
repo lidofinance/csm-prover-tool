@@ -13,8 +13,6 @@ import {
   METRIC_OUTGOING_EL_REQUESTS_DURATION_SECONDS,
   METRIC_OUTGOING_IPFS_REQUESTS_COUNT,
   METRIC_OUTGOING_IPFS_REQUESTS_DURATION_SECONDS,
-  METRIC_OUTGOING_KEYSAPI_REQUESTS_COUNT,
-  METRIC_OUTGOING_KEYSAPI_REQUESTS_DURATION_SECONDS,
   METRIC_ROOTS_PROCESSING_LAG_SLOTS,
   METRIC_ROOTS_REWINDS_COUNT,
   METRIC_TASK_DURATION_SECONDS,
@@ -88,19 +86,6 @@ export class PrometheusService {
   public outgoingCLRequestsCount = this.getOrCreateMetric('Gauge', {
     name: METRIC_OUTGOING_CL_REQUESTS_COUNT,
     help: 'Count of outgoing consensus layer requests',
-    labelNames: ['name', 'target', 'status', 'code'] as const,
-  });
-
-  public outgoingKeysAPIRequestsDuration = this.getOrCreateMetric('Histogram', {
-    name: METRIC_OUTGOING_KEYSAPI_REQUESTS_DURATION_SECONDS,
-    help: 'Duration of outgoing KeysAPI requests',
-    buckets: [0.01, 0.1, 0.5, 1, 2, 5, 15, 30, 60],
-    labelNames: ['name', 'target'] as const,
-  });
-
-  public outgoingKeysAPIRequestsCount = this.getOrCreateMetric('Gauge', {
-    name: METRIC_OUTGOING_KEYSAPI_REQUESTS_COUNT,
-    help: 'Count of outgoing KeysAPI requests',
     labelNames: ['name', 'target', 'status', 'code'] as const,
   });
 
@@ -183,43 +168,6 @@ export function TrackCLRequest(target: any, propertyKey: string, descriptor: Pro
       })
       .catch((e: any) => {
         this.prometheus.outgoingCLRequestsCount.inc({
-          name: reqName,
-          target: targetName,
-          status: RequestStatus.ERROR,
-          code: e.statusCode,
-        });
-        throw e;
-      })
-      .finally(() => stop());
-  };
-}
-
-export function TrackKeysAPIRequest(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
-  const originalValue = descriptor.value;
-  descriptor.value = function (...args: any[]) {
-    if (this.config.get('WORKING_MODE') == WorkingMode.CLI) {
-      return originalValue.apply(this, args);
-    }
-    if (!this.prometheus) throw Error(`'${this.constructor.name}' class object must contain 'prometheus' property`);
-    const [apiUrl, subUrl] = args;
-    const [targetName, reqName] = requestLabels(apiUrl, subUrl);
-    const stop = this.prometheus.outgoingKeysAPIRequestsDuration.startTimer({
-      name: reqName,
-      target: targetName,
-    });
-    return originalValue
-      .apply(this, args)
-      .then((r: any) => {
-        this.prometheus.outgoingKeysAPIRequestsCount.inc({
-          name: reqName,
-          target: targetName,
-          status: RequestStatus.COMPLETE,
-          code: 200,
-        });
-        return r;
-      })
-      .catch((e: any) => {
-        this.prometheus.outgoingKeysAPIRequestsCount.inc({
           name: reqName,
           target: targetName,
           status: RequestStatus.ERROR,

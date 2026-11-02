@@ -8,6 +8,7 @@ import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus } from '../../providers/consensus/consensus.js';
 import type { SupportedBlock } from '../../providers/consensus/forks.js';
 import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
+import { Execution } from '../../providers/execution/execution.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo, KeyInfoFn } from '../types.js';
 
@@ -21,6 +22,7 @@ export class SlashingsService {
     protected readonly consensus: Consensus,
     protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
+    protected readonly execution: Execution,
   ) {}
 
   public async getUnprovenSlashings(blockInfo: SupportedBlock, keyInfoFn: KeyInfoFn): Promise<InvolvedKeys> {
@@ -30,10 +32,13 @@ export class SlashingsService {
     };
     if (!Object.keys(slashings).length) return {};
     const entries = Object.entries(slashings);
-    const proved = await Promise.all(entries.map(([, keyInfo]) => this.stakingModule.isSlashingProved(keyInfo)));
+    const blockNumber = await this.execution.provider.getBlockNumber();
+    const proved = await Promise.all(
+      entries.map(([, keyInfo]) => this.stakingModule.isSlashingProved(keyInfo, blockNumber)),
+    );
     const unprovenEntries = entries.filter((_, i) => !proved[i]);
     const withdrawn = await Promise.all(
-      unprovenEntries.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo)),
+      unprovenEntries.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo, blockNumber)),
     );
     const unproven: InvolvedKeys = {};
     unprovenEntries.forEach(([valIndex, keyInfo], i) => {

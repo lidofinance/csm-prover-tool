@@ -1,4 +1,3 @@
-import { type BlockTag } from '@ethersproject/abstract-provider';
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
 import { LRUCache } from 'lru-cache';
@@ -25,11 +24,11 @@ export class ParametersRegistryContract {
     this.contract = ParametersRegistry__factory.connect(address, this.execution.provider);
   }
 
-  public async getStrikeParams(blockTag: BlockTag, curveId: number): Promise<{ lifetime: number; threshold: number }> {
-    const cacheKey = `${JSON.stringify(blockTag)}_${curveId}`;
+  public async getStrikeParams(blockNumber: number, curveId: number): Promise<{ lifetime: number; threshold: number }> {
+    const cacheKey = `${blockNumber}_${curveId}`;
     let params = this.strikeParamsCache.get(cacheKey);
     if (!params) {
-      const result = await this.contract.getStrikesParams(curveId, { blockTag });
+      const result = await this.contract.getStrikesParams(curveId, { blockTag: blockNumber });
       params = { lifetime: result.lifetime.toNumber(), threshold: result.threshold.toNumber() };
       this.strikeParamsCache.set(cacheKey, params);
     }

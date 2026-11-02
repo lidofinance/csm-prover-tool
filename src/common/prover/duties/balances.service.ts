@@ -10,6 +10,7 @@ import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus, type State } from '../../providers/consensus/consensus.js';
 import { FAR_FUTURE_EPOCH } from '../../providers/consensus/epoch.js';
 import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
+import { Execution } from '../../providers/execution/execution.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo } from '../types.js';
 import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../utils/historical-summary.js';
@@ -25,6 +26,7 @@ export class BalancesService {
     protected readonly consensus: Consensus,
     protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
+    protected readonly execution: Execution,
   ) {}
 
   public isProvableBalance(
@@ -72,13 +74,27 @@ export class BalancesService {
     const provable: InvolvedKeys = {};
 
     // Validators not yet in the state are skipped — keys data can be more recent than the state due to async
-    // processing; they retry next block. A balance <= MIN_ACTIVATION_BALANCE can never be provable (confirmed
-    // balance is always >= MIN_ACTIVATION_BALANCE), so drop those before the on-chain confirmed-balance reads.
+    // processing; they retry next block. A balance below MIN_ACTIVATION_BALANCE + one top-up step can never be
+    // provable (confirmed balance is always >= MIN_ACTIVATION_BALANCE and smaller increases are rewards), so drop
+    // those before the on-chain confirmed-balance reads.
+    const topupStepGwei = BigInt(this.config.get('BALANCE_PROOF_TOPUP_STEP_GWEI'));
     const entries = Object.entries(keys).filter(([valIndex]) => {
       const balance = currentBalances[Number(valIndex)];
-      return balance !== undefined && balance > minActivationBalanceGwei;
+      return (
+        balance !== undefined &&
+        balance > minActivationBalanceGwei &&
+        balance - minActivationBalanceGwei >= topupStepGwei
+      );
     });
-    const addedBalances = await this.stakingModule.getKeyAddedBalances(entries.map(([, keyInfo]) => keyInfo));
+    if (!entries.length) {
+      this.logger.log('No additional balances to prove');
+      return {};
+    }
+    const blockNumber = await this.execution.provider.getBlockNumber();
+    const addedBalances = await this.stakingModule.getKeyAddedBalances(
+      entries.map(([, keyInfo]) => keyInfo),
+      blockNumber,
+    );
 
     entries.forEach(([valIndex, keyInfo], i) => {
       const index = Number(valIndex);
@@ -97,7 +113,7 @@ export class BalancesService {
 
     const provableEntries = Object.entries(provable);
     const withdrawn = await Promise.all(
-      provableEntries.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo)),
+      provableEntries.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo, blockNumber)),
     );
     const unwithdrawn: InvolvedKeys = {};
     provableEntries.forEach(([valIndex, keyInfo], i) => {

@@ -156,14 +156,6 @@ export class EnvironmentVariables {
   public KEYS_INDEXER_RUNNING_PERIOD_MS: number = 3 * HOUR_MS;
 
   @IsNumber()
-  @Min(384000) // epoch time in ms
-  // A deposit reaches the finalized state no sooner than 2 epochs later:
-  // https://github.com/ethereum/consensus-specs/blob/master/specs/electra/beacon-chain.md#new-process_pending_deposits
-  @Max(768000)
-  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public KEYS_INDEXER_KEYAPI_FRESHNESS_PERIOD_MS: number = 384000;
-
-  @IsNumber()
   @Min(1025)
   @Max(65535)
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
@@ -238,25 +230,6 @@ export class EnvironmentVariables {
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public CL_API_MAX_RETRIES = 3;
-
-  @IsArray()
-  @ArrayMinSize(1)
-  @Transform(({ value }) => value.split(','))
-  @ValidateIf((vars) => vars.WORKING_MODE === WorkingMode.Daemon)
-  public KEYSAPI_API_URLS: string[];
-
-  @IsInt()
-  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public KEYSAPI_API_RETRY_DELAY_MS = 500;
-
-  @IsNumber()
-  @Min(1000)
-  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public KEYSAPI_API_RESPONSE_TIMEOUT_MS = MINUTE_MS;
-
-  @IsNumber()
-  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  public KEYSAPI_API_MAX_RETRIES = 3;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
