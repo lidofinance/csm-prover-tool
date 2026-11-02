@@ -56,10 +56,8 @@ export interface State {
 
 @Injectable()
 export class Consensus extends BaseRestProvider implements OnModuleInit {
-  // Max distinct states commonly needed in a single root-processing cycle:
-  // epoch current state, epoch previous state, parent state for pre-event proofs,
-  // finalized/recent state for historical proofs, and summary state.
-  private readonly stateCache = new LruCache<StateId, State>(5, { shouldCache: isCacheableConsensusId });
+  // Last state only: the next consumer often reuses it; more won't fit the memory budget.
+  private readonly stateCache = new LruCache<StateId, State>(1, { shouldCache: isCacheableConsensusId });
   private readonly blockInfoCache = new LruCache<BlockId, SupportedBlock>(16, { shouldCache: isCacheableConsensusId });
   private readonly beaconHeaderCache = new LruCache<BlockId, BlockHeaderResponse>(16, {
     shouldCache: isCacheableConsensusId,
@@ -210,8 +208,11 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
         await body.dump().catch(() => {});
         throw e;
       }
-      const bodyBytes = await body.bytes();
-      this.assertSerializedState(bodyBytes, forkName, stateId);
+      const downloaded = await body.bytes();
+      this.assertSerializedState(downloaded, forkName, stateId);
+      // Shared with workers by reference instead of a structured-clone copy per worker.
+      const bodyBytes = new Uint8Array(new SharedArrayBuffer(downloaded.byteLength));
+      bodyBytes.set(downloaded);
       return { bodyBytes, forkName };
     });
     if (this.progress) {

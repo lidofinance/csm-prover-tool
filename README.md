@@ -178,6 +178,7 @@ So, according to the algorithm, there are the following statements:
 | TX_STRIKES_PAYLOAD_MAX_BATCH_SIZE       | Max number of strikes packed into a single transaction                  | no                     | 10                            |
 | STRIKES_MAX_REQUEST_FEE_GWEI            | Abort bad-performance proof if EIP-7002 withdrawal request fee ≥ this    | no                     | 6000                          |
 | WORKER_TIMEOUT_MS                       | Timeout before a proof worker is forcibly terminated                    | no                     | 1_800_000 (30 min)            |
+| WORKER_MAX_OLD_GENERATION_SIZE_MB       | Max V8 heap of a worker in MB; up to 2 workers run at once, so keep 2 × value + ~1.7 GB within the container memory. A worker over it fails with ERR_WORKER_OUT_OF_MEMORY | no                     | 3072                          |
 | BALANCE_PROOF_MIN_DELTA_GWEI            | Minimum balance increase above confirmed level to trigger a proof       | no                     | 512_000_000_000 (512 ETH)     |
 | BALANCE_PROOF_TOPUP_STEP_GWEI           | Report a balance change this far below MaxEB (top-up step); 0 = at MaxEB | no                     | 2_000_000_000 (2 ETH)         |
 | KEYS_INDEXER_RUNNING_PERIOD_MS          | How often the keys indexer re-syncs with KeysAPI                        | no                     | 10_800_000 (3 hours)          |

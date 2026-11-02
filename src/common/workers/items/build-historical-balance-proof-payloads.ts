@@ -1,9 +1,10 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
+import { ssz } from '@lodestar/types';
+
 import type { IVerifier } from '../../contracts/types/Verifier.js';
 import {
   generateBalanceProof,
-  generateHistoricalStateProof,
   generateValidatorProof,
   toBeaconHeaderStruct,
   toHex,
@@ -12,8 +13,9 @@ import {
 } from '../../helpers/proofs.js';
 import type { InvolvedKeys } from '../../prover/duties/balances.service.js';
 import type { State } from '../../providers/consensus/consensus.js';
-import { getSsz } from '../../providers/consensus/forks.js';
+import { getSsz, getStateFieldsBytes } from '../../providers/consensus/forks.js';
 import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { buildHistoricalStateProof } from '../historical-state-proof.js';
 import { WorkerLogger } from '../worker-logger.js';
 
 export type BuildHistoricalBalanceProofArgs = {
@@ -41,25 +43,17 @@ async function buildHistoricalBalanceProofPayloads(): Promise<IVerifier.ProcessH
     keys,
   } = workerData as BuildHistoricalBalanceProofArgs;
 
-  const stateWithBalancesView = getSsz(stateWithBalances.forkName).BeaconState.deserializeToView(
-    stateWithBalances.bodyBytes,
+  const summaryBlockRoots = ssz[summaryState.forkName].BeaconState.fields.blockRoots.deserializeToView(
+    getStateFieldsBytes(summaryState).blockRoots,
   );
-  const recentStateView = getSsz(recentState.forkName).BeaconState.deserializeToView(recentState.bodyBytes);
-  const summaryStateView = getSsz(summaryState.forkName).BeaconState.deserializeToView(summaryState.bodyBytes);
-
-  WorkerLogger.log('Generating historical state proof');
-  const historicalStateProof = await generateHistoricalStateProof(
-    recentStateView,
-    summaryStateView,
+  const historicalStateProof = await buildHistoricalStateProof(
+    recentState,
+    summaryBlockRoots,
     summaryIndex,
     rootIndexInSummary,
   );
-  WorkerLogger.log('Verifying historical state proof locally');
-  verifyProof(
-    recentStateView.hashTreeRoot(),
-    historicalStateProof.gindex,
-    historicalStateProof.witnesses,
-    summaryStateView.blockRoots.getReadonly(rootIndexInSummary),
+  const stateWithBalancesView = getSsz(stateWithBalances.forkName).BeaconState.deserializeToView(
+    stateWithBalances.bodyBytes,
   );
 
   const payloads: IVerifier.ProcessHistoricalBalanceProofInputStruct[] = [];
