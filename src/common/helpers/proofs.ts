@@ -7,6 +7,7 @@ import type { RootHex } from '@lodestar/types';
 import type { BeaconBlockHeaderStruct, ValidatorStruct, WithdrawalStruct } from '../contracts/types/Verifier.js';
 import { epochToBigInt } from '../providers/consensus/epoch.js';
 import type {
+  SupportedBlockRootsView,
   SupportedBlockView,
   SupportedStateView,
   SupportedValidatorView,
@@ -46,7 +47,7 @@ export async function generateBalanceProof(
 
 export async function generateHistoricalStateProof(
   finalizedStateView: SupportedStateView,
-  summaryStateView: SupportedStateView,
+  summaryBlockRoots: SupportedBlockRootsView,
   summaryIndex: number,
   rootIndex: number,
 ): Promise<SingleProof> {
@@ -57,8 +58,8 @@ export async function generateHistoricalStateProof(
     summaryIndex,
     'blockSummaryRoot',
   ]).gindex;
-  patchedTree.setNode(blockSummaryRootGI, summaryStateView.blockRoots.node);
-  const blockRootsGI = summaryStateView.blockRoots.type.getPropertyGindex(rootIndex) as bigint;
+  patchedTree.setNode(blockSummaryRootGI, summaryBlockRoots.node);
+  const blockRootsGI = summaryBlockRoots.type.getPropertyGindex(rootIndex) as bigint;
   const gI = concatGindices([blockSummaryRootGI, blockRootsGI]);
   return createProof(patchedTree.rootNode, {
     type: ProofType.single,

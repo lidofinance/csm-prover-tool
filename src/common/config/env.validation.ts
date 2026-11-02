@@ -147,6 +147,11 @@ export class EnvironmentVariables {
   public WORKER_TIMEOUT_MS = 30 * MINUTE_MS;
 
   @IsNumber()
+  @Min(1)
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  public WORKER_MAX_OLD_GENERATION_SIZE_MB = 3072;
+
+  @IsNumber()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   public TX_CONFIRMATIONS = 1;
 
