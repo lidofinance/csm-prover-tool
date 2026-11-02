@@ -63,7 +63,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   private readonly blockInfoCache = new LruCache<BlockId, SupportedBlock>(16, { shouldCache: isCacheableConsensusId });
   private readonly beaconHeaderCache = new LruCache<BlockId, BlockHeaderResponse>(16, {
     shouldCache: isCacheableConsensusId,
-    shouldCacheValue: (resp) => resp.finalized,
+    shouldCacheValue: (resp) => resp.finalized && resp.canonical,
   });
   private readonly childHeadersCache = new LruCache<RootHex, BeaconHeadersByParentRootResponse>(16, {
     shouldCacheValue: (resp) => resp.finalized && resp.data.length > 0,
@@ -115,6 +115,13 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
 
   public slotToEpoch(slot: number): number {
     return Math.floor(slot / Number(this.beaconConfig.SLOTS_PER_EPOCH));
+  }
+
+  public clearCaches(): void {
+    this.stateCache.clear();
+    this.blockInfoCache.clear();
+    this.beaconHeaderCache.clear();
+    this.childHeadersCache.clear();
   }
 
   public async getConfig(): Promise<BeaconConfig> {

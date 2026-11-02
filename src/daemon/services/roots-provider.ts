@@ -77,25 +77,30 @@ export class RootsProvider {
         );
         return;
       }
-      if (toRootHex(header.header.message.parentRoot) === lastProcessed.blockRoot) {
+      const parentRoot = toRootHex(header.header.message.parentRoot);
+      if (parentRoot === lastProcessed.blockRoot) {
         this.logger.log(`⏭️ Next root to process [${header.root}]. Child of last processed`);
         const child = { blockRoot: header.root, slotNumber: slot };
         this.confirmedChild = { parentRoot: lastProcessed.blockRoot, child };
         return child;
       }
-      return await this.rewindIfOrphaned(lastProcessed);
-    }
-    return;
-  }
-
-  private async rewindIfOrphaned(lastProcessed: RootSlot): Promise<undefined> {
-    const header = await this.consensus.findBeaconHeader(lastProcessed.blockRoot);
-    if (header?.canonical && header.finalized) {
+      // Not a child of lastProcessed: either lastProcessed is an orphan or a block in between was missed. Re-ask the CL from scratch.
+      this.consensus.clearCaches();
+      this.confirmedChild = undefined;
+      // Tell them apart by the next block's parent; an answer about lastProcessed itself may be stale or wrong.
+      const parent = await this.consensus.findBeaconHeader(parentRoot);
+      // The parent is no later than lastProcessed's slot: the finalized chain bypasses lastProcessed, so it is an orphan.
+      const orphaned = parent !== undefined && Number(parent.header.message.slot) <= lastProcessed.slotNumber;
+      if (orphaned) return await this.rewind(lastProcessed);
       this.logger.warn(
         `⚠️ Gap between finalized last processed [${lastProcessed.blockRoot}] and next finalized block: a block in between has not been processed yet. Rechecking next cycle`,
       );
       return;
     }
+    return;
+  }
+
+  private async rewind(lastProcessed: RootSlot): Promise<undefined> {
     const rewindSlots = this.consensus.epochToSlot(this.config.get('ROOTS_ORPHAN_REWIND_EPOCHS'));
     for (let slot = lastProcessed.slotNumber - rewindSlots; slot >= 0; slot--) {
       const target = await this.consensus.findBeaconHeader(slot);
