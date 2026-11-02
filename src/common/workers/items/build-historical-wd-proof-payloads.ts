@@ -1,8 +1,9 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
+import { ssz } from '@lodestar/types';
+
 import type { IVerifier } from '../../contracts/types/Verifier.js';
 import {
-  generateHistoricalStateProof,
   generateValidatorProof,
   generateWithdrawalProof,
   toBeaconHeaderStruct,
@@ -13,8 +14,9 @@ import {
 } from '../../helpers/proofs.js';
 import type { InvolvedKeysWithWithdrawal } from '../../prover/duties/withdrawals.service.js';
 import type { State } from '../../providers/consensus/consensus.js';
-import { type SupportedBlock, getSsz } from '../../providers/consensus/forks.js';
+import { type SupportedBlock, getSsz, getStateFieldsBytes } from '../../providers/consensus/forks.js';
 import type { BlockHeaderResponse } from '../../providers/consensus/response.interface.js';
+import { buildHistoricalStateProof } from '../historical-state-proof.js';
 import { WorkerLogger } from '../worker-logger.js';
 
 export type BuildHistoricalWithdrawalProofArgs = {
@@ -48,8 +50,15 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
   //
   // Get views
   //
-  const finalizedStateView = getSsz(finalizedState.forkName).BeaconState.deserializeToView(finalizedState.bodyBytes);
-  const summaryStateView = getSsz(summaryState.forkName).BeaconState.deserializeToView(summaryState.bodyBytes);
+  const summaryBlockRoots = ssz[summaryState.forkName].BeaconState.fields.blockRoots.deserializeToView(
+    getStateFieldsBytes(summaryState).blockRoots,
+  );
+  const historicalStateProof = await buildHistoricalStateProof(
+    finalizedState,
+    summaryBlockRoots,
+    summaryIndex,
+    rootIndexInSummary,
+  );
   const stateWithWdsView = getSsz(stateWithWds.forkName).BeaconState.deserializeToView(stateWithWds.bodyBytes);
   const blockWithWdsView = getSsz(stateWithWds.forkName).BeaconBlock.toView(blockWithWds);
   //
@@ -84,13 +93,6 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
       blockWithWdsView,
       keyWithWithdrawalInfo.withdrawal.offset,
     );
-    WorkerLogger.log('Generating historical state proof');
-    const historicalStateProof = await generateHistoricalStateProof(
-      finalizedStateView,
-      summaryStateView,
-      summaryIndex,
-      rootIndexInSummary,
-    );
     WorkerLogger.log('Verifying validator proof locally');
     verifyProof(
       stateWithWdsView.hashTreeRoot(),
@@ -106,13 +108,6 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
       blockWithWdsView.body.executionPayload.withdrawals
         .getReadonly(keyWithWithdrawalInfo.withdrawal.offset)
         .hashTreeRoot(),
-    );
-    WorkerLogger.log('Verifying historical state proof locally');
-    verifyProof(
-      finalizedStateView.hashTreeRoot(),
-      historicalStateProof.gindex,
-      historicalStateProof.witnesses,
-      summaryStateView.blockRoots.getReadonly(rootIndexInSummary),
     );
     payloads.push({
       withdrawal: {

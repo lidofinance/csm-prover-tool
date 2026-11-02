@@ -13,8 +13,7 @@ import type { BuildHistoricalBalanceProofArgs } from './items/build-historical-b
 import type { BuildHistoricalWithdrawalProofArgs } from './items/build-historical-wd-proof-payloads.js';
 import type { BuildSlashingProofArgs } from './items/build-slashing-proof-payloads.js';
 import type { GetNewValidatorKeysArgs, GetNewValidatorKeysResult } from './items/get-new-validator-keys.js';
-import type { GetValidatorBalancesArgs, GetValidatorBalancesResult } from './items/get-validator-balances.js';
-import type { GetValidatorExitEpochsArgs, GetValidatorExitEpochsResult } from './items/get-validator-exit-epochs.js';
+import type { GetValidatorsInfoArgs, GetValidatorsInfoResult } from './items/get-validators-info.js';
 import { ParentLoggerMessage } from './worker-logger.js';
 import type { IVerifier } from '../contracts/types/Verifier.js';
 
@@ -30,13 +29,8 @@ export class WorkersService {
     return await this._run('get-new-validator-keys', args);
   }
 
-  public async getValidatorBalances(args: GetValidatorBalancesArgs): Promise<bigint[]> {
-    const result: GetValidatorBalancesResult = await this._run('get-validator-balances', args);
-    return result.valBalances;
-  }
-
-  public async getValidatorExitEpochs(args: GetValidatorExitEpochsArgs): Promise<GetValidatorExitEpochsResult> {
-    return await this._run('get-validator-exit-epochs', args);
+  public async getValidatorsInfo(args: GetValidatorsInfoArgs): Promise<GetValidatorsInfoResult> {
+    return await this._run('get-validators-info', args);
   }
 
   public async getSlashedProofPayloads(args: BuildSlashingProofArgs): Promise<IVerifier.ProcessSlashedInputStruct[]> {
@@ -84,7 +78,7 @@ export class WorkersService {
       const worker = new Worker(new URL(`./items/${name}.js`, import.meta.url), {
         workerData: data,
         resourceLimits: {
-          maxOldGenerationSizeMb: 8192,
+          maxOldGenerationSizeMb: this.config.get('WORKER_MAX_OLD_GENERATION_SIZE_MB'),
         },
       });
       let settled = false;
@@ -124,7 +118,9 @@ export class WorkersService {
         }
         settle(() => resolve(msg));
       });
-      worker.on('error', (error) => settle(() => reject(new Error('Worker error', { cause: error }))));
+      worker.on('error', (error) =>
+        settle(() => reject(new Error(`Worker error: ${error.message}`, { cause: error }))),
+      );
       worker.on('exit', (code) => {
         if (code !== 0) settle(() => reject(new Error(`Worker stopped with exit code ${code}`)));
       });
