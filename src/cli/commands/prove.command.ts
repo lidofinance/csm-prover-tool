@@ -5,6 +5,7 @@ import { Command, CommandRunner, InjectCommander, InquirerService, Option } from
 
 import { ConfigService } from '../../common/config/config.service.js';
 import { StakingModuleContract } from '../../common/contracts/staking-module-contract.service.js';
+import { VerifierContract } from '../../common/contracts/verifier-contract.service.js';
 import { type AppLogger } from '../../common/logger/app-logger.type.js';
 import { ProverService } from '../../common/prover/prover.service.js';
 import type { FullKeyInfoByPubKeyFn, KeyInfoFn } from '../../common/prover/types.js';
@@ -49,6 +50,7 @@ export class ProveCommand extends CommandRunner {
     protected readonly stakingModule: StakingModuleContract,
     protected readonly consensus: Consensus,
     protected readonly prover: ProverService,
+    protected readonly verifier: VerifierContract,
   ) {
     super();
   }
@@ -71,6 +73,13 @@ export class ProveCommand extends CommandRunner {
       switch (proofType) {
         case 'withdrawal':
           this.ensureClBlock(this.options.clBlock);
+          if (this.verifier.isCurated) {
+            const { root: withdrawnBlockRoot } = await this.consensus.getBeaconHeader(this.options.clBlock);
+            sentCount = await this.prover.handleWithdrawnInBlock(withdrawnBlockRoot, finalizedHeader, () => ({
+              [this.options.validatorIndex]: this.getSelectedKeyInfo(),
+            }));
+            break;
+          }
           const withdrawalBlockInfo = await this.consensus.getBlockInfo(this.options.clBlock);
           const { root: withdrawalBlockRoot } = await this.consensus.getBeaconHeader(this.options.clBlock);
           sentCount = await this.prover.handleWithdrawalsInBlock(
