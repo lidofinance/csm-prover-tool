@@ -7,7 +7,9 @@ import { BadPerformersService } from './duties/bad-performers.service.js';
 import { BalancesService, type InvolvedKeys } from './duties/balances.service.js';
 import { SlashingsService } from './duties/slashings.service.js';
 import { WithdrawalsService } from './duties/withdrawals.service.js';
+import { WithdrawnService } from './duties/withdrawn.service.js';
 import type { FullKeyInfoByPubKeyFn, KeyInfoFn } from './types.js';
+import { VerifierContract } from '../contracts/verifier-contract.service.js';
 import { toRootHex } from '../helpers/proofs.js';
 import { Consensus } from '../providers/consensus/consensus.js';
 import type { SupportedBlock } from '../providers/consensus/forks.js';
@@ -21,6 +23,8 @@ export class ProverService implements OnModuleInit {
     protected readonly withdrawals: WithdrawalsService,
     protected readonly strikes: BadPerformersService,
     protected readonly slashings: SlashingsService,
+    protected readonly verifier: VerifierContract,
+    protected readonly withdrawn: WithdrawnService,
     protected readonly balances?: BalancesService,
   ) {}
 
@@ -79,6 +83,7 @@ export class ProverService implements OnModuleInit {
     finalizedHeader: BlockHeaderResponse,
     keyInfoFn: KeyInfoFn,
   ): Promise<number> {
+    if (this.verifier.isCurated) return 0;
     const withdrawals = await this.withdrawals.getUnprovenWithdrawals(blockInfo, keyInfoFn);
     let balanceSentCount = 0;
     if (this.balances && Object.keys(withdrawals).length > 0) {
@@ -96,6 +101,29 @@ export class ProverService implements OnModuleInit {
       this.logger.log('No Withdrawal Proof(s) were sent');
     }
     return sentCount + balanceSentCount;
+  }
+
+  public async handleWithdrawnInBlock(
+    blockRoot: RootHex,
+    finalizedHeader: BlockHeaderResponse,
+    getKeys: () => InvolvedKeys,
+  ): Promise<number> {
+    if (!this.verifier.isCurated) return 0;
+    const keyMap = getKeys();
+    if (!Object.keys(keyMap).length) {
+      this.logger.log('No keys for withdrawn proving');
+      return 0;
+    }
+    const blockHeader = await this.consensus.getBeaconHeader(blockRoot);
+    const state = await this.consensus.getState(toRootHex(blockHeader.header.message.stateRoot));
+    const withdrawn = await this.withdrawn.getUnprovenWithdrawn(state, keyMap);
+    const sentCount = await this.withdrawn.sendWithdrawnProofs(finalizedHeader, withdrawn);
+    if (sentCount > 0) {
+      this.logger.log(`🏁 ${sentCount} Withdrawn proof(s) sent`);
+    } else {
+      this.logger.log('No withdrawn proof(s) were sent');
+    }
+    return sentCount;
   }
 
   public async handleBalanceChangesInBlock(

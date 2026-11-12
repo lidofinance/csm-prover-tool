@@ -41,6 +41,7 @@ export class RootsProcessor {
       );
       if (await this.isFirstBlockInEpoch(blockInfoToProcess)) {
         await this.prover.handleBalanceChangesInBlock(blockRootToProcess, finalizedHeader, this.keysIndexer.getAllKeys);
+        await this.prover.handleWithdrawnInBlock(blockRootToProcess, finalizedHeader, this.keysIndexer.getAllKeys);
       }
     }
     const indexerIsTrusted = this.keysIndexer.isTrustedForBlock(blockInfoToProcess);

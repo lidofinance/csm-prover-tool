@@ -10,6 +10,7 @@ import { ProvidersModule } from '../providers/providers.module.js';
 import { WorkersModule } from '../workers/workers.module.js';
 import { SlashingsService } from './duties/slashings.service.js';
 import { WithdrawalsService } from './duties/withdrawals.service.js';
+import { WithdrawnService } from './duties/withdrawn.service.js';
 
 const BalancesProvider = {
   provide: BalancesService,
@@ -23,7 +24,14 @@ const BalancesProvider = {
 
 @Module({
   imports: [ProvidersModule, ContractsModule, WorkersModule],
-  providers: [ProverService, SlashingsService, WithdrawalsService, BadPerformersService, BalancesProvider],
+  providers: [
+    ProverService,
+    SlashingsService,
+    WithdrawalsService,
+    WithdrawnService,
+    BadPerformersService,
+    BalancesProvider,
+  ],
   exports: [ProverService],
 })
 export class ProverModule {}
