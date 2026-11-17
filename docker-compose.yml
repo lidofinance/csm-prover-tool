@@ -48,6 +48,7 @@ services:
       dockerfile: ./Dockerfile
     container_name: prover-daemon
     restart: unless-stopped
+    env_file: .env
     environment:
       - HTTP_PORT=${HTTP_PORT:-8080}
       - DRY_RUN=${DRY_RUN:-false}
@@ -78,7 +79,9 @@ services:
     entrypoint: [node, dist/main.js, prove, withdrawal]
     container_name: prover-cli-withdrawal
     restart: no
+    env_file: .env
     environment:
+      - WORKING_MODE=cli
       - DRY_RUN=${DRY_RUN:-false}
       - CHAIN_ID=${CHAIN_ID}
       - EL_RPC_URLS=${EL_RPC_URLS}
@@ -93,7 +96,9 @@ services:
     entrypoint: [node, dist/main.js, prove, bad_performer]
     container_name: prover-cli-bad_performer
     restart: no
+    env_file: .env
     environment:
+      - WORKING_MODE=cli
       - DRY_RUN=${DRY_RUN:-false}
       - CHAIN_ID=${CHAIN_ID}
       - EL_RPC_URLS=${EL_RPC_URLS}
