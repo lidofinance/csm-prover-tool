@@ -304,7 +304,7 @@ export class Execution {
       // so we need to exclude it
       stats.baseFeePerGas.pop();
       newGasFees = [...stats.baseFeePerGas.map((v) => v.toBigInt()), ...newGasFees];
-      latestBlockToRequest -= blockCountPerRequest - 1;
+      latestBlockToRequest -= blockCountPerRequest;
       totalBlockCountToFetch -= blockCountPerRequest;
     }
 

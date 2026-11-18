@@ -157,7 +157,7 @@ So, according to the algorithm, there are the following statements:
 | KEYSAPI_API_MAX_RETRIES                 | Maximum number of KeysAPI retries                                       | no                     | 3                             |
 | START_ROOT                              | Start CL block root for the daemon (defaults to current finalized root) | no                     |                               |
 | HTTP_USER_AGENT                         | `User-Agent` for all outgoing requests. Empty string — send none        | no                     | `csm-prover-tool/<version>`   |
-| ROOTS_PROCESSING_LAG_SLOTS              | Min slot-distance between processing tip and finalized tip. 0 = off     | no                     | 0                             |
+| ROOTS_PROCESSING_LAG_SLOTS              | Min slot-distance between finalized tip and what the daemon processes (roots and bad-performance reports). 0 = off | no                     | 0                             |
 | ROOTS_ORPHAN_REWIND_EPOCHS              | Epochs to rewind when the last processed root is not confirmed on the finalized chain | no                     | 1                             |
 | DAEMON_NODE_OPERATOR_IDS                | Comma-separated node operator IDs to prove (daemon mode only)           | no                     |                               |
 | STAKING_MODULE_ADDRESS                  | Address of the staking module contract                                  | yes                    |                               |
