@@ -42,8 +42,11 @@ The tool is a daemon that listens to the CL and EL and reports bad performers, w
    > - If the current state of keys indexer is outdated (~15-27h behind from the block) to be trusted completely, add the block root to roots stack
    > - If the block has a slashing or withdrawal, report it to the CS Module
    > - At the first block of each epoch, check and report additional balance changes
+   > - With the `CuratedVerifier`, instead of block withdrawals: at the first block of each epoch, report validators that reached their withdrawable epoch (exits and consolidations)
    > - If the current state of keys indexer is healthy enough to be trusted completely, remove the root from roots stack
 4. Build and send proofs to the CS Module contract when reportable events are found.
+
+The verifier type is detected once at startup, so restart curated instances after the DAO vote that switches them to the `CuratedVerifier` (update `VERIFIER_ADDRESS` if it is set).
 
 So, according to the algorithm, there are the following statements:
 1. We always go sequentially by the finalized roots of blocks, taking the next one by the root of the previous one. In this way, we avoid missing any blocks.
@@ -154,7 +157,7 @@ So, according to the algorithm, there are the following statements:
 | KEYSAPI_API_MAX_RETRIES                 | Maximum number of KeysAPI retries                                       | no                     | 3                             |
 | START_ROOT                              | Start CL block root for the daemon (defaults to current finalized root) | no                     |                               |
 | HTTP_USER_AGENT                         | `User-Agent` for all outgoing requests. Empty string — send none        | no                     | `csm-prover-tool/<version>`   |
-| ROOTS_PROCESSING_LAG_SLOTS              | Min slot-distance between processing tip and finalized tip. 0 = off     | no                     | 0                             |
+| ROOTS_PROCESSING_LAG_SLOTS              | Min slot-distance between finalized tip and what the daemon processes (roots and bad-performance reports). 0 = off | no                     | 0                             |
 | ROOTS_ORPHAN_REWIND_EPOCHS              | Epochs to rewind when the last processed root is not confirmed on the finalized chain | no                     | 1                             |
 | DAEMON_NODE_OPERATOR_IDS                | Comma-separated node operator IDs to prove (daemon mode only)           | no                     |                               |
 | STAKING_MODULE_ADDRESS                  | Address of the staking module contract                                  | yes                    |                               |

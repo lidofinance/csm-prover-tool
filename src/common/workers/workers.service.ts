@@ -12,9 +12,11 @@ import type { BuildGeneralWithdrawalProofArgs } from './items/build-general-wd-p
 import type { BuildHistoricalBalanceProofArgs } from './items/build-historical-balance-proof-payloads.js';
 import type { BuildHistoricalWithdrawalProofArgs } from './items/build-historical-wd-proof-payloads.js';
 import type { BuildSlashingProofArgs } from './items/build-slashing-proof-payloads.js';
+import type { BuildWithdrawnProofArgs } from './items/build-withdrawn-proof-payloads.js';
 import type { GetNewValidatorKeysArgs, GetNewValidatorKeysResult } from './items/get-new-validator-keys.js';
 import type { GetValidatorsInfoArgs, GetValidatorsInfoResult } from './items/get-validators-info.js';
 import { ParentLoggerMessage } from './worker-logger.js';
+import type { ICuratedVerifier } from '../contracts/types/CuratedVerifier.js';
 import type { IVerifier } from '../contracts/types/Verifier.js';
 
 @Injectable()
@@ -35,6 +37,12 @@ export class WorkersService {
 
   public async getSlashedProofPayloads(args: BuildSlashingProofArgs): Promise<IVerifier.ProcessSlashedInputStruct[]> {
     return await this._run('build-slashing-proof-payloads', args);
+  }
+
+  public async getWithdrawnProofPayloads(
+    args: BuildWithdrawnProofArgs,
+  ): Promise<ICuratedVerifier.ProcessWithdrawnInputStruct[]> {
+    return await this._run('build-withdrawn-proof-payloads', args);
   }
 
   public async getGeneralWithdrawalProofPayloads(

@@ -127,6 +127,19 @@ export class DaemonService implements OnModuleInit {
   @SingletonTask()
   @TrackTask('process-bad-performers')
   private async processBadPerformers(finalizedHeader: BlockHeaderResponse) {
-    await this.prover.handleBadPerformers(finalizedHeader, this.keysIndexer.getFullKeyInfoByPubKey);
+    const header = await this.findLaggedHeader(finalizedHeader);
+    if (!header) return;
+    await this.prover.handleBadPerformers(header, this.keysIndexer.getFullKeyInfoByPubKey);
+  }
+
+  private async findLaggedHeader(finalizedHeader: BlockHeaderResponse): Promise<BlockHeaderResponse | undefined> {
+    const lag = this.config.get('ROOTS_PROCESSING_LAG_SLOTS');
+    if (lag === 0) return finalizedHeader;
+    for (let slot = Number(finalizedHeader.header.message.slot) - lag; slot >= 0; slot--) {
+      const header = await this.consensus.findBeaconHeader(slot);
+      if (!header) continue;
+      // Both flags come from one response, so a load balancer can't mix two nodes' views.
+      return header.canonical && header.finalized ? header : undefined;
+    }
   }
 }

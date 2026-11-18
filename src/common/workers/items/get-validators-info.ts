@@ -14,6 +14,7 @@ export type GetValidatorsInfoArgs = {
 
 export type ValidatorInfo = {
   balance: bigint;
+  slashed: boolean;
   exitEpoch: bigint;
   withdrawableEpoch: bigint;
 };
@@ -39,6 +40,7 @@ async function getValidatorsInfo(): Promise<GetValidatorsInfoResult> {
     const v = validatorsView.getReadonly(i);
     validators[i] = {
       balance: BigInt(balancesView.get(i)),
+      slashed: v.slashed,
       exitEpoch: epochToBigInt(v.exitEpoch),
       withdrawableEpoch: epochToBigInt(v.withdrawableEpoch),
     };

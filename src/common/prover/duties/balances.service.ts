@@ -50,12 +50,13 @@ export class BalancesService {
     const confirmedBalanceGwei = minActivationBalanceGwei + keyConfirmedBalanceGwei;
     if (maxEffectiveBalanceGwei <= confirmedBalanceGwei) return false;
     if (balanceGwei <= confirmedBalanceGwei) return false;
+    if (balanceGwei >= maxEffectiveBalanceGwei) return true;
 
     const balanceDeltaGwei = balanceGwei - confirmedBalanceGwei;
     // An increase below one top-up step is accrued rewards, not a top-up.
     if (balanceDeltaGwei < topupStepGwei) return false;
     return (
-      balanceDeltaGwei > BigInt(this.config.get('BALANCE_PROOF_MIN_DELTA_GWEI')) ||
+      balanceDeltaGwei >= BigInt(this.config.get('BALANCE_PROOF_MIN_DELTA_GWEI')) ||
       exitEpoch !== FAR_FUTURE_EPOCH ||
       balanceGwei >= reportableMaxGwei
     );

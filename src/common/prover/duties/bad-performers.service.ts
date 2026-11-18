@@ -113,6 +113,8 @@ export class BadPerformersService {
     ) {
       return false;
     }
+    // The marker describes the previous inputs; a failed send of the new ones must not leave it matching them.
+    this.lastProcessedStrikesTreeRoot = undefined;
     this.currentStrikesTree = strikesTree;
     this.currentStrikesThresholdsByCurveId = thresholds;
     this.currentNodeOperatorsCurveIds = curveIds;
@@ -185,6 +187,11 @@ export class BadPerformersService {
       if (loaded.root != treeRoot) {
         throw new Error(`Unexpected Tree root from Tree CID ${treeCid}`);
       }
+      const { tree: nodes, values } = loaded.dump();
+      const leafCount = (nodes.length + 1) / 2;
+      if (values.length !== leafCount || new Set(values.map((v) => v.treeIndex)).size !== leafCount) {
+        throw new Error(`Strikes values do not cover every leaf of Tree CID ${treeCid}`);
+      }
       return loaded;
     });
     this.logger.log(`🌲 Strikes Tree loaded from IPFS: ${treeCid} with root ${tree.root}`);
@@ -238,8 +245,12 @@ export class BadPerformersService {
 
     this.logger.log('🔍 Searching for keys above the strikes threshold in the Strikes Tree');
 
+    const operatorFilter =
+      this.config.get('WORKING_MODE') == WorkingMode.Daemon ? this.config.get('DAEMON_NODE_OPERATOR_IDS') : undefined;
+
     for (const [i, leaf] of this.currentStrikesTree.entries()) {
       const [nodeOperatorId, pubKey, strikesData] = leaf;
+      if (operatorFilter?.length && !operatorFilter.includes(nodeOperatorId)) continue;
 
       const strikesSum = strikesData.reduce((acc, val) => acc + val, 0);
       const threshold = await this.getStrikesThresholdByNodeOperatorId(nodeOperatorId);

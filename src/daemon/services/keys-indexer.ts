@@ -194,8 +194,12 @@ export class KeysIndexer implements OnApplicationBootstrap {
       new JSONFile<KeysIndexerServiceStorage>(join(storageDir, 'keys-indexer-storage.json')),
       {},
     );
-    await this.info.read();
-    await this.storage.read();
+    const storageData = await this.storage.adapter.read();
+    // Info without its storage file would claim an index that is gone, so a missing storage keeps the default info.
+    if (storageData !== null) {
+      this.storage.data = storageData;
+      await this.info.read();
+    }
 
     const chainId = this.config.get('CHAIN_ID');
     const status = await this.keysapi.getStatus();
