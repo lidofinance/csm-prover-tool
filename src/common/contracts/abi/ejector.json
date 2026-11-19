@@ -1,0 +1,1 @@
+[{"type":"function","name":"triggerableWithdrawalsGateway","inputs":[],"outputs":[{"name":"","type":"address","internalType":"address"}],"stateMutability":"view"}]

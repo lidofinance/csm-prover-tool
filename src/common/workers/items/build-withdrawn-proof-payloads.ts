@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type * as ICuratedVerifier from '../../contracts/structs/curated-verifier.js';
+import type { ProcessWithdrawnInputStruct } from '../../contracts/structs.js';
 import {
   generateValidatorProof,
   toBeaconHeaderStruct,
@@ -22,11 +22,11 @@ export type BuildWithdrawnProofArgs = {
   epoch: number;
 };
 
-async function buildWithdrawnProofPayloads(): Promise<ICuratedVerifier.ProcessWithdrawnInputStruct[]> {
+async function buildWithdrawnProofPayloads(): Promise<ProcessWithdrawnInputStruct[]> {
   const { currentHeader, nextHeaderTimestamp, state, keys, epoch } = workerData as BuildWithdrawnProofArgs;
   const stateView = getSsz(state.forkName).BeaconState.deserializeToView(state.bodyBytes);
 
-  const payloads: ICuratedVerifier.ProcessWithdrawnInputStruct[] = [];
+  const payloads: ProcessWithdrawnInputStruct[] = [];
   for (const [valIndex, keyInfo] of Object.entries(keys)) {
     const valIndexNum = Number(valIndex);
     const validator = stateView.validators.getReadonly(valIndexNum);

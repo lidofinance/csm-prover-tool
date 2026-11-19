@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type * as IVerifier from '../../contracts/structs/verifier.js';
+import type { ProcessWithdrawalInputStruct } from '../../contracts/structs.js';
 import {
   generateValidatorProof,
   generateWithdrawalProof,
@@ -25,7 +25,7 @@ export type BuildGeneralWithdrawalProofArgs = {
   epoch: number;
 };
 
-async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.ProcessWithdrawalInputStruct[]> {
+async function buildGeneralWithdrawalsProofPayloads(): Promise<ProcessWithdrawalInputStruct[]> {
   const { currentHeader, nextHeaderTimestamp, state, currentBlock, withdrawals, epoch } =
     workerData as BuildGeneralWithdrawalProofArgs;
   //

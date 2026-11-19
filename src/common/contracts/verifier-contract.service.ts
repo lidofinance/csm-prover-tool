@@ -12,8 +12,14 @@ import {
 import { curatedVerifierAbi } from './abi/curated-verifier.js';
 import { verifierAbi } from './abi/verifier.js';
 import { StakingModuleContract } from './staking-module-contract.service.js';
-import type * as ICuratedVerifier from './structs/curated-verifier.js';
-import type * as IVerifier from './structs/verifier.js';
+import type {
+  ProcessBalanceProofInputStruct,
+  ProcessHistoricalBalanceProofInputStruct,
+  ProcessHistoricalWithdrawalInputStruct,
+  ProcessSlashedInputStruct,
+  ProcessWithdrawalInputStruct,
+  ProcessWithdrawnInputStruct,
+} from './structs.js';
 import { ConfigService } from '../config/config.service.js';
 import { type AppLogger } from '../logger/app-logger.type.js';
 import { findContractRevert } from '../providers/execution/execution-client.js';
@@ -81,7 +87,7 @@ export class VerifierContract {
     }
   }
 
-  public async sendSlashingProof(payload: IVerifier.ProcessSlashedInputStruct): Promise<void> {
+  public async sendSlashingProof(payload: ProcessSlashedInputStruct): Promise<void> {
     await this.execution.execute({
       address: this.contract.address,
       abi: verifierAbi,
@@ -90,7 +96,7 @@ export class VerifierContract {
     });
   }
 
-  public async sendWithdrawnProof(payload: ICuratedVerifier.ProcessWithdrawnInputStruct): Promise<void> {
+  public async sendWithdrawnProof(payload: ProcessWithdrawnInputStruct): Promise<void> {
     await this.execution.execute({
       address: this.curatedContract.address,
       abi: curatedVerifierAbi,
@@ -99,7 +105,7 @@ export class VerifierContract {
     });
   }
 
-  public async sendWithdrawalProof(payload: IVerifier.ProcessWithdrawalInputStruct): Promise<void> {
+  public async sendWithdrawalProof(payload: ProcessWithdrawalInputStruct): Promise<void> {
     await this.execution.execute({
       address: this.contract.address,
       abi: verifierAbi,
@@ -108,7 +114,7 @@ export class VerifierContract {
     });
   }
 
-  public async sendHistoricalWithdrawalProof(payload: IVerifier.ProcessHistoricalWithdrawalInputStruct): Promise<void> {
+  public async sendHistoricalWithdrawalProof(payload: ProcessHistoricalWithdrawalInputStruct): Promise<void> {
     await this.execution.execute({
       address: this.contract.address,
       abi: verifierAbi,
@@ -117,7 +123,7 @@ export class VerifierContract {
     });
   }
 
-  public async sendBalanceProof(payload: IVerifier.ProcessBalanceProofInputStruct): Promise<void> {
+  public async sendBalanceProof(payload: ProcessBalanceProofInputStruct): Promise<void> {
     await this.execution.execute({
       address: this.contract.address,
       abi: verifierAbi,
@@ -126,7 +132,7 @@ export class VerifierContract {
     });
   }
 
-  public async sendHistoricalBalanceProof(payload: IVerifier.ProcessHistoricalBalanceProofInputStruct): Promise<void> {
+  public async sendHistoricalBalanceProof(payload: ProcessHistoricalBalanceProofInputStruct): Promise<void> {
     await this.execution.execute({
       address: this.contract.address,
       abi: verifierAbi,

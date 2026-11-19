@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type * as IVerifier from '../../contracts/structs/verifier.js';
+import type { ProcessSlashedInputStruct } from '../../contracts/structs.js';
 import {
   generateValidatorProof,
   toBeaconHeaderStruct,
@@ -21,7 +21,7 @@ export type BuildSlashingProofArgs = {
   slashings: InvolvedKeys;
 };
 
-async function buildSlashingProofPayloads(): Promise<IVerifier.ProcessSlashedInputStruct[]> {
+async function buildSlashingProofPayloads(): Promise<ProcessSlashedInputStruct[]> {
   const { currentHeader, nextHeaderTimestamp, state, slashings } = workerData as BuildSlashingProofArgs;
   //
   // Get views

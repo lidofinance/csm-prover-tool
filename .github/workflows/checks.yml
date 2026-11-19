@@ -36,5 +36,8 @@ jobs:
       - name: Install Node dependencies
         run: yarn install --immutable
 
+      - name: Generate types
+        run: yarn abi
+
       - name: Linters check
         run: yarn lint

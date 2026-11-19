@@ -1,4 +1,4 @@
-import type * as IValidatorStrikes from '../contracts/structs/strikes.js';
+import type { KeyStrikesStruct } from '../contracts/structs.js';
 
 export interface KeyInfo {
   operatorId: number;
@@ -18,7 +18,7 @@ export type KeyInfoFn = (valIndex: number) => KeyInfo | undefined;
 export type FullKeyInfoByPubKeyFn = (pubKey: string) => FullKeyInfo | undefined;
 
 export type BadPerformerProofPayload = {
-  keyStrikesList: IValidatorStrikes.KeyStrikesStruct[];
+  keyStrikesList: KeyStrikesStruct[];
   proof: string[]; // bytes32[]
   proofFlags: boolean[];
   refundRecipient?: string; // Optional. Address to receive the refund from ejector contract

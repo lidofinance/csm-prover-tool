@@ -3,7 +3,7 @@ import type { RootHex } from '@lodestar/types';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
-import type * as IVerifier from '../../contracts/structs/verifier.js';
+import type { ProcessHistoricalWithdrawalInputStruct, ProcessWithdrawalInputStruct } from '../../contracts/structs.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
 import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
@@ -103,7 +103,7 @@ export class WithdrawalsService {
     blockInfo: SupportedBlock,
     state: State,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Promise<IVerifier.ProcessWithdrawalInputStruct[]> {
+  ): Promise<ProcessWithdrawalInputStruct[]> {
     // create proof against the state with withdrawals
     const nextBlockHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data);
     if (!nextBlockHeader) throw new Error(`Next canonical block header after ${blockHeader.root} not found`);
@@ -129,7 +129,7 @@ export class WithdrawalsService {
     blockInfo: SupportedBlock,
     state: State,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
+  ): Promise<ProcessHistoricalWithdrawalInputStruct[]> {
     // create proof against the historical state with withdrawals.
     // Anchor to the freshest finalized header, fetched as late as possible: its root must still be in
     // the EIP-4788 ring buffer (~27h) when the tx executes. A header captured at the start of the daemon

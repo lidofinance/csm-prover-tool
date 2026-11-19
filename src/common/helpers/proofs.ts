@@ -4,7 +4,7 @@ import { ProofType, type SingleProof, Tree, concatGindices, createProof } from '
 import type { RootHex } from '@lodestar/types';
 import type { Hex } from 'viem';
 
-import type { BeaconBlockHeaderStruct, ValidatorStruct, WithdrawalStruct } from '../contracts/structs/verifier.js';
+import type { BeaconBlockHeaderStruct, ValidatorStruct, WithdrawalStruct } from '../contracts/structs.js';
 import { epochToBigInt } from '../providers/consensus/epoch.js';
 import type {
   SupportedBlockRootsView,

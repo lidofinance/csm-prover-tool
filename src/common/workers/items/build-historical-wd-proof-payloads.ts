@@ -2,7 +2,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 
 import { ssz } from '@lodestar/types';
 
-import type * as IVerifier from '../../contracts/structs/verifier.js';
+import type { ProcessHistoricalWithdrawalInputStruct } from '../../contracts/structs.js';
 import {
   generateValidatorProof,
   generateWithdrawalProof,
@@ -33,7 +33,7 @@ export type BuildHistoricalWithdrawalProofArgs = {
   epoch: number;
 };
 
-async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
+async function buildHistoricalWithdrawalsProofPayloads(): Promise<ProcessHistoricalWithdrawalInputStruct[]> {
   const {
     headerWithWds,
     finalHeader,
