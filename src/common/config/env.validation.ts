@@ -213,6 +213,7 @@ export class EnvironmentVariables {
 
   @IsArray()
   @IsString({ each: true })
+  @Matches(/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/, { each: true })
   @Transform(({ value }) => toStringList(value), { toClassOnly: true })
   public EL_TRACE_HEADERS: string[] = ['x-drpc-trace-id', 'cf-ray'];
 
