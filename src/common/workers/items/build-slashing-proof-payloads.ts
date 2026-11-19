@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type { IVerifier } from '../../contracts/types/Verifier.js';
+import type * as IVerifier from '../../contracts/structs/verifier.js';
 import {
   generateValidatorProof,
   toBeaconHeaderStruct,
@@ -43,7 +43,7 @@ async function buildSlashingProofPayloads(): Promise<IVerifier.ProcessSlashedInp
     verifyProof(stateView.hashTreeRoot(), validatorProof.gindex, validatorProof.witnesses, validator.hashTreeRoot());
     payloads.push({
       validator: {
-        index: Number(valIndex),
+        index: BigInt(valIndex),
         nodeOperatorId: keyInfo.operatorId,
         keyIndex: keyInfo.keyIndex,
         object: toValidatorStruct(validator),
@@ -51,7 +51,7 @@ async function buildSlashingProofPayloads(): Promise<IVerifier.ProcessSlashedInp
       },
       recentBlock: {
         header: toBeaconHeaderStruct(currentHeader),
-        rootsTimestamp: nextHeaderTimestamp,
+        rootsTimestamp: BigInt(nextHeaderTimestamp),
       },
     });
   }

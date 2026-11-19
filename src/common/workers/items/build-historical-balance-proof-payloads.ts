@@ -2,7 +2,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 
 import { ssz } from '@lodestar/types';
 
-import type { IVerifier } from '../../contracts/types/Verifier.js';
+import type * as IVerifier from '../../contracts/structs/verifier.js';
 import {
   generateBalanceProof,
   generateValidatorProof,
@@ -86,14 +86,14 @@ async function buildHistoricalBalanceProofPayloads(): Promise<IVerifier.ProcessH
     payloads.push({
       recentBlock: {
         header: toBeaconHeaderStruct(recentHeader),
-        rootsTimestamp: nextToRecentHeaderTimestamp,
+        rootsTimestamp: BigInt(nextToRecentHeaderTimestamp),
       },
       historicalBlock: {
         header: toBeaconHeaderStruct(headerWithBalances),
         proof: historicalStateProof.witnesses.map(toHex),
       },
       validator: {
-        index: valIndexNum,
+        index: BigInt(valIndexNum),
         nodeOperatorId: keyInfo.operatorId,
         keyIndex: keyInfo.keyIndex,
         object: toValidatorStruct(validator),

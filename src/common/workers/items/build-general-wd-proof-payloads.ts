@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type { IVerifier } from '../../contracts/types/Verifier.js';
+import type * as IVerifier from '../../contracts/structs/verifier.js';
 import {
   generateValidatorProof,
   generateWithdrawalProof,
@@ -83,7 +83,7 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.Process
         proof: withdrawalProof.witnesses.map(toHex),
       },
       validator: {
-        index: Number(valIndex),
+        index: BigInt(valIndex),
         nodeOperatorId: keyWithWithdrawalInfo.operatorId,
         keyIndex: keyWithWithdrawalInfo.keyIndex,
         object: toValidatorStruct(validator),
@@ -91,7 +91,7 @@ async function buildGeneralWithdrawalsProofPayloads(): Promise<IVerifier.Process
       },
       withdrawalBlock: {
         header: toBeaconHeaderStruct(currentHeader),
-        rootsTimestamp: nextHeaderTimestamp,
+        rootsTimestamp: BigInt(nextHeaderTimestamp),
       },
     });
   }

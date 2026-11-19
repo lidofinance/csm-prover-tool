@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type { ICuratedVerifier } from '../../contracts/types/CuratedVerifier.js';
+import type * as ICuratedVerifier from '../../contracts/structs/curated-verifier.js';
 import {
   generateValidatorProof,
   toBeaconHeaderStruct,
@@ -55,7 +55,7 @@ async function buildWithdrawnProofPayloads(): Promise<ICuratedVerifier.ProcessWi
     verifyProof(stateView.hashTreeRoot(), validatorProof.gindex, validatorProof.witnesses, validator.hashTreeRoot());
     payloads.push({
       validator: {
-        index: valIndexNum,
+        index: BigInt(valIndexNum),
         nodeOperatorId: keyInfo.operatorId,
         keyIndex: keyInfo.keyIndex,
         object: toValidatorStruct(validator),
@@ -63,7 +63,7 @@ async function buildWithdrawnProofPayloads(): Promise<ICuratedVerifier.ProcessWi
       },
       recentBlock: {
         header: toBeaconHeaderStruct(currentHeader),
-        rootsTimestamp: nextHeaderTimestamp,
+        rootsTimestamp: BigInt(nextHeaderTimestamp),
       },
     });
   }

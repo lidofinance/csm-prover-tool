@@ -16,8 +16,8 @@ import type { BuildWithdrawnProofArgs } from './items/build-withdrawn-proof-payl
 import type { GetNewValidatorKeysArgs, GetNewValidatorKeysResult } from './items/get-new-validator-keys.js';
 import type { GetValidatorsInfoArgs, GetValidatorsInfoResult } from './items/get-validators-info.js';
 import { ParentLoggerMessage } from './worker-logger.js';
-import type { ICuratedVerifier } from '../contracts/types/CuratedVerifier.js';
-import type { IVerifier } from '../contracts/types/Verifier.js';
+import type * as ICuratedVerifier from '../contracts/structs/curated-verifier.js';
+import type * as IVerifier from '../contracts/structs/verifier.js';
 
 @Injectable()
 export class WorkersService {

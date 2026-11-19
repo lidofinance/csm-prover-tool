@@ -196,21 +196,10 @@ export class EnvironmentVariables {
   public EL_RPC_MAX_RETRIES = 3;
 
   @IsNumber()
-  @Transform(({ value }) => toInteger(value), { toClassOnly: true })
-  // NOTE: Resets active provider if no outgoing EL requests within this interval
-  public EL_RPC_RESET_INTERVAL_MS = 12 * MINUTE_MS; // a bit less than CL finalization time
-
-  @IsNumber()
   @Min(1)
   @Transform(({ value }) => toInteger(value), { toClassOnly: true })
   // Max JSON-RPC calls coalesced into one batched HTTP request. Lower if the provider rejects large batches.
   public EL_RPC_MAX_BATCH_SIZE = 25;
-
-  @IsNumber()
-  @Min(1)
-  @Transform(({ value }) => toInteger(value), { toClassOnly: true })
-  // Max concurrent batched HTTP requests in flight to a single EL provider.
-  public EL_RPC_MAX_CONCURRENT_REQUESTS = 2;
 
   @IsNumber()
   @Min(0)

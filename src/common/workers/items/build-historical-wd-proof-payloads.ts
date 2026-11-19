@@ -2,7 +2,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 
 import { ssz } from '@lodestar/types';
 
-import type { IVerifier } from '../../contracts/types/Verifier.js';
+import type * as IVerifier from '../../contracts/structs/verifier.js';
 import {
   generateValidatorProof,
   generateWithdrawalProof,
@@ -116,7 +116,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
         proof: withdrawalProof.witnesses.map(toHex),
       },
       validator: {
-        index: Number(valIndex),
+        index: BigInt(valIndex),
         nodeOperatorId: keyWithWithdrawalInfo.operatorId,
         keyIndex: keyWithWithdrawalInfo.keyIndex,
         object: toValidatorStruct(validator),
@@ -124,7 +124,7 @@ async function buildHistoricalWithdrawalsProofPayloads(): Promise<IVerifier.Proc
       },
       recentBlock: {
         header: toBeaconHeaderStruct(finalHeader),
-        rootsTimestamp: nextToFinalizedHeaderTimestamp,
+        rootsTimestamp: BigInt(nextToFinalizedHeaderTimestamp),
       },
       withdrawalBlock: {
         header: toBeaconHeaderStruct(headerWithWds),

@@ -3,7 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { ConfigService } from '../../config/config.service.js';
 import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
-import type { IVerifier } from '../../contracts/types/Verifier.js';
+import type * as IVerifier from '../../contracts/structs/verifier.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
 import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';

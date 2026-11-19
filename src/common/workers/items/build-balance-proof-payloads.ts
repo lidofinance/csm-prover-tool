@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type { IVerifier } from '../../contracts/types/Verifier.js';
+import type * as IVerifier from '../../contracts/structs/verifier.js';
 import {
   generateBalanceProof,
   generateValidatorProof,
@@ -51,10 +51,10 @@ async function buildBalanceProofPayloads(): Promise<IVerifier.ProcessBalanceProo
     payloads.push({
       recentBlock: {
         header: toBeaconHeaderStruct(currentHeader),
-        rootsTimestamp: nextHeaderTimestamp,
+        rootsTimestamp: BigInt(nextHeaderTimestamp),
       },
       validator: {
-        index: valIndexNum,
+        index: BigInt(valIndexNum),
         nodeOperatorId: keyInfo.operatorId,
         keyIndex: keyInfo.keyIndex,
         object: toValidatorStruct(validator),

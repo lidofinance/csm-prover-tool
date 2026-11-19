@@ -9,7 +9,7 @@ import { ExitPenaltiesContract } from '../../contracts/exit-penalties-contract.s
 import { ParametersRegistryContract } from '../../contracts/parameters-registry-contract.service.js';
 import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
 import { StrikesContract } from '../../contracts/strikes-contract.service.js';
-import type { IValidatorStrikes } from '../../contracts/types/Strikes.js';
+import type * as IValidatorStrikes from '../../contracts/structs/strikes.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus } from '../../providers/consensus/consensus.js';
 import type { SupportedBlock } from '../../providers/consensus/forks.js';
@@ -161,9 +161,9 @@ export class BadPerformersService {
       }
 
       return {
-        nodeOperatorId,
-        keyIndex: keyInfo.keyIndex,
-        data,
+        nodeOperatorId: BigInt(nodeOperatorId),
+        keyIndex: BigInt(keyInfo.keyIndex),
+        data: data.map(BigInt),
       };
     });
   }

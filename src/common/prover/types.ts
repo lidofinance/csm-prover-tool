@@ -1,4 +1,4 @@
-import type { IValidatorStrikes } from '../contracts/types/Strikes.js';
+import type * as IValidatorStrikes from '../contracts/structs/strikes.js';
 
 export interface KeyInfo {
   operatorId: number;
