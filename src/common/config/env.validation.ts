@@ -6,17 +6,20 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsEthereumAddress,
   IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min,
   ValidateIf,
   getMetadataStorage,
   validateSync,
 } from 'class-validator';
+import type { Address, Hex } from 'viem';
 
 import { Environment, LogFormat, LogLevel } from './interfaces/environment.interface.js';
 
@@ -62,28 +65,29 @@ export class EnvironmentVariables {
   public ROOTS_ORPHAN_REWIND_EPOCHS = 1;
 
   @IsNotEmpty()
-  @IsString()
-  public STAKING_MODULE_ADDRESS: string;
+  @IsEthereumAddress()
+  public STAKING_MODULE_ADDRESS: Address;
 
   @IsOptional()
   @IsNotEmpty()
-  @IsString()
-  public VERIFIER_ADDRESS?: string;
+  @IsEthereumAddress()
+  public VERIFIER_ADDRESS?: Address;
 
   @IsOptional()
   @IsNotEmpty()
-  @IsString()
-  public STRIKES_ADDRESS?: string;
+  @IsEthereumAddress()
+  public STRIKES_ADDRESS?: Address;
 
   @IsOptional()
   @IsNotEmpty()
-  @IsString()
-  public EXIT_PENALTIES_ADDRESS?: string;
+  @IsEthereumAddress()
+  public EXIT_PENALTIES_ADDRESS?: Address;
 
   @IsNotEmpty()
-  @IsString()
-  @ValidateIf((vars) => !vars.DRY_RUN)
-  public TX_SIGNER_PRIVATE_KEY: string;
+  @Matches(/^0x[0-9a-fA-F]{64}$/)
+  @Transform(({ value }) => toPrefixedHex(value), { toClassOnly: true })
+  @ValidateIf((vars) => !vars.DRY_RUN || vars.TX_SIGNER_PRIVATE_KEY)
+  public TX_SIGNER_PRIVATE_KEY: Hex;
 
   @IsNumber()
   @Transform(({ value }) => toInteger(value), { toClassOnly: true })
@@ -349,6 +353,9 @@ const toInteger = (value: unknown): number => {
   const parsed = toNumber(value);
   return Number.isSafeInteger(parsed) ? parsed : NaN;
 };
+
+const toPrefixedHex = (value: unknown): unknown =>
+  typeof value === 'string' && /^[0-9a-fA-F]{64}$/.test(value) ? `0x${value}` : value;
 
 const toIntArray = (value: unknown): number[] | undefined | unknown => {
   if (value === undefined || value === null) {

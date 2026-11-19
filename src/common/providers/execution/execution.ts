@@ -50,17 +50,16 @@ class DryRunError extends ErrorWithContext {}
 const DEPOSIT_CONTRACT_ADDRESS = '0x00000000219ab540356cBB839Cbe05303d7705Fa';
 const MAX_BLOCKCOUNT = 1024;
 
+type WriteMutability = 'nonpayable' | 'payable';
+
 export type ProofTx<
   abi extends Abi = Abi,
-  functionName extends ContractFunctionName<abi, 'nonpayable' | 'payable'> = ContractFunctionName<
-    abi,
-    'nonpayable' | 'payable'
-  >,
+  functionName extends ContractFunctionName<abi, WriteMutability> = ContractFunctionName<abi, WriteMutability>,
 > = {
   address: Address;
   abi: abi;
   functionName: functionName;
-  args: ContractFunctionArgs<abi, 'nonpayable' | 'payable', functionName>;
+  args: ContractFunctionArgs<abi, WriteMutability, functionName>;
   value?: bigint;
 };
 
@@ -79,14 +78,14 @@ export class Execution {
     @Inject(EL_CLIENT) public readonly client: PublicClient,
   ) {
     const key = this.config.get('TX_SIGNER_PRIVATE_KEY');
-    if (key) this.signer = privateKeyToAccount(key.startsWith('0x') ? (key as Hex) : `0x${key}`);
+    if (key) this.signer = privateKeyToAccount(key);
   }
 
   public async getBlockNumber(): Promise<number> {
     return Number(await this.client.getBlockNumber({ cacheTime: 0 }));
   }
 
-  public async execute<abi extends Abi, functionName extends ContractFunctionName<abi, 'nonpayable' | 'payable'>>(
+  public async execute<abi extends Abi, functionName extends ContractFunctionName<abi, WriteMutability>>(
     tx: ProofTx<abi, functionName>,
   ): Promise<void> {
     if (this.isCLI()) {
@@ -142,8 +141,7 @@ export class Execution {
   }
 
   private async _execute(tx: ProofTx): Promise<void> {
-    const payload = tx.args;
-    this.logger.debug!(payload);
+    this.logger.debug!(tx.args);
     const priorityFeeParams = await this.calcPriorityFee();
     const txBase = {
       to: tx.address,
@@ -155,7 +153,7 @@ export class Execution {
     this.logger.log('Emulating call');
     const from = this.signer?.address ?? DEPOSIT_CONTRACT_ADDRESS;
     const emulatedTx = { ...txBase, from };
-    const emulatedTxContext: { payload: any; tx: any } = { payload, tx: emulatedTx };
+    const emulatedTxContext = { payload: tx.args, tx: emulatedTx };
     let estimatedGas: bigint;
     try {
       estimatedGas = await this.client.estimateContractGas({
@@ -189,18 +187,18 @@ export class Execution {
       chainId: this.config.get('CHAIN_ID'),
       nonce: await this.client.getTransactionCount({ address: this.signer.address, blockTag: 'pending' }),
     };
-    const populatedTxContext: { payload: any; tx: any } = { payload, tx: populatedTx };
+    const populatedTxContext = { payload: tx.args, tx: populatedTx };
     const isFeePerGasAcceptable = await this.isFeePerGasAcceptable();
     if (this.config.get('DRY_RUN')) {
       throw new DryRunError('Dry run mode is enabled. Transaction is prepared, but not sent', populatedTxContext);
     }
     if (this.isCLI()) {
       const txSummary = [
-        `to=${populatedTx.to ?? 'n/a'}`,
-        `nonce=${String(populatedTx.nonce ?? 'n/a')}`,
-        `gasLimit=${String(populatedTx.gas ?? 'n/a')}`,
-        `maxFeePerGas=${String(populatedTx.maxFeePerGas ?? 'n/a')}`,
-        `maxPriorityFeePerGas=${String(populatedTx.maxPriorityFeePerGas ?? 'n/a')}`,
+        `to=${populatedTx.to}`,
+        `nonce=${populatedTx.nonce}`,
+        `gasLimit=${populatedTx.gas}`,
+        `maxFeePerGas=${populatedTx.maxFeePerGas}`,
+        `maxPriorityFeePerGas=${populatedTx.maxPriorityFeePerGas}`,
       ].join(' | ');
       const opts = await this.inquirerService.ask('tx-execution', {
         sendingConfirmed: false,
@@ -319,7 +317,7 @@ export class Execution {
     const maxBlocksPerDay = 24 * maxBlocksPerHour;
     const maxFeeHistoryCacheSize = this.config.get('TX_GAS_FEE_HISTORY_DAYS') * maxBlocksPerDay;
 
-    const latestBlockNumber = Number((await this.client.getBlock({ blockTag: 'latest' })).number);
+    const latestBlockNumber = await this.getBlockNumber();
 
     const feeHistoryCacheBlocksDelay = latestBlockNumber - this.lastFeeHistoryBlockNumber;
     // TODO: what the buffer to update should be?

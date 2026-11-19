@@ -1,15 +1,17 @@
+import type { Hex } from 'viem';
+
 import type { KeyStrikesStruct } from '../contracts/structs.js';
 
 export interface KeyInfo {
   operatorId: number;
   keyIndex: number;
-  pubKey: string;
+  pubKey: Hex;
 }
 
 export interface FullKeyInfo {
   operatorId: number;
   keyIndex: number;
-  pubKey: string;
+  pubKey: Hex;
   validatorIndex: number;
 }
 
@@ -19,7 +21,7 @@ export type FullKeyInfoByPubKeyFn = (pubKey: string) => FullKeyInfo | undefined;
 
 export type BadPerformerProofPayload = {
   keyStrikesList: KeyStrikesStruct[];
-  proof: string[]; // bytes32[]
+  proof: Hex[]; // bytes32[]
   proofFlags: boolean[];
   refundRecipient?: string; // Optional. Address to receive the refund from ejector contract
 };

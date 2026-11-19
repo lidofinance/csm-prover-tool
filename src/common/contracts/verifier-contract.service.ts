@@ -1,16 +1,10 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
-import {
-  type GetContractReturnType,
-  type PublicClient,
-  getAbiItem,
-  getContract,
-  isAddress,
-  toFunctionSelector,
-} from 'viem';
+import { type GetContractReturnType, type PublicClient, getAbiItem, getContract, toFunctionSelector } from 'viem';
 
 import { curatedVerifierAbi } from './abi/curated-verifier.js';
 import { verifierAbi } from './abi/verifier.js';
+import { findContractRevert } from './contract-revert.js';
 import { StakingModuleContract } from './staking-module-contract.service.js';
 import type {
   ProcessBalanceProofInputStruct,
@@ -22,16 +16,13 @@ import type {
 } from './structs.js';
 import { ConfigService } from '../config/config.service.js';
 import { type AppLogger } from '../logger/app-logger.type.js';
-import { findContractRevert } from '../providers/execution/execution-client.js';
 import { Execution } from '../providers/execution/execution.js';
 
 type Verifier = GetContractReturnType<typeof verifierAbi, PublicClient>;
-type CuratedVerifier = GetContractReturnType<typeof curatedVerifierAbi, PublicClient>;
 
 @Injectable()
 export class VerifierContract {
   private contract: Verifier;
-  private curatedContract: CuratedVerifier;
   public isCurated = false;
   private minWithdrawalRatio?: bigint; // immutable in the contract
 
@@ -44,7 +35,7 @@ export class VerifierContract {
 
   public async init() {
     let address = this.config.get('VERIFIER_ADDRESS');
-    if (!address || address == '') {
+    if (!address) {
       this.logger.warn(
         'VERIFIER_ADDRESS env variable is not specified. Trying to get role member from staking module contract...',
       );
@@ -60,11 +51,7 @@ export class VerifierContract {
       }
       address = verifierRoleMembers[0];
     }
-    if (!isAddress(address)) {
-      throw new Error(`Invalid VERIFIER_ADDRESS: ${address}`);
-    }
     this.contract = getContract({ address, abi: verifierAbi, client: this.execution.client });
-    this.curatedContract = getContract({ address, abi: curatedVerifierAbi, client: this.execution.client });
 
     // Only the CuratedVerifier dispatches processWithdrawnProof; solc pushes each dispatched selector with PUSH4 (0x63)
     const selector = toFunctionSelector(getAbiItem({ abi: curatedVerifierAbi, name: 'processWithdrawnProof' }));
@@ -98,7 +85,7 @@ export class VerifierContract {
 
   public async sendWithdrawnProof(payload: ProcessWithdrawnInputStruct): Promise<void> {
     await this.execution.execute({
-      address: this.curatedContract.address,
+      address: this.contract.address,
       abi: curatedVerifierAbi,
       functionName: 'processWithdrawnProof',
       args: [payload],

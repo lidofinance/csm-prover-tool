@@ -1,6 +1,7 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
+import type { Hex } from 'viem';
 
 import { ConfigService } from '../../config/config.service.js';
 import { WorkingMode } from '../../config/env.validation.js';
@@ -142,7 +143,7 @@ export class BadPerformersService {
 
       await this.strikes.sendBadPerformanceProof({
         keyStrikesList,
-        proof: multiProof.proof,
+        proof: multiProof.proof as Hex[],
         proofFlags: multiProof.proofFlags,
       });
     }

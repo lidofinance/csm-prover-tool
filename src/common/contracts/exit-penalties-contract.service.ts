@@ -1,6 +1,6 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
-import { type GetContractReturnType, type Hex, type PublicClient, getContract, isAddress } from 'viem';
+import { type GetContractReturnType, type PublicClient, getContract } from 'viem';
 
 import { exitPenaltiesAbi } from './abi/exit-penalties.js';
 import { StrikesContract } from './strikes-contract.service.js';
@@ -24,21 +24,18 @@ export class ExitPenaltiesContract {
 
   public async init() {
     let address = this.config.get('EXIT_PENALTIES_ADDRESS');
-    if (!address || address == '') {
+    if (!address) {
       this.logger.warn(
         'EXIT_PENALTIES_ADDRESS env variable is not specified. Trying to get address from CSStrikes contract...',
       );
       address = await this.strikes.getExitPenaltiesAddress();
-    }
-    if (!isAddress(address)) {
-      throw new Error(`Invalid EXIT_PENALTIES_ADDRESS: ${address}`);
     }
     this.logger.log(`CSExitPenalties address: ${address}`);
     this.contract = getContract({ address, abi: exitPenaltiesAbi, client: this.execution.client });
   }
 
   public async isEjectionProved(keyInfo: KeyInfo, blockNumber: number): Promise<boolean> {
-    const data = await this.contract.read.getExitPenaltyInfo([BigInt(keyInfo.operatorId), keyInfo.pubKey as Hex], {
+    const data = await this.contract.read.getExitPenaltyInfo([BigInt(keyInfo.operatorId), keyInfo.pubKey], {
       blockNumber: BigInt(blockNumber),
     });
     return data.strikesPenalty.isValue;

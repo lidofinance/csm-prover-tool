@@ -1,12 +1,12 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
-import { type Address, type GetContractReturnType, type PublicClient, getContract, isAddress } from 'viem';
+import { type Address, type GetContractReturnType, type Hex, type PublicClient, getContract } from 'viem';
 
 import { csmAbi } from './abi/csm.js';
+import { findContractRevert } from './contract-revert.js';
 import { ConfigService } from '../config/config.service.js';
 import { type AppLogger } from '../logger/app-logger.type.js';
 import type { KeyInfo } from '../prover/types.js';
-import { findContractRevert } from '../providers/execution/execution-client.js';
 import { Execution } from '../providers/execution/execution.js';
 
 type Csm = GetContractReturnType<typeof csmAbi, PublicClient>;
@@ -21,9 +21,6 @@ export class StakingModuleContract {
     protected readonly execution: Execution,
   ) {
     const address = this.config.get('STAKING_MODULE_ADDRESS');
-    if (!isAddress(address)) {
-      throw new Error(`Invalid STAKING_MODULE_ADDRESS: ${address}`);
-    }
     this.logger.log(`Staking module address: ${address}`);
     this.contract = getContract({ address, abi: csmAbi, client: this.execution.client });
   }
@@ -86,7 +83,7 @@ export class StakingModuleContract {
     return operators.map(({ totalDepositedKeys }) => totalDepositedKeys);
   }
 
-  public async getNodeOperatorKey(nodeOperatorId: number, keyIndex: number, blockNumber: number): Promise<string> {
+  public async getNodeOperatorKey(nodeOperatorId: number, keyIndex: number, blockNumber: number): Promise<Hex> {
     return await this.contract.read.getSigningKeys([BigInt(nodeOperatorId), BigInt(keyIndex), 1n], {
       blockNumber: BigInt(blockNumber),
     });

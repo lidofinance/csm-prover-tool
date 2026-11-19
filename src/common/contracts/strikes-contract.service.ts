@@ -3,11 +3,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   type Address,
   type GetContractReturnType,
-  type Hex,
   type PublicClient,
   formatGwei,
   getContract,
-  isAddress,
+  hexToBigInt,
+  size,
   zeroAddress,
 } from 'viem';
 
@@ -41,7 +41,7 @@ export class StrikesContract {
 
   public async init() {
     let address = this.config.get('STRIKES_ADDRESS');
-    if (!address || address == '') {
+    if (!address) {
       this.logger.warn(
         'STRIKES_ADDRESS env variable is not specified. Trying to get address from CSFeeOracle contract...',
       );
@@ -55,11 +55,8 @@ export class StrikesContract {
       const feeOracleContract = getContract({ address: feeOracle, abi: feeOracleAbi, client: this.execution.client });
       address = await feeOracleContract.read.STRIKES();
     }
-    if (!address || address == '') {
+    if (!address) {
       throw new Error('Failed to resolve CSStrikes address');
-    }
-    if (!isAddress(address)) {
-      throw new Error(`Invalid STRIKES_ADDRESS: ${address}`);
     }
     this.logger.log(`CSStrikes address: ${address}`);
     this.contract = getContract({ address, abi: strikesAbi, client: this.execution.client });
@@ -81,20 +78,9 @@ export class StrikesContract {
       to: WITHDRAWAL_REQUEST_SYS_ADDRESS,
       data: '0x',
     });
-    const result = data ?? '0x';
-
-    if (!result.startsWith('0x')) {
-      throw new Error('FeeReadFailed');
-    }
-
-    // Remove '0x' prefix for length check
-    if (result.slice(2).length !== 64) {
-      // 32 bytes = 64 hex chars
-      throw new Error('FeeInvalidData');
-    }
-
+    if (!data || size(data) !== 32) throw new Error('FeeInvalidData');
     // Parse uint256 from the response (wei)
-    const fee = BigInt(result);
+    const fee = hexToBigInt(data);
     const maxFeeGwei = BigInt(this.config.get('STRIKES_MAX_REQUEST_FEE_GWEI'));
     if (fee >= maxFeeGwei * 1_000_000_000n) {
       throw new Error(`Withdrawal request fee too high: ${formatGwei(fee)} Gwei >= ${maxFeeGwei} Gwei`);
@@ -114,7 +100,7 @@ export class StrikesContract {
       functionName: 'processBadPerformanceProof',
       args: [
         payload.keyStrikesList,
-        payload.proof as Hex[],
+        payload.proof,
         payload.proofFlags,
         zeroAddress, // msg.sender will be used as a refund recipient
       ],
