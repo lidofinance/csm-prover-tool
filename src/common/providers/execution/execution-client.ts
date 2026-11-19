@@ -57,6 +57,40 @@ function instrumentedFetch(url: string, prometheus: PrometheusService): typeof f
   };
 }
 
+const TRACE_HEADERS = ['x-drpc-trace-id', 'cf-ray'];
+
+// Trace ids let a provider find the request behind an error, even one fallback recovered from; viem awaits the hook, so it must not block
+function logTracedErrors(hostname: string, logger: AppLogger): (response: Response) => void {
+  return (response) => {
+    const ids = TRACE_HEADERS.flatMap((name) => {
+      const value = response.headers.get(name);
+      return value ? [`${name}: ${value}`] : [];
+    }).join(', ');
+    if (!ids) return;
+    if (!response.ok) {
+      logger.warn(`EL ${hostname} answered HTTP ${response.status} (${ids})`);
+      return;
+    }
+    try {
+      void response
+        .clone()
+        .text()
+        .then((text) => {
+          if (!text.includes('"error"')) return;
+          const parsed = JSON.parse(text);
+          for (const item of Array.isArray(parsed) ? parsed : [parsed]) {
+            if (!item?.error) continue;
+            const { code, message } = item.error;
+            logger.warn(`EL ${hostname} returned error ${JSON.stringify({ code, message })} (${ids})`);
+          }
+        })
+        .catch(() => {});
+    } catch {
+      // a trace log must never change the outcome of the request
+    }
+  };
+}
+
 // One Multicall3 eth_call at a time to stay within node rate limits; a failure rejects the queued ones unsent
 export function sequentialMulticall(inner: Transport, logger: AppLogger): Transport {
   const multicallAddress = MULTICALL3_ADDRESS.toLowerCase();
@@ -165,6 +199,7 @@ export async function createElClient(
       retryDelay: config.get('EL_RPC_RETRY_DELAY_MS'),
       fetchOptions: { headers: userAgentHeaders(config) },
       fetchFn: prometheus && instrumentedFetch(url, prometheus),
+      onFetchResponse: logTracedErrors(new URL(url).hostname, logger),
     }),
   );
 
