@@ -12,6 +12,7 @@ import { DaemonService } from './daemon/daemon.service.js';
 const BOOTSTRAP_LOGGER_OPTIONS = {
   bufferLogs: true,
   autoFlushLogs: false,
+  abortOnError: false,
   logger: ['error'] as LogLevel[],
 };
 
