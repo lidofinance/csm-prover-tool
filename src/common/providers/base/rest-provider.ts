@@ -119,32 +119,4 @@ export abstract class BaseRestProvider {
     }
     return { body: body, headers: headers };
   }
-
-  protected async basePost(
-    base: string,
-    endpoint: string,
-    requestBody: any,
-    options?: RequestOptions,
-  ): Promise<RestResponse> {
-    options = {
-      requestPolicy: this.requestPolicy,
-      ...options,
-    } as RequestOptions;
-    const { body, headers, statusCode } = await request(urljoin(base, endpoint), {
-      method: 'POST',
-      headersTimeout: (options.requestPolicy as RequestPolicy).timeout,
-      signal: options.signal,
-      headers: this.buildHeaders({ 'content-type': 'application/json' }, options.headers),
-      body: JSON.stringify(requestBody),
-    });
-    if (statusCode !== 200) {
-      await body.dump().catch(() => {}); // release the body/socket
-      const hostname = new URL(base).hostname;
-      throw new RequestError(
-        `Request failed with status code [${statusCode}] on host [${hostname}]: ${endpoint}`,
-        statusCode,
-      );
-    }
-    return { body: body, headers: headers };
-  }
 }
