@@ -17,7 +17,7 @@ import {
 } from 'viem';
 import { type PrivateKeyAccount, privateKeyToAccount } from 'viem/accounts';
 
-import { EL_CLIENT } from './execution-client.js';
+import { createElClient } from './execution-client.js';
 import { bigIntMax, bigIntMin, percentile } from './utils/common.js';
 import { ConfigService } from '../../config/config.service.js';
 import { WorkingMode } from '../../config/env.validation.js';
@@ -66,6 +66,7 @@ export type ProofTx<
 @Injectable()
 export class Execution {
   public readonly signer?: PrivateKeyAccount;
+  public readonly client: PublicClient;
 
   private gasFeeHistoryCache: bigint[] = [];
   private lastFeeHistoryBlockNumber = 0;
@@ -75,8 +76,8 @@ export class Execution {
     protected readonly config: ConfigService,
     @Optional() protected readonly prometheus: PrometheusService,
     @Optional() protected readonly inquirerService: InquirerService,
-    @Inject(EL_CLIENT) public readonly client: PublicClient,
   ) {
+    this.client = createElClient(this.config, this.logger, this.prometheus);
     const key = this.config.get('TX_SIGNER_PRIVATE_KEY');
     if (key) this.signer = privateKeyToAccount(key);
   }

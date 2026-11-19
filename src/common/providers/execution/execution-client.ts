@@ -7,8 +7,6 @@ import { userAgentHeaders } from '../../helpers/user-agent.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { type PrometheusService } from '../../prometheus/index.js';
 
-export const EL_CLIENT = 'EL_CLIENT';
-
 // Calldata bytes per aggregate3; keeps our heaviest batches near 10M gas, a margin below the eth_call gas cap
 const BATCH_SIZE_BYTES = 17_000;
 
@@ -54,15 +52,19 @@ async function checkChainId({ hostname, transport }: ElEndpoint, chain: ElChain,
   }
 }
 
-export async function createElClient(
+export async function checkElChainIds(
   config: ConfigService,
   logger: AppLogger,
   prometheus?: PrometheusService,
-): Promise<PublicClient> {
+): Promise<void> {
   const chain = elChain(config);
   const endpoints = config.get('EL_RPC_URLS').map((url) => elEndpoint(url, config, logger, prometheus));
-
   await Promise.all(endpoints.map((endpoint) => checkChainId(endpoint, chain, logger)));
+}
+
+export function createElClient(config: ConfigService, logger: AppLogger, prometheus?: PrometheusService): PublicClient {
+  const chain = elChain(config);
+  const endpoints = config.get('EL_RPC_URLS').map((url) => elEndpoint(url, config, logger, prometheus));
 
   return createPublicClient({
     chain,
