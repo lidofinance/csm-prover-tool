@@ -64,7 +64,7 @@ export class ProveCommand extends CommandRunner {
       this.options = await this.inquirerService.ask('proof-input', { ...options, proofType });
       this.logger.debug!(this.options);
 
-      const blockNumber = await this.execution.provider.getBlockNumber();
+      const blockNumber = await this.execution.getBlockNumber();
       this.pubkey = await this.stakingModule.getNodeOperatorKey(
         Number(this.options.nodeOperatorId),
         Number(this.options.keyIndex),

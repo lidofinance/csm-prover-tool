@@ -42,7 +42,7 @@ export class WithdrawalsService {
     const withdrawals = this.getFullWithdrawals(blockInfo, keyInfoFn);
     if (!Object.keys(withdrawals).length) return {};
     const entries = Object.entries(withdrawals);
-    const blockNumber = await this.execution.provider.getBlockNumber();
+    const blockNumber = await this.execution.getBlockNumber();
     const proved = await Promise.all(entries.map(([, k]) => this.stakingModule.isWithdrawalProved(k, blockNumber)));
     const unprovenEntries = entries.filter((_, i) => !proved[i]);
     if (!unprovenEntries.length) {

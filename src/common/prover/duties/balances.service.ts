@@ -93,7 +93,7 @@ export class BalancesService {
       this.logger.log('No additional balances to prove');
       return {};
     }
-    const blockNumber = await this.execution.provider.getBlockNumber();
+    const blockNumber = await this.execution.getBlockNumber();
     const addedBalances = await this.stakingModule.getKeyAddedBalances(
       entries.map(([, keyInfo]) => keyInfo),
       blockNumber,

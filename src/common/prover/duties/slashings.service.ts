@@ -32,7 +32,7 @@ export class SlashingsService {
     };
     if (!Object.keys(slashings).length) return {};
     const entries = Object.entries(slashings);
-    const blockNumber = await this.execution.provider.getBlockNumber();
+    const blockNumber = await this.execution.getBlockNumber();
     const proved = await Promise.all(
       entries.map(([, keyInfo]) => this.stakingModule.isSlashingProved(keyInfo, blockNumber)),
     );

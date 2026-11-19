@@ -56,7 +56,7 @@ export class BadPerformersService {
     if (!isAnyToProcess) return [];
     const badPerfKeys = await this.getBadPerformersKeys(fullKeyInfoFn);
     if (!badPerfKeys) return [];
-    const blockNumber = await this.execution.provider.getBlockNumber();
+    const blockNumber = await this.execution.getBlockNumber();
     const unproven = await this.getUnprovenKeys(badPerfKeys, blockNumber);
     if (!unproven) return [];
     const unprovenNonWithdrawn = await this.getNonWithdrawnKeys(unproven, blockNumber);

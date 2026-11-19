@@ -56,6 +56,10 @@ export class Execution {
     if (key) this.signer = new Wallet(key, this.provider);
   }
 
+  public async getBlockNumber(): Promise<number> {
+    return this.provider.getBlockNumber();
+  }
+
   public async execute(
     populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
     payload: any[],

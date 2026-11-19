@@ -41,7 +41,7 @@ export class WithdrawnService {
     const toCheck = candidates.filter(([, keyInfo]) => !this.provenWithdrawn.has(keyInfo.pubKey));
     let proved: boolean[] = [];
     if (toCheck.length) {
-      const blockNumber = await this.execution.provider.getBlockNumber();
+      const blockNumber = await this.execution.getBlockNumber();
       proved = await Promise.all(
         toCheck.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo, blockNumber)),
       );
