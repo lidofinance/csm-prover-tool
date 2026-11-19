@@ -1,5 +1,5 @@
 {
-  "moduleFileExtensions": ["js", "json", "ts"],
+  "moduleFileExtensions": ["js", "ts", "json"],
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": "daemon.e2e-spec.ts$",

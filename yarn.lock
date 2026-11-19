@@ -638,17 +638,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@chainsafe/persistent-merkle-tree@npm:":
-  version: 1.3.0
-  resolution: "@chainsafe/persistent-merkle-tree@npm:1.3.0"
-  dependencies:
-    "@chainsafe/as-sha256": "npm:"
-    "@chainsafe/hashtree": "npm:1.0.2"
-    "@noble/hashes": "npm:^1.3.0"
-  checksum: 10c0/e1f2472662ce866a759a201bf8a08db4fcf91e0dd648125a93a022a363a5e47eee4f888d367d40fd7a84a42f62c62f0d631fee397efa1018174c8eb20c0ff4b6
-  languageName: node
-  linkType: hard
-
 "@chainsafe/persistent-merkle-tree@npm:^1.3.1":
   version: 1.3.1
   resolution: "@chainsafe/persistent-merkle-tree@npm:1.3.1"
