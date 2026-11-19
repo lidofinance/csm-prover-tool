@@ -19,9 +19,7 @@ export function instrumentedFetch(target: string, prometheus: PrometheusService)
   };
 }
 
-const TRACE_HEADERS = ['x-drpc-trace-id', 'cf-ray'];
-
-async function readErrors(response: Response, hostname: string, ids: string, logger: AppLogger): Promise<void> {
+async function readErrors(response: Response, hostname: string, suffix: string, logger: AppLogger): Promise<void> {
   try {
     const text = await response.clone().text();
     if (!text.includes('"error"')) return;
@@ -29,7 +27,7 @@ async function readErrors(response: Response, hostname: string, ids: string, log
     for (const item of Array.isArray(parsed) ? parsed : [parsed]) {
       if (!item?.error) continue;
       const { code, message } = item.error;
-      logger.warn(`EL ${hostname} returned error ${JSON.stringify({ code, message })} (${ids})`);
+      logger.warn(`EL ${hostname} returned error ${JSON.stringify({ code, message })}${suffix}`);
     }
   } catch {
     // a trace log must never change the outcome of the request
@@ -37,17 +35,23 @@ async function readErrors(response: Response, hostname: string, ids: string, log
 }
 
 // Trace ids let a provider find the request behind an error, even one fallback recovered from; viem awaits the hook, so it must not block
-export function logTracedErrors(hostname: string, logger: AppLogger): (response: Response) => void {
+export function logTracedErrors(
+  hostname: string,
+  traceHeaders: string[],
+  logger: AppLogger,
+): (response: Response) => void {
   return (response) => {
-    const ids = TRACE_HEADERS.flatMap((name) => {
-      const value = response.headers.get(name);
-      return value ? [`${name}: ${value}`] : [];
-    }).join(', ');
-    if (!ids) return;
+    const ids = traceHeaders
+      .flatMap((name) => {
+        const value = response.headers.get(name);
+        return value ? [`${name}: ${value}`] : [];
+      })
+      .join(', ');
+    const suffix = ids ? ` (${ids})` : '';
     if (!response.ok) {
-      logger.warn(`EL ${hostname} answered HTTP ${response.status} (${ids})`);
+      logger.warn(`EL ${hostname} answered HTTP ${response.status}${suffix}`);
       return;
     }
-    void readErrors(response, hostname, ids, logger);
+    void readErrors(response, hostname, suffix, logger);
   };
 }

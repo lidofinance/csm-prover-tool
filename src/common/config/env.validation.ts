@@ -212,6 +212,11 @@ export class EnvironmentVariables {
   public EL_RPC_BATCH_AGGREGATION_WAIT_MS = 10;
 
   @IsArray()
+  @IsString({ each: true })
+  @Transform(({ value }) => toStringList(value), { toClassOnly: true })
+  public EL_TRACE_HEADERS: string[] = ['x-drpc-trace-id', 'cf-ray'];
+
+  @IsArray()
   @ArrayMinSize(1)
   @Transform(({ value }) => value.split(','))
   public CL_API_URLS!: string[];
@@ -356,6 +361,14 @@ const toInteger = (value: unknown): number => {
 
 const toPrefixedHex = (value: unknown): unknown =>
   typeof value === 'string' && /^[0-9a-fA-F]{64}$/.test(value) ? `0x${value}` : value;
+
+const toStringList = (value: unknown): unknown =>
+  typeof value === 'string'
+    ? value
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean)
+    : value;
 
 const toIntArray = (value: unknown): number[] | undefined | unknown => {
   if (value === undefined || value === null) {

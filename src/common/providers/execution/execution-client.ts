@@ -36,7 +36,7 @@ function elEndpoint(url: string, config: ConfigService, logger: AppLogger, prome
     retryDelay: config.get('EL_RPC_RETRY_DELAY_MS'),
     fetchOptions: { headers: userAgentHeaders(config) },
     fetchFn: prometheus && instrumentedFetch(hostname, prometheus),
-    onFetchResponse: logTracedErrors(hostname, logger),
+    onFetchResponse: logTracedErrors(hostname, config.get('EL_TRACE_HEADERS'), logger),
   });
   return { hostname, transport };
 }
