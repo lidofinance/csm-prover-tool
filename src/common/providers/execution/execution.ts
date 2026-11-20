@@ -3,10 +3,10 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { InquirerService } from 'nest-commander';
 import { oraPromise as spinnerFor } from 'ora';
 import {
-  type Abi,
   type Address,
   type Chain,
   ContractFunctionExecutionError,
+  type ContractFunctionParameters,
   type Hex,
   type PublicClient,
   TransactionExecutionError,
@@ -52,15 +52,9 @@ class DryRunError extends ErrorWithContext {}
 const DEPOSIT_CONTRACT_ADDRESS = '0x00000000219ab540356cBB839Cbe05303d7705Fa';
 const MAX_BLOCKCOUNT = 1024n;
 
-type ProofTx = {
-  address: Address;
-  abi: Abi;
-  functionName: string;
-  args: readonly unknown[];
-  value?: bigint;
-};
+type ProofTx = ContractFunctionParameters & { value?: bigint };
 
-export type Simulate = (sender: { account: Address }) => Promise<{ request: ProofTx }>;
+type Simulate = (sender: { account: Address }) => Promise<{ request: ProofTx }>;
 
 function simulatedCallContext(e: unknown) {
   if (!(e instanceof ContractFunctionExecutionError)) return undefined;
@@ -166,15 +160,10 @@ export class Execution {
       value: tx.value,
       ...fees,
     };
-    const emulatedTx = { ...txBase, from };
-    const emulatedTxContext = { payload: tx.args, tx: emulatedTx };
+    const emulatedTxContext = { payload: tx.args, tx: { ...txBase, from } };
     let estimatedGas: bigint;
     try {
-      estimatedGas = await this.client.estimateContractGas({
-        ...tx,
-        account: from,
-        ...fees,
-      });
+      estimatedGas = await this.client.estimateGas({ ...txBase, account: from });
     } catch (e) {
       throw new EmulatedCallError(e, emulatedTxContext);
     }

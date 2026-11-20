@@ -55,16 +55,14 @@ function elTransport(url: string, config: ConfigService, logger: AppLogger, prom
     fetchOptions: { headers: userAgentHeaders(config) },
     fetchFn: async (input, init) => {
       const stop = prometheus?.outgoingELRequestsDuration.startTimer(labels);
+      let status = RequestStatus.ERROR;
       try {
         const response = await fetch(input, init);
-        const status = response.ok ? RequestStatus.COMPLETE : RequestStatus.ERROR;
-        prometheus?.outgoingELRequestsCount.inc({ ...labels, status });
+        if (response.ok) status = RequestStatus.COMPLETE;
         void logErrorResponse(response, hostname, traceHeaders, logger);
         return response;
-      } catch (e) {
-        prometheus?.outgoingELRequestsCount.inc({ ...labels, status: RequestStatus.ERROR });
-        throw e;
       } finally {
+        prometheus?.outgoingELRequestsCount.inc({ ...labels, status });
         stop?.();
       }
     },
@@ -83,14 +81,12 @@ export async function createElClient(
   await Promise.all(
     urls.map(async (url, i) => {
       const hostname = new URL(url).hostname;
-      let chainId: number;
-      try {
-        chainId = Number(await transports[i]({}).request({ method: 'eth_chainId' }));
-      } catch {
+      const chainId = await transports[i]({})
+        .request({ method: 'eth_chainId' })
+        .then(Number, () => undefined);
+      if (chainId === undefined) {
         logger.warn(`EL ${hostname} is unreachable, its chain id is not checked`);
-        return;
-      }
-      if (chainId !== config.get('CHAIN_ID')) {
+      } else if (chainId !== config.get('CHAIN_ID')) {
         throw new Error(`EL ${hostname} reports chain id ${chainId}, CHAIN_ID is ${config.get('CHAIN_ID')}`);
       }
     }),
