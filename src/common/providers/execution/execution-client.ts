@@ -51,6 +51,14 @@ async function logErrorResponse(
   }
 }
 
+// undici wraps the socket error code in `cause` and a viem timeout aborts the request signal
+function describeFetchError(e: unknown, init?: RequestInit): string {
+  if (init?.signal?.aborted) return 'timeout';
+  if (!(e instanceof Error)) return String(e);
+  const { cause } = e;
+  return cause instanceof Error && 'code' in cause && typeof cause.code === 'string' ? cause.code : e.message;
+}
+
 function elTransport(url: string, config: ConfigService, logger: AppLogger, prometheus?: PrometheusService) {
   const hostname = new URL(url).hostname;
   const labels = { name: 'batch', target: hostname };
@@ -71,6 +79,9 @@ function elTransport(url: string, config: ConfigService, logger: AppLogger, prom
         if (response.ok) status = RequestStatus.COMPLETE;
         void logErrorResponse(response, hostname, traceHeaders, logger);
         return response;
+      } catch (e) {
+        logger.warn(`EL ${hostname} request failed: ${describeFetchError(e, init)}`);
+        throw e;
       } finally {
         prometheus?.outgoingELRequestsCount.inc({ ...labels, status });
         stop?.();
