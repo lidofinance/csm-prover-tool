@@ -6,9 +6,7 @@ import {
   type Abi,
   type Address,
   type Chain,
-  type ContractFunctionArgs,
   ContractFunctionExecutionError,
-  type ContractFunctionName,
   type Hex,
   type PublicClient,
   TransactionExecutionError,
@@ -54,16 +52,11 @@ class DryRunError extends ErrorWithContext {}
 const DEPOSIT_CONTRACT_ADDRESS = '0x00000000219ab540356cBB839Cbe05303d7705Fa';
 const MAX_BLOCKCOUNT = 1024n;
 
-type WriteMutability = 'nonpayable' | 'payable';
-
-export type ProofTx<
-  abi extends Abi = Abi,
-  functionName extends ContractFunctionName<abi, WriteMutability> = ContractFunctionName<abi, WriteMutability>,
-> = {
+type ProofTx = {
   address: Address;
-  abi: abi;
-  functionName: functionName;
-  args: ContractFunctionArgs<abi, WriteMutability, functionName>;
+  abi: Abi;
+  functionName: string;
+  args: readonly unknown[];
   value?: bigint;
 };
 
