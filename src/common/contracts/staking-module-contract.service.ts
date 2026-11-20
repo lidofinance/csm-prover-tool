@@ -96,9 +96,9 @@ export class StakingModuleContract {
   public async getVerifierRoleMembers(): Promise<Address[]> {
     const members: Address[] = [];
     const role = await this.contract.read.VERIFIER_ROLE();
-    const membersCount = Number(await this.contract.read.getRoleMemberCount([role]));
-    for (let i = 0; i < membersCount; i++) {
-      const address = await this.contract.read.getRoleMember([role, BigInt(i)]);
+    const membersCount = await this.contract.read.getRoleMemberCount([role]);
+    for (let i = 0n; i < membersCount; i++) {
+      const address = await this.contract.read.getRoleMember([role, i]);
       members.push(address);
     }
     return members;
