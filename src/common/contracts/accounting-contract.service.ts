@@ -6,11 +6,9 @@ import { accountingAbi } from './abi/accounting.js';
 import { StakingModuleContract } from './staking-module-contract.service.js';
 import { Execution } from '../providers/execution/execution.js';
 
-type Accounting = GetContractReturnType<typeof accountingAbi, PublicClient>;
-
 @Injectable()
 export class AccountingContract {
-  private contract: Accounting;
+  private contract: GetContractReturnType<typeof accountingAbi, PublicClient>;
   private bondCurveIdCache = new LRUCache<string, number>({ max: 128 });
 
   constructor(

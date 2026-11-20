@@ -8,11 +8,9 @@ import { StakingModuleContract } from './staking-module-contract.service.js';
 import { type AppLogger } from '../logger/app-logger.type.js';
 import { Execution } from '../providers/execution/execution.js';
 
-type ParametersRegistry = GetContractReturnType<typeof parametersRegistryAbi, PublicClient>;
-
 @Injectable()
 export class ParametersRegistryContract {
-  private contract: ParametersRegistry;
+  private contract: GetContractReturnType<typeof parametersRegistryAbi, PublicClient>;
   private strikeParamsCache = new LRUCache<string, { lifetime: number; threshold: number }>({ max: 128 });
 
   constructor(

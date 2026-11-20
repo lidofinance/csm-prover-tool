@@ -24,13 +24,10 @@ import { Execution } from '../providers/execution/execution.js';
 
 const WITHDRAWAL_REQUEST_SYS_ADDRESS = '0x00000961Ef480Eb55e80D19ad83579A64c007002';
 
-type Strikes = GetContractReturnType<typeof strikesAbi, PublicClient>;
-type TriggerableWithdrawalsGateway = GetContractReturnType<typeof triggerableWithdrawalsGatewayAbi, PublicClient>;
-
 @Injectable()
 export class StrikesContract {
-  private contract: Strikes;
-  private gateway: TriggerableWithdrawalsGateway;
+  private contract: GetContractReturnType<typeof strikesAbi, PublicClient>;
+  private gateway: GetContractReturnType<typeof triggerableWithdrawalsGatewayAbi, PublicClient>;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,

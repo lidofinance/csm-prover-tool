@@ -18,11 +18,9 @@ import { ConfigService } from '../config/config.service.js';
 import { type AppLogger } from '../logger/app-logger.type.js';
 import { Execution } from '../providers/execution/execution.js';
 
-type Verifier = GetContractReturnType<typeof verifierAbi, PublicClient>;
-
 @Injectable()
 export class VerifierContract {
-  private contract: Verifier;
+  private contract: GetContractReturnType<typeof verifierAbi, PublicClient>;
   public isCurated = false;
   private minWithdrawalRatio?: bigint; // immutable in the contract
 

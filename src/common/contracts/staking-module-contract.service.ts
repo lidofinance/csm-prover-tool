@@ -9,11 +9,9 @@ import { type AppLogger } from '../logger/app-logger.type.js';
 import type { KeyInfo } from '../prover/types.js';
 import { Execution } from '../providers/execution/execution.js';
 
-type Csm = GetContractReturnType<typeof csmAbi, PublicClient>;
-
 @Injectable()
 export class StakingModuleContract {
-  private contract: Csm;
+  private contract: GetContractReturnType<typeof csmAbi, PublicClient>;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,

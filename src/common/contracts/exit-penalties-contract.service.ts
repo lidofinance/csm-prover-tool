@@ -9,11 +9,9 @@ import { type AppLogger } from '../logger/app-logger.type.js';
 import type { KeyInfo } from '../prover/types.js';
 import { Execution } from '../providers/execution/execution.js';
 
-type ExitPenalties = GetContractReturnType<typeof exitPenaltiesAbi, PublicClient>;
-
 @Injectable()
 export class ExitPenaltiesContract {
-  private contract: ExitPenalties;
+  private contract: GetContractReturnType<typeof exitPenaltiesAbi, PublicClient>;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
