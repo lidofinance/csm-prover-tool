@@ -5,18 +5,21 @@ import { oraPromise as spinnerFor } from 'ora';
 import {
   type Abi,
   type Address,
+  type Chain,
   type ContractFunctionArgs,
   ContractFunctionExecutionError,
   type ContractFunctionName,
   type Hex,
   type PublicClient,
+  TransactionExecutionError,
   type TransactionReceipt,
+  type Transport,
   encodeFunctionData,
   formatGwei,
-  keccak256,
   parseGwei,
 } from 'viem';
 import { type PrivateKeyAccount, privateKeyToAccount } from 'viem/accounts';
+import { sendTransaction } from 'viem/actions';
 
 import { createElClient } from './execution-client.js';
 import { bigIntMax, bigIntMin, percentile } from './utils/common.js';
@@ -81,7 +84,7 @@ function simulatedCallContext(e: unknown) {
 @Injectable()
 export class Execution {
   public readonly signer?: PrivateKeyAccount;
-  public readonly client: PublicClient;
+  public readonly client: PublicClient<Transport, Chain>;
 
   private gasFeeHistoryCache: bigint[] = [];
   private lastFeeHistoryBlockNumber = 0n;
@@ -201,8 +204,7 @@ export class Execution {
     const populatedTx = {
       ...txBase,
       gas: gasLimit,
-      type: 'eip1559' as const,
-      chainId: this.config.get('CHAIN_ID'),
+      chainId: this.client.chain.id,
       nonce: await this.client.getTransactionCount({ address: this.signer.address, blockTag: 'pending' }),
     };
     const populatedTxContext = { payload: tx.args, tx: populatedTx };
@@ -230,11 +232,13 @@ export class Execution {
         throw new HighGasFeeError('Transaction is not sent due to high gas fee', populatedTxContext);
       }
     }
-    const signed = await this.signer.signTransaction(populatedTx);
     let hash: Hex;
     let receipt: TransactionReceipt;
     try {
-      const submittedPromise = this.client.sendRawTransaction({ serializedTransaction: signed });
+      const submittedPromise = sendTransaction(this.client, {
+        ...populatedTx,
+        account: this.signer,
+      });
       let msg = `Sending transaction with nonce ${populatedTx.nonce} and gasLimit: ${populatedTx.gas}, maxFeePerGas: ${populatedTx.maxFeePerGas}, maxPriorityFeePerGas: ${populatedTx.maxPriorityFeePerGas}`;
       if (this.isCLI()) {
         spinnerFor(submittedPromise, { text: msg });
@@ -242,9 +246,6 @@ export class Execution {
         this.logger.log(msg);
       }
       hash = await submittedPromise;
-      if (hash.toLowerCase() !== keccak256(signed)) {
-        throw new Error(`Transaction hash mismatch: node returned ${hash}, signed ${keccak256(signed)}`);
-      }
       this.logger.log(`Transaction sent to mempool. Hash: ${hash}`);
       const waitingPromise = this.client.waitForTransactionReceipt({
         hash,
@@ -260,7 +261,7 @@ export class Execution {
       }
       receipt = await waitingPromise;
     } catch (e) {
-      throw new SendTransactionError(e, populatedTxContext);
+      throw new SendTransactionError(e instanceof TransactionExecutionError ? e.cause : e, populatedTxContext);
     }
     if (receipt.status !== 'success') {
       throw new SendTransactionError(

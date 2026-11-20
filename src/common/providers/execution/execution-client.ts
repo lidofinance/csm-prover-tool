@@ -1,4 +1,4 @@
-import { type PublicClient, createPublicClient, defineChain, fallback, http } from 'viem';
+import { type Chain, type PublicClient, type Transport, createPublicClient, defineChain, fallback, http } from 'viem';
 
 import { MULTICALL3_ADDRESS, sequentialMulticall } from './sequential-multicall.js';
 import type { ConfigService } from '../../config/config.service.js';
@@ -93,7 +93,11 @@ export async function checkElChainIds(
   );
 }
 
-export function createElClient(config: ConfigService, logger: AppLogger, prometheus?: PrometheusService): PublicClient {
+export function createElClient(
+  config: ConfigService,
+  logger: AppLogger,
+  prometheus?: PrometheusService,
+): PublicClient<Transport, Chain> {
   const urls = config.get('EL_RPC_URLS');
   return createPublicClient({
     chain: defineChain({
