@@ -1,4 +1,5 @@
 import {
+  BaseError,
   type Chain,
   type EIP1193RequestFn,
   type PublicClient,
@@ -110,7 +111,7 @@ function stickyFailover(transports: Transport[], hostnames: string[], resetMs: n
           active = next;
           switchedAt = Date.now();
           if (attempt === instances.length - 1) throw e;
-          const reason = 'shortMessage' in e && typeof e.shortMessage === 'string' ? e.shortMessage : e.message;
+          const reason = e instanceof BaseError ? e.details || e.shortMessage : e.message;
           logger.warn(`EL ${hostnames[i]} failed, trying ${hostnames[next]}: ${reason}`);
         }
       }
