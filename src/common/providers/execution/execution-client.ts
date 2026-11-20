@@ -43,8 +43,7 @@ async function logErrorResponse(
 
 function elTransport(url: string, config: ConfigService, logger: AppLogger, prometheus?: PrometheusService) {
   const hostname = new URL(url).hostname;
-  const name = 'batch';
-  const target = hostname;
+  const labels = { name: 'batch', target: hostname };
   const traceHeaders = config.get('EL_TRACE_HEADERS');
   return http(url, {
     batch: {
@@ -55,15 +54,15 @@ function elTransport(url: string, config: ConfigService, logger: AppLogger, prom
     retryDelay: config.get('EL_RPC_RETRY_DELAY_MS'),
     fetchOptions: { headers: userAgentHeaders(config) },
     fetchFn: async (input, init) => {
-      const stop = prometheus?.outgoingELRequestsDuration.startTimer({ name, target });
+      const stop = prometheus?.outgoingELRequestsDuration.startTimer(labels);
       try {
         const response = await fetch(input, init);
         const status = response.ok ? RequestStatus.COMPLETE : RequestStatus.ERROR;
-        prometheus?.outgoingELRequestsCount.inc({ name, target, status });
+        prometheus?.outgoingELRequestsCount.inc({ ...labels, status });
         void logErrorResponse(response, hostname, traceHeaders, logger);
         return response;
       } catch (e) {
-        prometheus?.outgoingELRequestsCount.inc({ name, target, status: RequestStatus.ERROR });
+        prometheus?.outgoingELRequestsCount.inc({ ...labels, status: RequestStatus.ERROR });
         throw e;
       } finally {
         stop?.();
