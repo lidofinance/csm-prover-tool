@@ -9,7 +9,7 @@ import { Execution } from '../providers/execution/execution.js';
 @Injectable()
 export class AccountingContract {
   private contract: GetContractReturnType<typeof accountingAbi, PublicClient>;
-  private bondCurveIdCache = new LRUCache<string, number>({ max: 128 });
+  private bondCurveIdCache = new LRUCache<string, bigint>({ max: 128 });
 
   constructor(
     protected readonly execution: Execution,
@@ -26,11 +26,11 @@ export class AccountingContract {
     return Number(count);
   }
 
-  public async getBondCurveId(blockNumber: bigint, nodeOperatorId: number): Promise<number> {
+  public async getBondCurveId(blockNumber: bigint, nodeOperatorId: number): Promise<bigint> {
     const cacheKey = `${blockNumber}_${nodeOperatorId}`;
     let curveId = this.bondCurveIdCache.get(cacheKey);
     if (curveId === undefined) {
-      curveId = Number(await this.contract.read.getBondCurveId([BigInt(nodeOperatorId)], { blockNumber }));
+      curveId = await this.contract.read.getBondCurveId([BigInt(nodeOperatorId)], { blockNumber });
       this.bondCurveIdCache.set(cacheKey, curveId);
     }
     return curveId;

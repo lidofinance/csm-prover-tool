@@ -38,8 +38,8 @@ export class BadPerformersService {
   ) {}
 
   private currentStrikesTree: StandardMerkleTree<StrikesTreeLeaf> | undefined;
-  private currentStrikesThresholdsByCurveId: Map<number, number> = new Map();
-  private currentNodeOperatorsCurveIds: Map<number, number> = new Map();
+  private currentStrikesThresholdsByCurveId: Map<bigint, number> = new Map();
+  private currentNodeOperatorsCurveIds: Map<number, bigint> = new Map();
   private lastProcessedStrikesTreeRoot: string | undefined;
   // Both predicates are monotonic on-chain, so a cached positive is never re-read.
   private readonly provenEjections = new Set<string>();
@@ -209,7 +209,7 @@ export class BadPerformersService {
     return false;
   }
 
-  private isAnyNodeOperatorCurveIdChanged(curveIds: Map<number, number>): boolean {
+  private isAnyNodeOperatorCurveIdChanged(curveIds: Map<number, bigint>): boolean {
     for (const [nodeOperatorId, curveId] of curveIds.entries()) {
       const currentCurveId = this.currentNodeOperatorsCurveIds.get(nodeOperatorId);
       if (currentCurveId !== curveId) {
@@ -223,7 +223,7 @@ export class BadPerformersService {
     return false;
   }
 
-  private isAnyStrikesThresholdChanged(thresholds: Map<number, number>): boolean {
+  private isAnyStrikesThresholdChanged(thresholds: Map<bigint, number>): boolean {
     for (const [curveId, threshold] of thresholds.entries()) {
       const currentThreshold = this.currentStrikesThresholdsByCurveId.get(curveId);
       if (currentThreshold !== threshold) {
@@ -340,12 +340,12 @@ export class BadPerformersService {
     return nonWithdrawn;
   }
 
-  private async getStrikesThresholds(headBlockInfo: SupportedBlock): Promise<Map<number, number>> {
+  private async getStrikesThresholds(headBlockInfo: SupportedBlock): Promise<Map<bigint, number>> {
     const blockNumber = BigInt(headBlockInfo.body.executionPayload.blockNumber);
-    const thresholds = new Map<number, number>();
+    const thresholds = new Map<bigint, number>();
 
     const curvesCount = await this.accounting.getCurvesCount(blockNumber);
-    const curveIds = Array.from({ length: curvesCount }, (_, i) => i);
+    const curveIds = Array.from({ length: curvesCount }, (_, i) => BigInt(i));
     const params = await Promise.all(curveIds.map((curveId) => this.params.getStrikeParams(blockNumber, curveId)));
     curveIds.forEach((curveId, i) => thresholds.set(curveId, params[i].threshold));
     return thresholds;
@@ -354,9 +354,9 @@ export class BadPerformersService {
   private async getNodeOperatorsCurveIds(
     strikesTree: StandardMerkleTree<StrikesTreeLeaf>,
     headBlockInfo: SupportedBlock,
-  ): Promise<Map<number, number>> {
+  ): Promise<Map<number, bigint>> {
     const blockNumber = BigInt(headBlockInfo.body.executionPayload.blockNumber);
-    const curveIds = new Map<number, number>();
+    const curveIds = new Map<number, bigint>();
 
     const noIds = [...new Set([...strikesTree.entries()].map((leaf) => leaf[1][0]))];
     const ids = await Promise.all(

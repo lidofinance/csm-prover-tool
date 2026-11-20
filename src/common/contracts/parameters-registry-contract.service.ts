@@ -25,11 +25,11 @@ export class ParametersRegistryContract {
     this.contract = getContract({ address, abi: parametersRegistryAbi, client: this.execution.client });
   }
 
-  public async getStrikeParams(blockNumber: bigint, curveId: number): Promise<{ lifetime: number; threshold: number }> {
+  public async getStrikeParams(blockNumber: bigint, curveId: bigint): Promise<{ lifetime: number; threshold: number }> {
     const cacheKey = `${blockNumber}_${curveId}`;
     let params = this.strikeParamsCache.get(cacheKey);
     if (!params) {
-      const [lifetime, threshold] = await this.contract.read.getStrikesParams([BigInt(curveId)], {
+      const [lifetime, threshold] = await this.contract.read.getStrikesParams([curveId], {
         blockNumber,
       });
       params = { lifetime: Number(lifetime), threshold: Number(threshold) };
