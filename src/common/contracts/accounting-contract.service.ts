@@ -21,18 +21,16 @@ export class AccountingContract {
     this.contract = getContract({ address: accounting, abi: accountingAbi, client: this.execution.client });
   }
 
-  public async getCurvesCount(blockNumber: number): Promise<number> {
-    const count = await this.contract.read.getCurvesCount({ blockNumber: BigInt(blockNumber) });
+  public async getCurvesCount(blockNumber: bigint): Promise<number> {
+    const count = await this.contract.read.getCurvesCount({ blockNumber });
     return Number(count);
   }
 
-  public async getBondCurveId(blockNumber: number, nodeOperatorId: number): Promise<number> {
+  public async getBondCurveId(blockNumber: bigint, nodeOperatorId: number): Promise<number> {
     const cacheKey = `${blockNumber}_${nodeOperatorId}`;
     let curveId = this.bondCurveIdCache.get(cacheKey);
     if (curveId === undefined) {
-      curveId = Number(
-        await this.contract.read.getBondCurveId([BigInt(nodeOperatorId)], { blockNumber: BigInt(blockNumber) }),
-      );
+      curveId = Number(await this.contract.read.getBondCurveId([BigInt(nodeOperatorId)], { blockNumber }));
       this.bondCurveIdCache.set(cacheKey, curveId);
     }
     return curveId;

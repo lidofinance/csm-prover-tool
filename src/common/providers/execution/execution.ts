@@ -48,7 +48,7 @@ class NoSignerError extends ErrorWithContext {}
 class DryRunError extends ErrorWithContext {}
 
 const DEPOSIT_CONTRACT_ADDRESS = '0x00000000219ab540356cBB839Cbe05303d7705Fa';
-const MAX_BLOCKCOUNT = 1024;
+const MAX_BLOCKCOUNT = 1024n;
 
 type WriteMutability = 'nonpayable' | 'payable';
 
@@ -69,7 +69,7 @@ export class Execution {
   public readonly client: PublicClient;
 
   private gasFeeHistoryCache: bigint[] = [];
-  private lastFeeHistoryBlockNumber = 0;
+  private lastFeeHistoryBlockNumber = 0n;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
@@ -82,8 +82,8 @@ export class Execution {
     if (key) this.signer = privateKeyToAccount(key);
   }
 
-  public async getBlockNumber(): Promise<number> {
-    return Number(await this.client.getBlockNumber({ cacheTime: 0 }));
+  public async getBlockNumber(): Promise<bigint> {
+    return await this.client.getBlockNumber({ cacheTime: 0 });
   }
 
   public async execute<abi extends Abi, functionName extends ContractFunctionName<abi, WriteMutability>>(
@@ -314,9 +314,9 @@ export class Execution {
   }
 
   private async updateGasFeeHistoryCache(): Promise<void> {
-    const maxBlocksPerHour = (60 * 60) / 12;
-    const maxBlocksPerDay = 24 * maxBlocksPerHour;
-    const maxFeeHistoryCacheSize = this.config.get('TX_GAS_FEE_HISTORY_DAYS') * maxBlocksPerDay;
+    const maxBlocksPerHour = (60n * 60n) / 12n;
+    const maxBlocksPerDay = 24n * maxBlocksPerHour;
+    const maxFeeHistoryCacheSize = BigInt(this.config.get('TX_GAS_FEE_HISTORY_DAYS')) * maxBlocksPerDay;
 
     const latestBlockNumber = await this.getBlockNumber();
 
@@ -329,14 +329,14 @@ export class Execution {
     let newGasFees: bigint[] = [];
     let blockCountPerRequest = MAX_BLOCKCOUNT;
     let latestBlockToRequest = latestBlockNumber;
-    let totalBlockCountToFetch = Math.min(feeHistoryCacheBlocksDelay, maxFeeHistoryCacheSize);
-    while (totalBlockCountToFetch > 0) {
+    let totalBlockCountToFetch = bigIntMin(feeHistoryCacheBlocksDelay, maxFeeHistoryCacheSize);
+    while (totalBlockCountToFetch > 0n) {
       if (totalBlockCountToFetch < MAX_BLOCKCOUNT) {
         blockCountPerRequest = totalBlockCountToFetch;
       }
       const stats = await this.client.getFeeHistory({
-        blockCount: blockCountPerRequest,
-        blockNumber: BigInt(latestBlockToRequest),
+        blockCount: Number(blockCountPerRequest),
+        blockNumber: latestBlockToRequest,
         rewardPercentiles: [],
       });
       // NOTE: `baseFeePerGas` includes the next block after the newest of the returned range,

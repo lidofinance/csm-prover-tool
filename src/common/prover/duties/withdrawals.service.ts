@@ -59,7 +59,7 @@ export class WithdrawalsService {
   }
 
   // The Verifier reverts with `PartialWithdrawal` if the amount is below `MIN_WITHDRAWAL_RATIO` of the expected balance.
-  private async filterProvable(entries: WithdrawalEntry[], blockNumber: number): Promise<WithdrawalEntry[]> {
+  private async filterProvable(entries: WithdrawalEntry[], blockNumber: bigint): Promise<WithdrawalEntry[]> {
     const ratioBp = await this.verifier.getMinWithdrawalRatio();
     const addedBalancesWei = await this.stakingModule.getKeyAddedBalances(
       entries.map(([, k]) => k),

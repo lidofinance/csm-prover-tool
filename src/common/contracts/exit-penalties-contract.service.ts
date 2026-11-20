@@ -32,9 +32,9 @@ export class ExitPenaltiesContract {
     this.contract = getContract({ address, abi: exitPenaltiesAbi, client: this.execution.client });
   }
 
-  public async isEjectionProved(keyInfo: KeyInfo, blockNumber: number): Promise<boolean> {
+  public async isEjectionProved(keyInfo: KeyInfo, blockNumber: bigint): Promise<boolean> {
     const data = await this.contract.read.getExitPenaltyInfo([BigInt(keyInfo.operatorId), keyInfo.pubKey], {
-      blockNumber: BigInt(blockNumber),
+      blockNumber,
     });
     return data.strikesPenalty.isValue;
   }

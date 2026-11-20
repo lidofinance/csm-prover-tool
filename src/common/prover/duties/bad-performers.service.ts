@@ -169,7 +169,7 @@ export class BadPerformersService {
   private async getStrikesTree(
     headBlockInfo: SupportedBlock,
   ): Promise<StandardMerkleTree<StrikesTreeLeaf> | undefined> {
-    const blockNumber = headBlockInfo.body.executionPayload.blockNumber;
+    const blockNumber = BigInt(headBlockInfo.body.executionPayload.blockNumber);
     const [treeRoot, treeCid] = await Promise.all([
       this.strikes.getTreeRoot(blockNumber),
       this.strikes.getTreeCid(blockNumber),
@@ -288,7 +288,7 @@ export class BadPerformersService {
 
   private async getUnprovenKeys(
     keys: InvolvedKeysWithBadPerformance,
-    blockNumber: number,
+    blockNumber: bigint,
   ): Promise<InvolvedKeysWithBadPerformance | undefined> {
     this.logger.log('🔍 Searching for unproven bad performers');
 
@@ -314,7 +314,7 @@ export class BadPerformersService {
 
   private async getNonWithdrawnKeys(
     keys: InvolvedKeysWithBadPerformance,
-    blockNumber: number,
+    blockNumber: bigint,
   ): Promise<InvolvedKeysWithBadPerformance | undefined> {
     this.logger.log('🔍 Searching for non-withdrawn bad performers');
 
@@ -341,7 +341,7 @@ export class BadPerformersService {
   }
 
   private async getStrikesThresholds(headBlockInfo: SupportedBlock): Promise<Map<number, number>> {
-    const blockNumber = headBlockInfo.body.executionPayload.blockNumber;
+    const blockNumber = BigInt(headBlockInfo.body.executionPayload.blockNumber);
     const thresholds = new Map<number, number>();
 
     const curvesCount = await this.accounting.getCurvesCount(blockNumber);
@@ -355,7 +355,7 @@ export class BadPerformersService {
     strikesTree: StandardMerkleTree<StrikesTreeLeaf>,
     headBlockInfo: SupportedBlock,
   ): Promise<Map<number, number>> {
-    const blockNumber = headBlockInfo.body.executionPayload.blockNumber;
+    const blockNumber = BigInt(headBlockInfo.body.executionPayload.blockNumber);
     const curveIds = new Map<number, number>();
 
     const noIds = [...new Set([...strikesTree.entries()].map((leaf) => leaf[1][0]))];

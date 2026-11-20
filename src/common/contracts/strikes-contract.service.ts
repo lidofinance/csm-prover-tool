@@ -115,11 +115,11 @@ export class StrikesContract {
     return currentExitRequestsLimit;
   }
 
-  public async getTreeCid(blockNumber: number): Promise<string> {
-    return await this.contract.read.treeCid({ blockNumber: BigInt(blockNumber) });
+  public async getTreeCid(blockNumber: bigint): Promise<string> {
+    return await this.contract.read.treeCid({ blockNumber });
   }
 
-  public async getTreeRoot(blockNumber: number): Promise<string> {
-    return await this.contract.read.treeRoot({ blockNumber: BigInt(blockNumber) });
+  public async getTreeRoot(blockNumber: bigint): Promise<string> {
+    return await this.contract.read.treeRoot({ blockNumber });
   }
 }

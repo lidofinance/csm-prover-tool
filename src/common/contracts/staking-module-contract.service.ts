@@ -45,45 +45,43 @@ export class StakingModuleContract {
     }
   }
 
-  public async getKeyAddedBalances(keyInfos: KeyInfo[], blockNumber: number): Promise<bigint[]> {
+  public async getKeyAddedBalances(keyInfos: KeyInfo[], blockNumber: bigint): Promise<bigint[]> {
     const balances = await Promise.all(
       keyInfos.map(({ operatorId, keyIndex }) =>
         this.contract.read.getKeyConfirmedBalances([BigInt(operatorId), BigInt(keyIndex), 1n], {
-          blockNumber: BigInt(blockNumber),
+          blockNumber,
         }),
       ),
     );
     return balances.map(([balance]) => balance);
   }
 
-  public async isWithdrawalProved(keyInfo: KeyInfo, blockNumber: number): Promise<boolean> {
+  public async isWithdrawalProved(keyInfo: KeyInfo, blockNumber: bigint): Promise<boolean> {
     return await this.contract.read.isValidatorWithdrawn([BigInt(keyInfo.operatorId), BigInt(keyInfo.keyIndex)], {
-      blockNumber: BigInt(blockNumber),
+      blockNumber,
     });
   }
 
-  public async isSlashingProved(keyInfo: KeyInfo, blockNumber: number): Promise<boolean> {
+  public async isSlashingProved(keyInfo: KeyInfo, blockNumber: bigint): Promise<boolean> {
     return await this.contract.read.isValidatorSlashed([BigInt(keyInfo.operatorId), BigInt(keyInfo.keyIndex)], {
-      blockNumber: BigInt(blockNumber),
+      blockNumber,
     });
   }
 
-  public async getNodeOperatorsCount(blockNumber: number): Promise<number> {
-    return Number(await this.contract.read.getNodeOperatorsCount({ blockNumber: BigInt(blockNumber) }));
+  public async getNodeOperatorsCount(blockNumber: bigint): Promise<number> {
+    return Number(await this.contract.read.getNodeOperatorsCount({ blockNumber }));
   }
 
-  public async getDepositedKeysCounts(operatorIds: number[], blockNumber: number): Promise<number[]> {
+  public async getDepositedKeysCounts(operatorIds: number[], blockNumber: bigint): Promise<number[]> {
     const operators = await Promise.all(
-      operatorIds.map((operatorId) =>
-        this.contract.read.getNodeOperator([BigInt(operatorId)], { blockNumber: BigInt(blockNumber) }),
-      ),
+      operatorIds.map((operatorId) => this.contract.read.getNodeOperator([BigInt(operatorId)], { blockNumber })),
     );
     return operators.map(({ totalDepositedKeys }) => totalDepositedKeys);
   }
 
-  public async getNodeOperatorKey(nodeOperatorId: number, keyIndex: number, blockNumber: number): Promise<Hex> {
+  public async getNodeOperatorKey(nodeOperatorId: number, keyIndex: number, blockNumber: bigint): Promise<Hex> {
     return await this.contract.read.getSigningKeys([BigInt(nodeOperatorId), BigInt(keyIndex), 1n], {
-      blockNumber: BigInt(blockNumber),
+      blockNumber,
     });
   }
 
