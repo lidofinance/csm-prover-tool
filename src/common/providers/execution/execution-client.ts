@@ -1,11 +1,10 @@
 import {
   BaseError,
   type Chain,
-  type EIP1193RequestFn,
   type PublicClient,
   type Transport,
   createPublicClient,
-  createTransport,
+  custom,
   defineChain,
   http,
   shouldThrow,
@@ -94,34 +93,32 @@ function elTransport(url: string, config: ConfigService, logger: AppLogger, prom
 
 // viem's fallback retries the first URL on every request and its rank mode pings forever; go back to it only after EL_RPC_RESET_INTERVAL_MS
 function stickyFailover(transports: Transport[], hostnames: string[], resetMs: number, logger: AppLogger): Transport {
-  return (parameters) => {
-    const urls = transports.map((transport) => transport(parameters));
-    let active = 0;
-    let switchedAt = 0;
-    const request: EIP1193RequestFn = async (args, options) => {
-      if (Date.now() - switchedAt >= resetMs) active = 0;
-      let error: unknown;
-      for (const i of urls.map((_, n) => (active + n) % urls.length)) {
-        try {
-          return await urls[i].request(args, options);
-        } catch (e) {
-          if (!(e instanceof Error) || shouldThrow(e)) throw e;
-          logger.warn(`EL ${hostnames[i]} failed: ${e instanceof BaseError ? e.details || e.shortMessage : e.message}`);
-          error = e;
-          active = (i + 1) % urls.length;
-          switchedAt = Date.now();
+  const urls = transports.map((transport) => transport({}));
+  let active = 0;
+  let switchedAt = 0;
+  return custom(
+    {
+      async request(args, options) {
+        if (Date.now() - switchedAt >= resetMs) active = 0;
+        let error: unknown;
+        for (const i of urls.map((_, n) => (active + n) % urls.length)) {
+          try {
+            return await urls[i].request(args, options);
+          } catch (e) {
+            if (!(e instanceof Error) || shouldThrow(e)) throw e;
+            logger.warn(
+              `EL ${hostnames[i]} failed: ${e instanceof BaseError ? e.details || e.shortMessage : e.message}`,
+            );
+            error = e;
+            active = (i + 1) % urls.length;
+            switchedAt = Date.now();
+          }
         }
-      }
-      throw error;
-    };
-    return createTransport({
-      key: 'stickyFailover',
-      name: 'Sticky failover',
-      type: 'stickyFailover',
-      retryCount: 0,
-      request,
-    });
-  };
+        throw error;
+      },
+    },
+    { retryCount: 0 },
+  );
 }
 
 export const EL_CLIENT = Symbol('EL_CLIENT');
