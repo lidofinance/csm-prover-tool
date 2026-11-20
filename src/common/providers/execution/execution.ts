@@ -233,11 +233,11 @@ export class Execution {
       });
       let msg = `Sending transaction with nonce ${populatedTx.nonce} and gasLimit: ${populatedTx.gas}, maxFeePerGas: ${populatedTx.maxFeePerGas}, maxPriorityFeePerGas: ${populatedTx.maxPriorityFeePerGas}`;
       if (this.isCLI()) {
-        spinnerFor(submittedPromise, { text: msg });
+        hash = await spinnerFor(submittedPromise, { text: msg });
       } else {
         this.logger.log(msg);
+        hash = await submittedPromise;
       }
-      hash = await submittedPromise;
       this.logger.log(`Transaction sent to mempool. Hash: ${hash}`);
       const waitingPromise = this.client.waitForTransactionReceipt({
         hash,
@@ -247,11 +247,11 @@ export class Execution {
       });
       msg = `Waiting until the transaction has been mined and confirmed ${this.config.get('TX_CONFIRMATIONS')} times`;
       if (this.isCLI()) {
-        spinnerFor(waitingPromise, { text: msg });
+        receipt = await spinnerFor(waitingPromise, { text: msg });
       } else {
         this.logger.log(msg);
+        receipt = await waitingPromise;
       }
-      receipt = await waitingPromise;
     } catch (e) {
       throw new SendTransactionError(e instanceof TransactionExecutionError ? e.cause : e, populatedTxContext);
     }
