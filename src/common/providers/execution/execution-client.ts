@@ -68,7 +68,8 @@ function elTransport(url: string, config: ConfigService, logger: AppLogger, prom
       batchSize: config.get('EL_RPC_MAX_BATCH_SIZE'),
       wait: config.get('EL_RPC_BATCH_AGGREGATION_WAIT_MS'),
     },
-    retryCount: config.get('EL_RPC_MAX_RETRIES'),
+    // viem retries after the first attempt, the setting counts attempts
+    retryCount: config.get('EL_RPC_MAX_RETRIES') - 1,
     retryDelay: config.get('EL_RPC_RETRY_DELAY_MS'),
     fetchOptions: { headers: userAgentHeaders(config) },
     fetchFn: async (input, init) => {
