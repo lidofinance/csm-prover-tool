@@ -101,7 +101,7 @@ async function failBootstrap(appName: string, error: unknown, app?: INestApplica
       console.error(stack);
     }
   }
-  Logger.flush();
+  Logger.detachBuffer();
 
   if (app) {
     await app.close();
