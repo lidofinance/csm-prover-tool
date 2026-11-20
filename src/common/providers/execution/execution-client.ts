@@ -9,32 +9,6 @@ import { type PrometheusService, RequestStatus } from '../../prometheus/index.js
 // Calldata bytes per aggregate3; keeps our heaviest batches near 10M gas, a margin below the eth_call gas cap
 const BATCH_SIZE_BYTES = 17_000;
 
-function elFetch(
-  hostname: string,
-  config: ConfigService,
-  logger: AppLogger,
-  prometheus?: PrometheusService,
-): typeof fetch {
-  const name = 'batch';
-  const target = hostname;
-  const traceHeaders = config.get('EL_TRACE_HEADERS');
-  return async (input, init) => {
-    const stop = prometheus?.outgoingELRequestsDuration.startTimer({ name, target });
-    try {
-      const response = await fetch(input, init);
-      const status = response.ok ? RequestStatus.COMPLETE : RequestStatus.ERROR;
-      prometheus?.outgoingELRequestsCount.inc({ name, target, status });
-      void logErrorResponse(response, hostname, traceHeaders, logger);
-      return response;
-    } catch (e) {
-      prometheus?.outgoingELRequestsCount.inc({ name, target, status: RequestStatus.ERROR });
-      throw e;
-    } finally {
-      stop?.();
-    }
-  };
-}
-
 // Trace ids let a provider find the request behind an error, even one fallback recovered from; viem awaits the fetch, so it must not block
 async function logErrorResponse(
   response: Response,
@@ -69,6 +43,9 @@ async function logErrorResponse(
 
 function elTransport(url: string, config: ConfigService, logger: AppLogger, prometheus?: PrometheusService) {
   const hostname = new URL(url).hostname;
+  const name = 'batch';
+  const target = hostname;
+  const traceHeaders = config.get('EL_TRACE_HEADERS');
   return http(url, {
     batch: {
       batchSize: config.get('EL_RPC_MAX_BATCH_SIZE'),
@@ -77,7 +54,21 @@ function elTransport(url: string, config: ConfigService, logger: AppLogger, prom
     retryCount: config.get('EL_RPC_MAX_RETRIES'),
     retryDelay: config.get('EL_RPC_RETRY_DELAY_MS'),
     fetchOptions: { headers: userAgentHeaders(config) },
-    fetchFn: elFetch(hostname, config, logger, prometheus),
+    fetchFn: async (input, init) => {
+      const stop = prometheus?.outgoingELRequestsDuration.startTimer({ name, target });
+      try {
+        const response = await fetch(input, init);
+        const status = response.ok ? RequestStatus.COMPLETE : RequestStatus.ERROR;
+        prometheus?.outgoingELRequestsCount.inc({ name, target, status });
+        void logErrorResponse(response, hostname, traceHeaders, logger);
+        return response;
+      } catch (e) {
+        prometheus?.outgoingELRequestsCount.inc({ name, target, status: RequestStatus.ERROR });
+        throw e;
+      } finally {
+        stop?.();
+      }
+    },
   });
 }
 
