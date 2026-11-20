@@ -73,57 +73,34 @@ export class VerifierContract {
   }
 
   public async sendSlashingProof(payload: ProcessSlashedInputStruct): Promise<void> {
-    await this.execution.execute({
-      address: this.contract.address,
-      abi: verifierAbi,
-      functionName: 'processSlashedProof',
-      args: [payload],
-    });
+    await this.execution.execute((sender) => this.contract.simulate.processSlashedProof([payload], sender));
   }
 
   public async sendWithdrawnProof(payload: ProcessWithdrawnInputStruct): Promise<void> {
-    await this.execution.execute({
+    const curated = getContract({
       address: this.contract.address,
       abi: curatedVerifierAbi,
-      functionName: 'processWithdrawnProof',
-      args: [payload],
+      client: this.execution.client,
     });
+    await this.execution.execute((sender) => curated.simulate.processWithdrawnProof([payload], sender));
   }
 
   public async sendWithdrawalProof(payload: ProcessWithdrawalInputStruct): Promise<void> {
-    await this.execution.execute({
-      address: this.contract.address,
-      abi: verifierAbi,
-      functionName: 'processWithdrawalProof',
-      args: [payload],
-    });
+    await this.execution.execute((sender) => this.contract.simulate.processWithdrawalProof([payload], sender));
   }
 
   public async sendHistoricalWithdrawalProof(payload: ProcessHistoricalWithdrawalInputStruct): Promise<void> {
-    await this.execution.execute({
-      address: this.contract.address,
-      abi: verifierAbi,
-      functionName: 'processHistoricalWithdrawalProof',
-      args: [payload],
-    });
+    await this.execution.execute((sender) =>
+      this.contract.simulate.processHistoricalWithdrawalProof([payload], sender),
+    );
   }
 
   public async sendBalanceProof(payload: ProcessBalanceProofInputStruct): Promise<void> {
-    await this.execution.execute({
-      address: this.contract.address,
-      abi: verifierAbi,
-      functionName: 'processBalanceProof',
-      args: [payload],
-    });
+    await this.execution.execute((sender) => this.contract.simulate.processBalanceProof([payload], sender));
   }
 
   public async sendHistoricalBalanceProof(payload: ProcessHistoricalBalanceProofInputStruct): Promise<void> {
-    await this.execution.execute({
-      address: this.contract.address,
-      abi: verifierAbi,
-      functionName: 'processHistoricalBalanceProof',
-      args: [payload],
-    });
+    await this.execution.execute((sender) => this.contract.simulate.processHistoricalBalanceProof([payload], sender));
   }
 
   public async isPaused(): Promise<boolean> {

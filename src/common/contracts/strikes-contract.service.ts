@@ -91,18 +91,17 @@ export class StrikesContract {
     this.logger.log(
       `Sending bad performance proof for ${payload.keyStrikesList.length} keys with total fee: ${formatGwei(withdrawalFee)} Gwei`,
     );
-    await this.execution.execute({
-      address: this.contract.address,
-      abi: strikesAbi,
-      functionName: 'processBadPerformanceProof',
-      args: [
-        payload.keyStrikesList,
-        payload.proof,
-        payload.proofFlags,
-        zeroAddress, // msg.sender will be used as a refund recipient
-      ],
-      value: withdrawalFee,
-    });
+    await this.execution.execute((sender) =>
+      this.contract.simulate.processBadPerformanceProof(
+        [
+          payload.keyStrikesList,
+          payload.proof,
+          payload.proofFlags,
+          zeroAddress, // msg.sender will be used as a refund recipient
+        ],
+        { ...sender, value: withdrawalFee },
+      ),
+    );
   }
 
   public async getExitPenaltiesAddress(): Promise<Address> {

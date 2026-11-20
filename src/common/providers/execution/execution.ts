@@ -6,6 +6,7 @@ import {
   type Abi,
   type Address,
   type ContractFunctionArgs,
+  ContractFunctionExecutionError,
   type ContractFunctionName,
   type Hex,
   type PublicClient,
@@ -63,6 +64,20 @@ export type ProofTx<
   value?: bigint;
 };
 
+export type Simulate = (sender: { account: Address }) => Promise<{ request: ProofTx }>;
+
+function simulatedCallContext(e: unknown) {
+  if (!(e instanceof ContractFunctionExecutionError)) return undefined;
+  return {
+    payload: e.args,
+    tx: {
+      to: e.contractAddress,
+      data: encodeFunctionData({ abi: e.abi, functionName: e.functionName, args: e.args }),
+      from: e.sender,
+    },
+  };
+}
+
 @Injectable()
 export class Execution {
   public readonly signer?: PrivateKeyAccount;
@@ -86,18 +101,16 @@ export class Execution {
     return await this.client.getBlockNumber({ cacheTime: 0 });
   }
 
-  public async execute<abi extends Abi, functionName extends ContractFunctionName<abi, WriteMutability>>(
-    tx: ProofTx<abi, functionName>,
-  ): Promise<void> {
+  public async execute(simulate: Simulate): Promise<void> {
     if (this.isCLI()) {
-      return await this.executeCLI(tx);
+      return await this.executeCLI(simulate);
     }
-    return await this.executeDaemon(tx);
+    return await this.executeDaemon(simulate);
   }
 
-  public async executeCLI(tx: ProofTx): Promise<void> {
+  public async executeCLI(simulate: Simulate): Promise<void> {
     try {
-      await this._execute(tx);
+      await this._execute(simulate);
       return;
     } catch (e) {
       if (e instanceof NoSignerError || e instanceof DryRunError) {
@@ -109,12 +122,12 @@ export class Execution {
     }
   }
 
-  public async executeDaemon(tx: ProofTx): Promise<void> {
+  public async executeDaemon(simulate: Simulate): Promise<void> {
     let highGasAttempts = 0;
     while (true) {
       try {
         this.prometheus.transactionCount.inc({ status: TransactionStatus.pending });
-        await this._execute(tx);
+        await this._execute(simulate);
         this.prometheus.transactionCount.inc({ status: TransactionStatus.confirmed });
         return;
       } catch (e) {
@@ -141,17 +154,23 @@ export class Execution {
     }
   }
 
-  private async _execute(tx: ProofTx): Promise<void> {
-    this.logger.debug!(tx.args);
+  private async _execute(simulate: Simulate): Promise<void> {
     const fees = await this.calcPriorityFee();
+    this.logger.log('Emulating call');
+    const from = this.signer?.address ?? DEPOSIT_CONTRACT_ADDRESS;
+    let tx: ProofTx;
+    try {
+      ({ request: tx } = await simulate({ account: from }));
+    } catch (e) {
+      throw new EmulatedCallError(e, simulatedCallContext(e));
+    }
+    this.logger.debug!(tx.args);
     const txBase = {
       to: tx.address,
       data: encodeFunctionData(tx),
       value: tx.value,
       ...fees,
     };
-    this.logger.log('Emulating call');
-    const from = this.signer?.address ?? DEPOSIT_CONTRACT_ADDRESS;
     const emulatedTx = { ...txBase, from };
     const emulatedTxContext = { payload: tx.args, tx: emulatedTx };
     let estimatedGas: bigint;
