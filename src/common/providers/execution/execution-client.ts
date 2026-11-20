@@ -95,26 +95,24 @@ function elTransport(url: string, config: ConfigService, logger: AppLogger, prom
 // viem's fallback retries the first URL on every request and its rank mode pings forever; go back to it only after EL_RPC_RESET_INTERVAL_MS
 function stickyFailover(transports: Transport[], hostnames: string[], resetMs: number, logger: AppLogger): Transport {
   return (parameters) => {
-    const instances = transports.map((transport) => transport(parameters));
+    const urls = transports.map((transport) => transport(parameters));
     let active = 0;
     let switchedAt = 0;
     const request: EIP1193RequestFn = async (args, options) => {
-      if (active !== 0 && Date.now() - switchedAt >= resetMs) active = 0;
-      const first = active;
-      for (let attempt = 0; ; attempt++) {
-        const i = (first + attempt) % instances.length;
+      if (Date.now() - switchedAt >= resetMs) active = 0;
+      let error: unknown;
+      for (const i of urls.map((_, n) => (active + n) % urls.length)) {
         try {
-          return await instances[i].request(args, options);
+          return await urls[i].request(args, options);
         } catch (e) {
           if (!(e instanceof Error) || shouldThrow(e)) throw e;
-          const next = (i + 1) % instances.length;
-          active = next;
+          logger.warn(`EL ${hostnames[i]} failed: ${e instanceof BaseError ? e.details || e.shortMessage : e.message}`);
+          error = e;
+          active = (i + 1) % urls.length;
           switchedAt = Date.now();
-          if (attempt === instances.length - 1) throw e;
-          const reason = e instanceof BaseError ? e.details || e.shortMessage : e.message;
-          logger.warn(`EL ${hostnames[i]} failed, trying ${hostnames[next]}: ${reason}`);
         }
       }
+      throw error;
     };
     return createTransport({
       key: 'stickyFailover',
