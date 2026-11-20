@@ -143,13 +143,12 @@ export class Execution {
 
   private async _execute(tx: ProofTx): Promise<void> {
     this.logger.debug!(tx.args);
-    const priorityFeeParams = await this.calcPriorityFee();
+    const fees = await this.calcPriorityFee();
     const txBase = {
       to: tx.address,
       data: encodeFunctionData(tx),
       value: tx.value,
-      maxFeePerGas: priorityFeeParams.maxFeePerGas,
-      maxPriorityFeePerGas: priorityFeeParams.maxPriorityFeePerGas,
+      ...fees,
     };
     this.logger.log('Emulating call');
     const from = this.signer?.address ?? DEPOSIT_CONTRACT_ADDRESS;
@@ -160,8 +159,7 @@ export class Execution {
       estimatedGas = await this.client.estimateContractGas({
         ...tx,
         account: from,
-        maxFeePerGas: txBase.maxFeePerGas,
-        maxPriorityFeePerGas: txBase.maxPriorityFeePerGas,
+        ...fees,
       });
     } catch (e) {
       throw new EmulatedCallError(e, emulatedTxContext);
@@ -201,10 +199,10 @@ export class Execution {
         `maxFeePerGas=${populatedTx.maxFeePerGas}`,
         `maxPriorityFeePerGas=${populatedTx.maxPriorityFeePerGas}`,
       ].join(' | ');
-      const opts = await this.inquirerService.ask('tx-execution', {
+      const opts = await this.inquirerService.ask<{ sendingConfirmed: boolean; txSummary: string }>('tx-execution', {
         sendingConfirmed: false,
         txSummary,
-      } as { sendingConfirmed: boolean; txSummary: string });
+      });
       if (!opts.sendingConfirmed) {
         throw new UserCancellationError('Transaction is not sent due to user cancellation', populatedTxContext);
       }
