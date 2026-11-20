@@ -1,14 +1,71 @@
 import { type PublicClient, createPublicClient, defineChain, fallback, http } from 'viem';
 
-import { instrumentedFetch, logTracedErrors } from './http-observability.js';
 import { MULTICALL3_ADDRESS, sequentialMulticall } from './sequential-multicall.js';
 import type { ConfigService } from '../../config/config.service.js';
 import { userAgentHeaders } from '../../helpers/user-agent.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
-import { type PrometheusService } from '../../prometheus/index.js';
+import { type PrometheusService, RequestStatus } from '../../prometheus/index.js';
 
 // Calldata bytes per aggregate3; keeps our heaviest batches near 10M gas, a margin below the eth_call gas cap
 const BATCH_SIZE_BYTES = 17_000;
+
+function elFetch(
+  hostname: string,
+  config: ConfigService,
+  logger: AppLogger,
+  prometheus?: PrometheusService,
+): typeof fetch {
+  const name = 'batch';
+  const target = hostname;
+  const traceHeaders = config.get('EL_TRACE_HEADERS');
+  return async (input, init) => {
+    const stop = prometheus?.outgoingELRequestsDuration.startTimer({ name, target });
+    try {
+      const response = await fetch(input, init);
+      const status = response.ok ? RequestStatus.COMPLETE : RequestStatus.ERROR;
+      prometheus?.outgoingELRequestsCount.inc({ name, target, status });
+      void logErrorResponse(response, hostname, traceHeaders, logger);
+      return response;
+    } catch (e) {
+      prometheus?.outgoingELRequestsCount.inc({ name, target, status: RequestStatus.ERROR });
+      throw e;
+    } finally {
+      stop?.();
+    }
+  };
+}
+
+// Trace ids let a provider find the request behind an error, even one fallback recovered from; viem awaits the fetch, so it must not block
+async function logErrorResponse(
+  response: Response,
+  hostname: string,
+  traceHeaders: string[],
+  logger: AppLogger,
+): Promise<void> {
+  try {
+    const ids = traceHeaders
+      .flatMap((name) => {
+        const value = response.headers.get(name);
+        return value ? [`${name}: ${value}`] : [];
+      })
+      .join(', ');
+    const suffix = ids ? ` (${ids})` : '';
+    if (!response.ok) {
+      logger.warn(`EL ${hostname} answered HTTP ${response.status}${suffix}`);
+      return;
+    }
+    const text = await response.clone().text();
+    if (!text.includes('"error"')) return;
+    const parsed = JSON.parse(text);
+    for (const item of Array.isArray(parsed) ? parsed : [parsed]) {
+      if (!item?.error) continue;
+      const { code, message } = item.error;
+      logger.warn(`EL ${hostname} returned error ${JSON.stringify({ code, message })}${suffix}`);
+    }
+  } catch {
+    // a trace log must never change the outcome of the request
+  }
+}
 
 function elTransport(url: string, config: ConfigService, logger: AppLogger, prometheus?: PrometheusService) {
   const hostname = new URL(url).hostname;
@@ -20,8 +77,7 @@ function elTransport(url: string, config: ConfigService, logger: AppLogger, prom
     retryCount: config.get('EL_RPC_MAX_RETRIES'),
     retryDelay: config.get('EL_RPC_RETRY_DELAY_MS'),
     fetchOptions: { headers: userAgentHeaders(config) },
-    fetchFn: prometheus && instrumentedFetch(hostname, prometheus),
-    onFetchResponse: logTracedErrors(hostname, config.get('EL_TRACE_HEADERS'), logger),
+    fetchFn: elFetch(hostname, config, logger, prometheus),
   });
 }
 

@@ -26,7 +26,13 @@ export function sequentialMulticall(inner: Transport): Transport {
           const result = await transport.request(call.args, call.options);
           call.resolve(result);
         } catch (e) {
-          const error = toElReadError(call.args, e);
+          const [, blockTag] = call.args.params as [unknown, string];
+          const { code, status, details, shortMessage, message } = e as Record<string, unknown>;
+          // The node's reason instead of an error carrying the whole aggregate3 calldata
+          const error = new Error(
+            `EL read at block ${blockTag} failed: ${JSON.stringify({ code, message: details ?? shortMessage ?? message, status })}`,
+            { cause: e },
+          );
           call.reject(error);
           queue.splice(0).forEach(({ reject }) => reject(error));
         }
@@ -47,14 +53,4 @@ export function sequentialMulticall(inner: Transport): Transport {
 
     return { ...transport, request: request as EIP1193RequestFn };
   };
-}
-
-// The node's reason instead of an error carrying the whole aggregate3 calldata
-function toElReadError({ params }: CallArgs, cause: unknown): Error {
-  const [, blockTag] = params as [unknown, string];
-  const { code, status, details, shortMessage, message } = cause as Record<string, unknown>;
-  return new Error(
-    `EL read at block ${blockTag} failed: ${JSON.stringify({ code, message: details ?? shortMessage ?? message, status })}`,
-    { cause },
-  );
 }
