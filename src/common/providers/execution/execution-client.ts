@@ -1,4 +1,14 @@
-import { type Chain, type PublicClient, type Transport, createPublicClient, defineChain, fallback, http } from 'viem';
+import {
+  type Chain,
+  type EIP1193RequestFn,
+  type PublicClient,
+  type Transport,
+  createPublicClient,
+  createTransport,
+  defineChain,
+  http,
+  shouldThrow,
+} from 'viem';
 
 import { MULTICALL3_ADDRESS, sequentialMulticall } from './sequential-multicall.js';
 import type { ConfigService } from '../../config/config.service.js';
@@ -69,6 +79,40 @@ function elTransport(url: string, config: ConfigService, logger: AppLogger, prom
   });
 }
 
+// viem's fallback retries the first URL on every request and its rank mode pings forever; go back to it only after EL_RPC_RESET_INTERVAL_MS
+function stickyFailover(transports: Transport[], hostnames: string[], resetMs: number, logger: AppLogger): Transport {
+  return (parameters) => {
+    const instances = transports.map((transport) => transport(parameters));
+    let active = 0;
+    let switchedAt = 0;
+    const request: EIP1193RequestFn = async (args, options) => {
+      if (active !== 0 && Date.now() - switchedAt >= resetMs) active = 0;
+      const first = active;
+      for (let attempt = 0; ; attempt++) {
+        const i = (first + attempt) % instances.length;
+        try {
+          return await instances[i].request(args, options);
+        } catch (e) {
+          if (!(e instanceof Error) || shouldThrow(e)) throw e;
+          const next = (i + 1) % instances.length;
+          active = next;
+          switchedAt = Date.now();
+          if (attempt === instances.length - 1) throw e;
+          const reason = 'shortMessage' in e && typeof e.shortMessage === 'string' ? e.shortMessage : e.message;
+          logger.warn(`EL ${hostnames[i]} failed, trying ${hostnames[next]}: ${reason}`);
+        }
+      }
+    };
+    return createTransport({
+      key: 'stickyFailover',
+      name: 'Sticky failover',
+      type: 'stickyFailover',
+      retryCount: 0,
+      request,
+    });
+  };
+}
+
 export const EL_CLIENT = Symbol('EL_CLIENT');
 
 export async function createElClient(
@@ -77,6 +121,7 @@ export async function createElClient(
   prometheus?: PrometheusService,
 ): Promise<PublicClient<Transport, Chain>> {
   const urls = config.get('EL_RPC_URLS');
+  const hostnames = urls.map((url) => new URL(url).hostname);
   const transports = urls.map((url) => elTransport(url, config, logger, prometheus));
   await Promise.all(
     urls.map(async (url, i) => {
@@ -100,7 +145,9 @@ export async function createElClient(
       contracts: { multicall3: { address: MULTICALL3_ADDRESS } },
     }),
     ccipRead: false,
-    transport: sequentialMulticall(fallback(transports, { retryCount: 0 })),
+    transport: sequentialMulticall(
+      stickyFailover(transports, hostnames, config.get('EL_RPC_RESET_INTERVAL_MS'), logger),
+    ),
     batch: { multicall: { batchSize: BATCH_SIZE_BYTES } },
   });
 }

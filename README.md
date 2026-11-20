@@ -142,6 +142,7 @@ So, according to the algorithm, there are the following statements:
 | EL_RPC_URLS                             | Comma-separated list of EL RPC URLs                                     | yes                    |                               |
 | EL_RPC_RETRY_DELAY_MS                   | Delay between EL RPC retries in milliseconds                            | no                     | 500                           |
 | EL_RPC_MAX_RETRIES                      | Maximum number of EL RPC retries                                        | no                     | 3                             |
+| EL_RPC_RESET_INTERVAL_MS                | Return to the first EL URL this long after switching to a fallback      | no                     | 720_000 (12 min)              |
 | EL_RPC_MAX_BATCH_SIZE                   | Max JSON-RPC calls coalesced into one batched HTTP request             | no                     | 25                            |
 | EL_RPC_BATCH_AGGREGATION_WAIT_MS        | Window (ms) to accumulate calls into a batch before sending            | no                     | 10                            |
 | EL_TRACE_HEADERS                        | Comma-separated EL response headers whose values are logged with EL errors | no                  | x-drpc-trace-id,cf-ray        |
