@@ -1,14 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { LRUCache } from 'lru-cache';
+import { type Address, type GetContractReturnType, type PublicClient, getContract } from 'viem';
 
+import { accountingAbi } from './abi/accounting.js';
 import { StakingModuleContract } from './staking-module-contract.service.js';
-import { type Accounting, Accounting__factory } from './types/index.js';
 import { Execution } from '../providers/execution/execution.js';
 
 @Injectable()
 export class AccountingContract {
-  private contract: Accounting;
-  private bondCurveIdCache = new LRUCache<string, number>({ max: 128 });
+  private contract: GetContractReturnType<typeof accountingAbi, PublicClient>;
+  private bondCurveIdCache = new LRUCache<string, bigint>({ max: 128 });
 
   constructor(
     protected readonly execution: Execution,
@@ -17,25 +18,25 @@ export class AccountingContract {
 
   public async init() {
     const accounting = await this.stakingModule.getAccountingAddress();
-    this.contract = Accounting__factory.connect(accounting, this.execution.provider);
+    this.contract = getContract({ address: accounting, abi: accountingAbi, client: this.execution.client });
   }
 
-  public async getCurvesCount(blockNumber: number): Promise<number> {
-    const count = await this.contract.getCurvesCount({ blockTag: blockNumber });
-    return count.toNumber();
+  public async getCurvesCount(blockNumber: bigint): Promise<number> {
+    const count = await this.contract.read.getCurvesCount({ blockNumber });
+    return Number(count);
   }
 
-  public async getBondCurveId(blockNumber: number, nodeOperatorId: number): Promise<number> {
+  public async getBondCurveId(blockNumber: bigint, nodeOperatorId: number): Promise<bigint> {
     const cacheKey = `${blockNumber}_${nodeOperatorId}`;
     let curveId = this.bondCurveIdCache.get(cacheKey);
     if (curveId === undefined) {
-      curveId = (await this.contract.getBondCurveId(nodeOperatorId, { blockTag: blockNumber })).toNumber();
+      curveId = await this.contract.read.getBondCurveId([BigInt(nodeOperatorId)], { blockNumber });
       this.bondCurveIdCache.set(cacheKey, curveId);
     }
     return curveId;
   }
 
-  public async getFeeDistributorAddress(): Promise<string> {
-    return await this.contract.FEE_DISTRIBUTOR();
+  public async getFeeDistributorAddress(): Promise<Address> {
+    return await this.contract.read.FEE_DISTRIBUTOR();
   }
 }

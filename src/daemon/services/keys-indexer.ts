@@ -97,7 +97,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
     const finalizedSlot = Number(finalizedHeader.header.message.slot);
     const stateRoot = toRootHex(finalizedHeader.header.message.stateRoot);
     const finalizedBlock = await this.consensus.getBlockInfo(finalizedHeader.root);
-    const blockNumber = finalizedBlock.body.executionPayload.blockNumber;
+    const blockNumber = BigInt(finalizedBlock.body.executionPayload.blockNumber);
     // EL is read before the state download so that an EL failure does not cost a state download
     const keysMap = await this.readNewKeys(blockNumber);
 
@@ -121,7 +121,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
     await this.info.write();
   }
 
-  private async readNewKeys(blockNumber: number): Promise<Map<string, KeyInfo>> {
+  private async readNewKeys(blockNumber: bigint): Promise<Map<string, KeyInfo>> {
     const allowedIds = this.config.get('DAEMON_NODE_OPERATOR_IDS');
     const operatorIds = allowedIds?.length
       ? allowedIds

@@ -12,6 +12,7 @@ import { DaemonService } from './daemon/daemon.service.js';
 const BOOTSTRAP_LOGGER_OPTIONS = {
   bufferLogs: true,
   autoFlushLogs: false,
+  abortOnError: false,
   logger: ['error'] as LogLevel[],
 };
 
@@ -100,7 +101,7 @@ async function failBootstrap(appName: string, error: unknown, app?: INestApplica
       console.error(stack);
     }
   }
-  Logger.flush();
+  Logger.detachBuffer();
 
   if (app) {
     await app.close();

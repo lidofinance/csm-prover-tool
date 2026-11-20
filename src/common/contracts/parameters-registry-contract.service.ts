@@ -1,15 +1,16 @@
 import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
 import { LRUCache } from 'lru-cache';
+import { type GetContractReturnType, type PublicClient, getContract } from 'viem';
 
+import { parametersRegistryAbi } from './abi/parameters-registry.js';
 import { StakingModuleContract } from './staking-module-contract.service.js';
-import { type ParametersRegistry, ParametersRegistry__factory } from './types/index.js';
 import { type AppLogger } from '../logger/app-logger.type.js';
 import { Execution } from '../providers/execution/execution.js';
 
 @Injectable()
 export class ParametersRegistryContract {
-  private contract: ParametersRegistry;
+  private contract: GetContractReturnType<typeof parametersRegistryAbi, PublicClient>;
   private strikeParamsCache = new LRUCache<string, { lifetime: number; threshold: number }>({ max: 128 });
 
   constructor(
@@ -21,15 +22,17 @@ export class ParametersRegistryContract {
   public async init() {
     const address = await this.stakingModule.getParamsAddress();
     this.logger.log(`CSParametersRegistry address: ${address}`);
-    this.contract = ParametersRegistry__factory.connect(address, this.execution.provider);
+    this.contract = getContract({ address, abi: parametersRegistryAbi, client: this.execution.client });
   }
 
-  public async getStrikeParams(blockNumber: number, curveId: number): Promise<{ lifetime: number; threshold: number }> {
+  public async getStrikeParams(blockNumber: bigint, curveId: bigint): Promise<{ lifetime: number; threshold: number }> {
     const cacheKey = `${blockNumber}_${curveId}`;
     let params = this.strikeParamsCache.get(cacheKey);
     if (!params) {
-      const result = await this.contract.getStrikesParams(curveId, { blockTag: blockNumber });
-      params = { lifetime: result.lifetime.toNumber(), threshold: result.threshold.toNumber() };
+      const [lifetime, threshold] = await this.contract.read.getStrikesParams([curveId], {
+        blockNumber,
+      });
+      params = { lifetime: Number(lifetime), threshold: Number(threshold) };
       this.strikeParamsCache.set(cacheKey, params);
     }
     return params;

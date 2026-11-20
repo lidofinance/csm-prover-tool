@@ -2,7 +2,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 
 import { ssz } from '@lodestar/types';
 
-import type { IVerifier } from '../../contracts/types/Verifier.js';
+import type { ProcessHistoricalBalanceProofInputStruct } from '../../contracts/structs.js';
 import {
   generateBalanceProof,
   generateValidatorProof,
@@ -30,7 +30,7 @@ export type BuildHistoricalBalanceProofArgs = {
   keys: InvolvedKeys;
 };
 
-async function buildHistoricalBalanceProofPayloads(): Promise<IVerifier.ProcessHistoricalBalanceProofInputStruct[]> {
+async function buildHistoricalBalanceProofPayloads(): Promise<ProcessHistoricalBalanceProofInputStruct[]> {
   const {
     headerWithBalances,
     recentHeader,
@@ -56,7 +56,7 @@ async function buildHistoricalBalanceProofPayloads(): Promise<IVerifier.ProcessH
     stateWithBalances.bodyBytes,
   );
 
-  const payloads: IVerifier.ProcessHistoricalBalanceProofInputStruct[] = [];
+  const payloads: ProcessHistoricalBalanceProofInputStruct[] = [];
   for (const [valIndex, keyInfo] of Object.entries(keys)) {
     const valIndexNum = Number(valIndex);
     const validator = stateWithBalancesView.validators.getReadonly(valIndexNum);
@@ -86,14 +86,14 @@ async function buildHistoricalBalanceProofPayloads(): Promise<IVerifier.ProcessH
     payloads.push({
       recentBlock: {
         header: toBeaconHeaderStruct(recentHeader),
-        rootsTimestamp: nextToRecentHeaderTimestamp,
+        rootsTimestamp: BigInt(nextToRecentHeaderTimestamp),
       },
       historicalBlock: {
         header: toBeaconHeaderStruct(headerWithBalances),
         proof: historicalStateProof.witnesses.map(toHex),
       },
       validator: {
-        index: valIndexNum,
+        index: BigInt(valIndexNum),
         nodeOperatorId: keyInfo.operatorId,
         keyIndex: keyInfo.keyIndex,
         object: toValidatorStruct(validator),

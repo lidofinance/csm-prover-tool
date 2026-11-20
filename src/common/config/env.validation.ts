@@ -6,17 +6,20 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsEthereumAddress,
   IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min,
   ValidateIf,
   getMetadataStorage,
   validateSync,
 } from 'class-validator';
+import type { Address, Hex } from 'viem';
 
 import { Environment, LogFormat, LogLevel } from './interfaces/environment.interface.js';
 
@@ -62,28 +65,29 @@ export class EnvironmentVariables {
   public ROOTS_ORPHAN_REWIND_EPOCHS = 1;
 
   @IsNotEmpty()
-  @IsString()
-  public STAKING_MODULE_ADDRESS: string;
+  @IsEthereumAddress()
+  public STAKING_MODULE_ADDRESS: Address;
 
   @IsOptional()
   @IsNotEmpty()
-  @IsString()
-  public VERIFIER_ADDRESS?: string;
+  @IsEthereumAddress()
+  public VERIFIER_ADDRESS?: Address;
 
   @IsOptional()
   @IsNotEmpty()
-  @IsString()
-  public STRIKES_ADDRESS?: string;
+  @IsEthereumAddress()
+  public STRIKES_ADDRESS?: Address;
 
   @IsOptional()
   @IsNotEmpty()
-  @IsString()
-  public EXIT_PENALTIES_ADDRESS?: string;
+  @IsEthereumAddress()
+  public EXIT_PENALTIES_ADDRESS?: Address;
 
   @IsNotEmpty()
-  @IsString()
-  @ValidateIf((vars) => !vars.DRY_RUN)
-  public TX_SIGNER_PRIVATE_KEY: string;
+  @Matches(/^0x[0-9a-fA-F]{64}$/)
+  @Transform(({ value }) => toPrefixedHex(value), { toClassOnly: true })
+  @ValidateIf((vars) => !vars.DRY_RUN || vars.TX_SIGNER_PRIVATE_KEY)
+  public TX_SIGNER_PRIVATE_KEY: Hex;
 
   @IsNumber()
   @Transform(({ value }) => toInteger(value), { toClassOnly: true })
@@ -197,7 +201,7 @@ export class EnvironmentVariables {
 
   @IsNumber()
   @Transform(({ value }) => toInteger(value), { toClassOnly: true })
-  // NOTE: Resets active provider if no outgoing EL requests within this interval
+  // NOTE: Returns to the first EL RPC URL this long after switching to a fallback
   public EL_RPC_RESET_INTERVAL_MS = 12 * MINUTE_MS; // a bit less than CL finalization time
 
   @IsNumber()
@@ -207,16 +211,16 @@ export class EnvironmentVariables {
   public EL_RPC_MAX_BATCH_SIZE = 25;
 
   @IsNumber()
-  @Min(1)
-  @Transform(({ value }) => toInteger(value), { toClassOnly: true })
-  // Max concurrent batched HTTP requests in flight to a single EL provider.
-  public EL_RPC_MAX_CONCURRENT_REQUESTS = 2;
-
-  @IsNumber()
   @Min(0)
   @Transform(({ value }) => toInteger(value), { toClassOnly: true })
   // Window (ms) to accumulate calls into a batch before sending.
   public EL_RPC_BATCH_AGGREGATION_WAIT_MS = 10;
+
+  @IsArray()
+  @IsString({ each: true })
+  @Matches(/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/, { each: true })
+  @Transform(({ value }) => toStringList(value), { toClassOnly: true })
+  public EL_TRACE_HEADERS: string[] = ['x-drpc-trace-id', 'cf-ray'];
 
   @IsArray()
   @ArrayMinSize(1)
@@ -360,6 +364,17 @@ const toInteger = (value: unknown): number => {
   const parsed = toNumber(value);
   return Number.isSafeInteger(parsed) ? parsed : NaN;
 };
+
+const toPrefixedHex = (value: unknown): unknown =>
+  typeof value === 'string' && /^[0-9a-fA-F]{64}$/.test(value) ? `0x${value}` : value;
+
+const toStringList = (value: unknown): unknown =>
+  typeof value === 'string'
+    ? value
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean)
+    : value;
 
 const toIntArray = (value: unknown): number[] | undefined | unknown => {
   if (value === undefined || value === null) {

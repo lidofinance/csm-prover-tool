@@ -216,10 +216,9 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
       return { bodyBytes, forkName };
     });
     if (this.progress) {
-      spinnerFor(requestPromise, { text: `Getting state response for state id [${stateId}]` });
-    } else {
-      this.logger.log(`Getting state response for state id [${stateId}]`);
+      return await spinnerFor(requestPromise, { text: `Getting state response for state id [${stateId}]` });
     }
+    this.logger.log(`Getting state response for state id [${stateId}]`);
     return await requestPromise;
   }
 
