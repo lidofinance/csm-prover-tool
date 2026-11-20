@@ -77,7 +77,7 @@ function simulatedCallContext(e: unknown) {
 @Injectable()
 export class Execution {
   public readonly signer?: PrivateKeyAccount;
-  public readonly client: PublicClient<Transport, Chain>;
+  public client: PublicClient<Transport, Chain>;
 
   private gasFeeHistoryCache: bigint[] = [];
   private lastFeeHistoryBlockNumber = 0n;
@@ -88,9 +88,12 @@ export class Execution {
     @Optional() protected readonly prometheus: PrometheusService,
     @Optional() protected readonly inquirerService: InquirerService,
   ) {
-    this.client = createElClient(this.config, this.logger, this.prometheus);
     const key = this.config.get('TX_SIGNER_PRIVATE_KEY');
     if (key) this.signer = privateKeyToAccount(key);
+  }
+
+  public async init(): Promise<void> {
+    this.client = await createElClient(this.config, this.logger, this.prometheus);
   }
 
   public async getBlockNumber(): Promise<bigint> {

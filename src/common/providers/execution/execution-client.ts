@@ -71,17 +71,19 @@ function elTransport(url: string, config: ConfigService, logger: AppLogger, prom
   });
 }
 
-export async function checkElChainIds(
+export async function createElClient(
   config: ConfigService,
   logger: AppLogger,
   prometheus?: PrometheusService,
-): Promise<void> {
+): Promise<PublicClient<Transport, Chain>> {
+  const urls = config.get('EL_RPC_URLS');
+  const transports = urls.map((url) => elTransport(url, config, logger, prometheus));
   await Promise.all(
-    config.get('EL_RPC_URLS').map(async (url) => {
+    urls.map(async (url, i) => {
       const hostname = new URL(url).hostname;
       let chainId: number;
       try {
-        chainId = Number(await elTransport(url, config, logger, prometheus)({}).request({ method: 'eth_chainId' }));
+        chainId = Number(await transports[i]({}).request({ method: 'eth_chainId' }));
       } catch {
         logger.warn(`EL ${hostname} is unreachable, its chain id is not checked`);
         return;
@@ -91,14 +93,6 @@ export async function checkElChainIds(
       }
     }),
   );
-}
-
-export function createElClient(
-  config: ConfigService,
-  logger: AppLogger,
-  prometheus?: PrometheusService,
-): PublicClient<Transport, Chain> {
-  const urls = config.get('EL_RPC_URLS');
   return createPublicClient({
     chain: defineChain({
       id: config.get('CHAIN_ID'),
@@ -108,12 +102,7 @@ export function createElClient(
       contracts: { multicall3: { address: MULTICALL3_ADDRESS } },
     }),
     ccipRead: false,
-    transport: sequentialMulticall(
-      fallback(
-        urls.map((url) => elTransport(url, config, logger, prometheus)),
-        { retryCount: 0 },
-      ),
-    ),
+    transport: sequentialMulticall(fallback(transports, { retryCount: 0 })),
     batch: { multicall: { batchSize: BATCH_SIZE_BYTES } },
   });
 }
