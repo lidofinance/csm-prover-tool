@@ -1,23 +1,15 @@
+import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Module } from '@nestjs/common';
 import { ConditionalModule } from '@nestjs/config';
-import { ModuleRef } from '@nestjs/core';
 
 import { Consensus } from './consensus/consensus.js';
 import { DownloadProgressModule } from './consensus/download-progress.module.js';
+import { EL_CLIENT, createElClient } from './execution/execution-client.js';
 import { Execution } from './execution/execution.js';
 import { Ipfs } from './ipfs/ipfs.js';
+import { ConfigService } from '../config/config.service.js';
 import { WorkingMode } from '../config/env.validation.js';
-
-// Providers that inject Execution read the EL as they are created, so the chain id is checked before Execution is provided
-const ExecutionProvider = {
-  provide: Execution,
-  useFactory: async (moduleRef: ModuleRef): Promise<Execution> => {
-    const execution = await moduleRef.create(Execution);
-    await execution.init();
-    return execution;
-  },
-  inject: [ModuleRef],
-};
+import { PrometheusService } from '../prometheus/index.js';
 
 @Module({
   imports: [
@@ -25,7 +17,16 @@ const ExecutionProvider = {
       return env['WORKING_MODE'] === WorkingMode.CLI;
     }),
   ],
-  providers: [ExecutionProvider, Consensus, Ipfs],
+  providers: [
+    {
+      provide: EL_CLIENT,
+      useFactory: createElClient,
+      inject: [ConfigService, LOGGER_PROVIDER, { token: PrometheusService, optional: true }],
+    },
+    Execution,
+    Consensus,
+    Ipfs,
+  ],
   exports: [Execution, Consensus, Ipfs],
 })
 export class ProvidersModule {}

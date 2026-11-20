@@ -19,7 +19,7 @@ import {
 import { type PrivateKeyAccount, privateKeyToAccount } from 'viem/accounts';
 import { sendTransaction } from 'viem/actions';
 
-import { createElClient } from './execution-client.js';
+import { EL_CLIENT } from './execution-client.js';
 import { bigIntMax, bigIntMin, percentile } from './utils/common.js';
 import { ConfigService } from '../../config/config.service.js';
 import { WorkingMode } from '../../config/env.validation.js';
@@ -77,7 +77,6 @@ function simulatedCallContext(e: unknown) {
 @Injectable()
 export class Execution {
   public readonly signer?: PrivateKeyAccount;
-  public client: PublicClient<Transport, Chain>;
 
   private gasFeeHistoryCache: bigint[] = [];
   private lastFeeHistoryBlockNumber = 0n;
@@ -85,15 +84,12 @@ export class Execution {
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
+    @Inject(EL_CLIENT) public readonly client: PublicClient<Transport, Chain>,
     @Optional() protected readonly prometheus: PrometheusService,
     @Optional() protected readonly inquirerService: InquirerService,
   ) {
     const key = this.config.get('TX_SIGNER_PRIVATE_KEY');
     if (key) this.signer = privateKeyToAccount(key);
-  }
-
-  public async init(): Promise<void> {
-    this.client = await createElClient(this.config, this.logger, this.prometheus);
   }
 
   public async getBlockNumber(): Promise<bigint> {

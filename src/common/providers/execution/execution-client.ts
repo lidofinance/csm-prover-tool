@@ -71,6 +71,8 @@ function elTransport(url: string, config: ConfigService, logger: AppLogger, prom
   });
 }
 
+export const EL_CLIENT = Symbol('EL_CLIENT');
+
 export async function createElClient(
   config: ConfigService,
   logger: AppLogger,
