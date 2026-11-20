@@ -2,6 +2,7 @@ import type { Hex } from 'viem';
 
 import type { KeyStrikesStruct } from '../contracts/structs.js';
 
+// Ids are number: stored as JSON and sent to the Verifier as uint32.
 export interface KeyInfo {
   operatorId: number;
   keyIndex: number;

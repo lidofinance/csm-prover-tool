@@ -1,5 +1,7 @@
 import type { Address, Hex } from 'viem';
 
+// viem maps uint48 and narrower to number, wider to bigint.
+
 export type BeaconBlockHeaderStruct = {
   slot: bigint;
   proposerIndex: bigint;
