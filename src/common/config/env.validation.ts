@@ -366,7 +366,7 @@ const toInteger = (value: unknown): number => {
 };
 
 const toPrefixedHex = (value: unknown): unknown =>
-  typeof value === 'string' && /^[0-9a-fA-F]{64}$/.test(value) ? `0x${value}` : value;
+  typeof value === 'string' && value && !value.startsWith('0x') ? `0x${value}` : value;
 
 const toStringList = (value: unknown): unknown =>
   typeof value === 'string'
