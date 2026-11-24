@@ -23,12 +23,12 @@ export class StakingModuleContract {
     this.contract = getContract({ address, abi: csmAbi, client: this.execution.client });
   }
 
-  public async getInitializedVersion(): Promise<number> {
+  public async getInitializedVersion(): Promise<bigint> {
     try {
-      return Number(await this.contract.read.getInitializedVersion());
+      return await this.contract.read.getInitializedVersion();
     } catch (e) {
       if (findContractRevert(e)) {
-        return 1;
+        return 1n;
       }
       throw e;
     }
@@ -68,8 +68,8 @@ export class StakingModuleContract {
     });
   }
 
-  public async getNodeOperatorsCount(blockNumber: bigint): Promise<number> {
-    return Number(await this.contract.read.getNodeOperatorsCount({ blockNumber }));
+  public async getNodeOperatorsCount(blockNumber: bigint): Promise<bigint> {
+    return await this.contract.read.getNodeOperatorsCount({ blockNumber });
   }
 
   public async getDepositedKeysCounts(operatorIds: number[], blockNumber: bigint): Promise<number[]> {

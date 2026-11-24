@@ -21,9 +21,8 @@ export class AccountingContract {
     this.contract = getContract({ address: accounting, abi: accountingAbi, client: this.execution.client });
   }
 
-  public async getCurvesCount(blockNumber: bigint): Promise<number> {
-    const count = await this.contract.read.getCurvesCount({ blockNumber });
-    return Number(count);
+  public async getCurvesCount(blockNumber: bigint): Promise<bigint> {
+    return await this.contract.read.getCurvesCount({ blockNumber });
   }
 
   public async getBondCurveId(blockNumber: bigint, nodeOperatorId: number): Promise<bigint> {

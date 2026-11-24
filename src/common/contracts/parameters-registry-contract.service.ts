@@ -11,7 +11,7 @@ import { Execution } from '../providers/execution/execution.js';
 @Injectable()
 export class ParametersRegistryContract {
   private contract: GetContractReturnType<typeof parametersRegistryAbi, PublicClient>;
-  private strikeParamsCache = new LRUCache<string, { lifetime: number; threshold: number }>({ max: 128 });
+  private strikesThresholdCache = new LRUCache<string, bigint>({ max: 128 });
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
@@ -25,16 +25,13 @@ export class ParametersRegistryContract {
     this.contract = getContract({ address, abi: parametersRegistryAbi, client: this.execution.client });
   }
 
-  public async getStrikeParams(blockNumber: bigint, curveId: bigint): Promise<{ lifetime: number; threshold: number }> {
+  public async getStrikesThreshold(blockNumber: bigint, curveId: bigint): Promise<bigint> {
     const cacheKey = `${blockNumber}_${curveId}`;
-    let params = this.strikeParamsCache.get(cacheKey);
-    if (!params) {
-      const [lifetime, threshold] = await this.contract.read.getStrikesParams([curveId], {
-        blockNumber,
-      });
-      params = { lifetime: Number(lifetime), threshold: Number(threshold) };
-      this.strikeParamsCache.set(cacheKey, params);
+    let threshold = this.strikesThresholdCache.get(cacheKey);
+    if (threshold === undefined) {
+      [, threshold] = await this.contract.read.getStrikesParams([curveId], { blockNumber });
+      this.strikesThresholdCache.set(cacheKey, threshold);
     }
-    return params;
+    return threshold;
   }
 }

@@ -39,18 +39,18 @@ export class WithdrawnService {
       return info !== undefined && !info.slashed && info.withdrawableEpoch <= stateEpoch;
     });
     const toCheck = candidates.filter(([, keyInfo]) => !this.provenWithdrawn.has(keyInfo.pubKey));
-    let proved: boolean[] = [];
+    const unproven: InvolvedKeys = {};
     if (toCheck.length) {
       const blockNumber = await this.execution.getBlockNumber();
-      proved = await Promise.all(
-        toCheck.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo, blockNumber)),
+      await Promise.all(
+        toCheck.map(([valIndex, keyInfo]) =>
+          this.stakingModule.isWithdrawalProved(keyInfo, blockNumber).then((proved) => {
+            if (proved) this.provenWithdrawn.add(keyInfo.pubKey);
+            else unproven[valIndex] = keyInfo;
+          }),
+        ),
       );
     }
-    const unproven: InvolvedKeys = {};
-    toCheck.forEach(([valIndex, keyInfo], i) => {
-      if (proved[i]) this.provenWithdrawn.add(keyInfo.pubKey);
-      else unproven[valIndex] = keyInfo;
-    });
     const unprovenCount = Object.keys(unproven).length;
     if (!unprovenCount) {
       this.logger.log(

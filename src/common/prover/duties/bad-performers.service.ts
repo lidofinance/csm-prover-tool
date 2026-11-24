@@ -38,7 +38,7 @@ export class BadPerformersService {
   ) {}
 
   private currentStrikesTree: StandardMerkleTree<StrikesTreeLeaf> | undefined;
-  private currentStrikesThresholdsByCurveId: Map<bigint, number> = new Map();
+  private currentStrikesThresholdsByCurveId: Map<bigint, bigint> = new Map();
   private currentNodeOperatorsCurveIds: Map<number, bigint> = new Map();
   private lastProcessedStrikesTreeRoot: string | undefined;
   // Both predicates are monotonic on-chain, so a cached positive is never re-read.
@@ -80,7 +80,7 @@ export class BadPerformersService {
 
     // Each key triggers one exit request; cap the report to what the gateway allows now and defer the rest.
     const exitLimit = await this.strikes.getCurrentExitRequestsLimit();
-    const sendAll = exitLimit >= BigInt(badPerformers.length);
+    const sendAll = exitLimit >= badPerformers.length;
     const toSend = sendAll ? badPerformers : badPerformers.slice(0, Number(exitLimit));
     if (!sendAll) {
       this.logger.warn(
@@ -223,7 +223,7 @@ export class BadPerformersService {
     return false;
   }
 
-  private isAnyStrikesThresholdChanged(thresholds: Map<bigint, number>): boolean {
+  private isAnyStrikesThresholdChanged(thresholds: Map<bigint, bigint>): boolean {
     for (const [curveId, threshold] of thresholds.entries()) {
       const currentThreshold = this.currentStrikesThresholdsByCurveId.get(curveId);
       if (currentThreshold !== threshold) {
@@ -293,10 +293,13 @@ export class BadPerformersService {
     this.logger.log('🔍 Searching for unproven bad performers');
 
     const toCheck = keys.filter((key) => !this.provenEjections.has(key.pubKey));
-    const proved = await Promise.all(toCheck.map((key) => this.exitPenalties.isEjectionProved(key, blockNumber)));
-    toCheck.forEach((key, i) => {
-      if (proved[i]) this.provenEjections.add(key.pubKey);
-    });
+    await Promise.all(
+      toCheck.map((key) =>
+        this.exitPenalties.isEjectionProved(key, blockNumber).then((proved) => {
+          if (proved) this.provenEjections.add(key.pubKey);
+        }),
+      ),
+    );
 
     const unproven = keys.filter((key) => !this.provenEjections.has(key.pubKey));
     if (unproven.length < keys.length) {
@@ -319,12 +322,13 @@ export class BadPerformersService {
     this.logger.log('🔍 Searching for non-withdrawn bad performers');
 
     const toCheck = keys.filter((key) => !this.provenWithdrawals.has(key.pubKey));
-    const withdrawalProved = await Promise.all(
-      toCheck.map((key) => this.stakingModule.isWithdrawalProved(key, blockNumber)),
+    await Promise.all(
+      toCheck.map((key) =>
+        this.stakingModule.isWithdrawalProved(key, blockNumber).then((proved) => {
+          if (proved) this.provenWithdrawals.add(key.pubKey);
+        }),
+      ),
     );
-    toCheck.forEach((key, i) => {
-      if (withdrawalProved[i]) this.provenWithdrawals.add(key.pubKey);
-    });
 
     const nonWithdrawn = keys.filter((key) => !this.provenWithdrawals.has(key.pubKey));
     if (nonWithdrawn.length < keys.length) {
@@ -340,14 +344,18 @@ export class BadPerformersService {
     return nonWithdrawn;
   }
 
-  private async getStrikesThresholds(headBlockInfo: SupportedBlock): Promise<Map<bigint, number>> {
+  private async getStrikesThresholds(headBlockInfo: SupportedBlock): Promise<Map<bigint, bigint>> {
     const blockNumber = BigInt(headBlockInfo.body.executionPayload.blockNumber);
-    const thresholds = new Map<bigint, number>();
+    const thresholds = new Map<bigint, bigint>();
 
     const curvesCount = await this.accounting.getCurvesCount(blockNumber);
-    const curveIds = Array.from({ length: curvesCount }, (_, i) => BigInt(i));
-    const params = await Promise.all(curveIds.map((curveId) => this.params.getStrikeParams(blockNumber, curveId)));
-    curveIds.forEach((curveId, i) => thresholds.set(curveId, params[i].threshold));
+    const reads: Promise<unknown>[] = [];
+    for (let curveId = 0n; curveId < curvesCount; curveId++) {
+      reads.push(
+        this.params.getStrikesThreshold(blockNumber, curveId).then((threshold) => thresholds.set(curveId, threshold)),
+      );
+    }
+    await Promise.all(reads);
     return thresholds;
   }
 
@@ -359,14 +367,17 @@ export class BadPerformersService {
     const curveIds = new Map<number, bigint>();
 
     const noIds = [...new Set([...strikesTree.entries()].map((leaf) => leaf[1][0]))];
-    const ids = await Promise.all(
-      noIds.map((nodeOperatorId) => this.accounting.getBondCurveId(blockNumber, nodeOperatorId)),
+    await Promise.all(
+      noIds.map((nodeOperatorId) =>
+        this.accounting
+          .getBondCurveId(blockNumber, nodeOperatorId)
+          .then((curveId) => curveIds.set(nodeOperatorId, curveId)),
+      ),
     );
-    noIds.forEach((nodeOperatorId, i) => curveIds.set(nodeOperatorId, ids[i]));
     return curveIds;
   }
 
-  private async getStrikesThresholdByNodeOperatorId(nodeOperatorId: number): Promise<number> {
+  private async getStrikesThresholdByNodeOperatorId(nodeOperatorId: number): Promise<bigint> {
     const curveId = this.currentNodeOperatorsCurveIds.get(nodeOperatorId);
     if (curveId === undefined) {
       throw new Error(`Curve Id for Node Operator ID ${nodeOperatorId} not found in the cache`);

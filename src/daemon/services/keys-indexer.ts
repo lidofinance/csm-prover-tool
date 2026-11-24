@@ -125,7 +125,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
     const allowedIds = this.config.get('DAEMON_NODE_OPERATOR_IDS');
     const operatorIds = allowedIds?.length
       ? allowedIds
-      : Array.from({ length: await this.stakingModule.getNodeOperatorsCount(blockNumber) }, (_, i) => i);
+      : Array.from({ length: Number(await this.stakingModule.getNodeOperatorsCount(blockNumber)) }, (_, i) => i);
 
     // Keys are deposited in index order and never change after that, so keys below the cursor are already indexed
     const cursors = new Map<number, number>();
