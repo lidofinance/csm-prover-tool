@@ -37,7 +37,7 @@ jobs:
         run: yarn install --immutable
 
       - name: Generate types
-        run: yarn typechain
+        run: yarn abi
 
       - name: Linters check
         run: yarn lint

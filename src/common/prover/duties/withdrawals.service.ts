@@ -3,7 +3,7 @@ import type { RootHex } from '@lodestar/types';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
-import type { IVerifier } from '../../contracts/types/Verifier.js';
+import type { ProcessHistoricalWithdrawalInputStruct, ProcessWithdrawalInputStruct } from '../../contracts/structs.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
 import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
@@ -42,7 +42,7 @@ export class WithdrawalsService {
     const withdrawals = this.getFullWithdrawals(blockInfo, keyInfoFn);
     if (!Object.keys(withdrawals).length) return {};
     const entries = Object.entries(withdrawals);
-    const blockNumber = await this.execution.provider.getBlockNumber();
+    const blockNumber = await this.execution.getBlockNumber();
     const proved = await Promise.all(entries.map(([, k]) => this.stakingModule.isWithdrawalProved(k, blockNumber)));
     const unprovenEntries = entries.filter((_, i) => !proved[i]);
     if (!unprovenEntries.length) {
@@ -59,7 +59,7 @@ export class WithdrawalsService {
   }
 
   // The Verifier reverts with `PartialWithdrawal` if the amount is below `MIN_WITHDRAWAL_RATIO` of the expected balance.
-  private async filterProvable(entries: WithdrawalEntry[], blockNumber: number): Promise<WithdrawalEntry[]> {
+  private async filterProvable(entries: WithdrawalEntry[], blockNumber: bigint): Promise<WithdrawalEntry[]> {
     const ratioBp = await this.verifier.getMinWithdrawalRatio();
     const addedBalancesWei = await this.stakingModule.getKeyAddedBalances(
       entries.map(([, k]) => k),
@@ -103,7 +103,7 @@ export class WithdrawalsService {
     blockInfo: SupportedBlock,
     state: State,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Promise<IVerifier.ProcessWithdrawalInputStruct[]> {
+  ): Promise<ProcessWithdrawalInputStruct[]> {
     // create proof against the state with withdrawals
     const nextBlockHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data);
     if (!nextBlockHeader) throw new Error(`Next canonical block header after ${blockHeader.root} not found`);
@@ -129,7 +129,7 @@ export class WithdrawalsService {
     blockInfo: SupportedBlock,
     state: State,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
+  ): Promise<ProcessHistoricalWithdrawalInputStruct[]> {
     // create proof against the historical state with withdrawals.
     // Anchor to the freshest finalized header, fetched as late as possible: its root must still be in
     // the EIP-4788 ring buffer (~27h) when the tx executes. A header captured at the start of the daemon

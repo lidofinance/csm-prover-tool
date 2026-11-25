@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type { ICuratedVerifier } from '../../contracts/types/CuratedVerifier.js';
+import type { ProcessWithdrawnInputStruct } from '../../contracts/structs.js';
 import {
   generateValidatorProof,
   toBeaconHeaderStruct,
@@ -22,11 +22,11 @@ export type BuildWithdrawnProofArgs = {
   epoch: number;
 };
 
-async function buildWithdrawnProofPayloads(): Promise<ICuratedVerifier.ProcessWithdrawnInputStruct[]> {
+async function buildWithdrawnProofPayloads(): Promise<ProcessWithdrawnInputStruct[]> {
   const { currentHeader, nextHeaderTimestamp, state, keys, epoch } = workerData as BuildWithdrawnProofArgs;
   const stateView = getSsz(state.forkName).BeaconState.deserializeToView(state.bodyBytes);
 
-  const payloads: ICuratedVerifier.ProcessWithdrawnInputStruct[] = [];
+  const payloads: ProcessWithdrawnInputStruct[] = [];
   for (const [valIndex, keyInfo] of Object.entries(keys)) {
     const valIndexNum = Number(valIndex);
     const validator = stateView.validators.getReadonly(valIndexNum);
@@ -55,7 +55,7 @@ async function buildWithdrawnProofPayloads(): Promise<ICuratedVerifier.ProcessWi
     verifyProof(stateView.hashTreeRoot(), validatorProof.gindex, validatorProof.witnesses, validator.hashTreeRoot());
     payloads.push({
       validator: {
-        index: valIndexNum,
+        index: BigInt(valIndexNum),
         nodeOperatorId: keyInfo.operatorId,
         keyIndex: keyInfo.keyIndex,
         object: toValidatorStruct(validator),
@@ -63,7 +63,7 @@ async function buildWithdrawnProofPayloads(): Promise<ICuratedVerifier.ProcessWi
       },
       recentBlock: {
         header: toBeaconHeaderStruct(currentHeader),
-        rootsTimestamp: nextHeaderTimestamp,
+        rootsTimestamp: BigInt(nextHeaderTimestamp),
       },
     });
   }

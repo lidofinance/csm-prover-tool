@@ -16,8 +16,14 @@ import type { BuildWithdrawnProofArgs } from './items/build-withdrawn-proof-payl
 import type { GetNewValidatorKeysArgs, GetNewValidatorKeysResult } from './items/get-new-validator-keys.js';
 import type { GetValidatorsInfoArgs, GetValidatorsInfoResult } from './items/get-validators-info.js';
 import { ParentLoggerMessage } from './worker-logger.js';
-import type { ICuratedVerifier } from '../contracts/types/CuratedVerifier.js';
-import type { IVerifier } from '../contracts/types/Verifier.js';
+import type {
+  ProcessBalanceProofInputStruct,
+  ProcessHistoricalBalanceProofInputStruct,
+  ProcessHistoricalWithdrawalInputStruct,
+  ProcessSlashedInputStruct,
+  ProcessWithdrawalInputStruct,
+  ProcessWithdrawnInputStruct,
+} from '../contracts/structs.js';
 
 @Injectable()
 export class WorkersService {
@@ -35,37 +41,33 @@ export class WorkersService {
     return await this._run('get-validators-info', args);
   }
 
-  public async getSlashedProofPayloads(args: BuildSlashingProofArgs): Promise<IVerifier.ProcessSlashedInputStruct[]> {
+  public async getSlashedProofPayloads(args: BuildSlashingProofArgs): Promise<ProcessSlashedInputStruct[]> {
     return await this._run('build-slashing-proof-payloads', args);
   }
 
-  public async getWithdrawnProofPayloads(
-    args: BuildWithdrawnProofArgs,
-  ): Promise<ICuratedVerifier.ProcessWithdrawnInputStruct[]> {
+  public async getWithdrawnProofPayloads(args: BuildWithdrawnProofArgs): Promise<ProcessWithdrawnInputStruct[]> {
     return await this._run('build-withdrawn-proof-payloads', args);
   }
 
   public async getGeneralWithdrawalProofPayloads(
     args: BuildGeneralWithdrawalProofArgs,
-  ): Promise<IVerifier.ProcessWithdrawalInputStruct[]> {
+  ): Promise<ProcessWithdrawalInputStruct[]> {
     return await this._run('build-general-wd-proof-payloads', args);
   }
 
   public async getHistoricalWithdrawalProofPayloads(
     args: BuildHistoricalWithdrawalProofArgs,
-  ): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
+  ): Promise<ProcessHistoricalWithdrawalInputStruct[]> {
     return await this._run('build-historical-wd-proof-payloads', args);
   }
 
-  public async getBalanceProofPayloads(
-    args: BuildBalanceProofArgs,
-  ): Promise<IVerifier.ProcessBalanceProofInputStruct[]> {
+  public async getBalanceProofPayloads(args: BuildBalanceProofArgs): Promise<ProcessBalanceProofInputStruct[]> {
     return await this._run('build-balance-proof-payloads', args);
   }
 
   public async getHistoricalBalanceProofPayloads(
     args: BuildHistoricalBalanceProofArgs,
-  ): Promise<IVerifier.ProcessHistoricalBalanceProofInputStruct[]> {
+  ): Promise<ProcessHistoricalBalanceProofInputStruct[]> {
     return await this._run('build-historical-balance-proof-payloads', args);
   }
 

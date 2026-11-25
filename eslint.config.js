@@ -11,6 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default [
+  { ignores: ['src/common/contracts/abi/*.ts'] },
   {
     files: ['**/*.ts'],
     ignores: ['dist/**', 'node_modules/**', '.yarn/**'],

@@ -2,6 +2,7 @@ import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject } from '@nestjs/common';
 import { Command as Commander } from 'commander';
 import { Command, CommandRunner, InjectCommander, InquirerService, Option } from 'nest-commander';
+import type { Hex } from 'viem';
 
 import { ConfigService } from '../../common/config/config.service.js';
 import { StakingModuleContract } from '../../common/contracts/staking-module-contract.service.js';
@@ -41,7 +42,7 @@ type ProofOptions = {
 })
 export class ProveCommand extends CommandRunner {
   private options: ProofOptions;
-  private pubkey: string;
+  private pubkey: Hex;
 
   constructor(
     @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
@@ -64,7 +65,7 @@ export class ProveCommand extends CommandRunner {
       this.options = await this.inquirerService.ask('proof-input', { ...options, proofType });
       this.logger.debug!(this.options);
 
-      const blockNumber = await this.execution.provider.getBlockNumber();
+      const blockNumber = await this.execution.getBlockNumber();
       this.pubkey = await this.stakingModule.getNodeOperatorKey(
         Number(this.options.nodeOperatorId),
         Number(this.options.keyIndex),

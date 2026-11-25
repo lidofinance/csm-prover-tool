@@ -3,7 +3,10 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { ConfigService } from '../../config/config.service.js';
 import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
-import type { IVerifier } from '../../contracts/types/Verifier.js';
+import type {
+  ProcessBalanceProofInputStruct,
+  ProcessHistoricalBalanceProofInputStruct,
+} from '../../contracts/structs.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
 import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
@@ -93,7 +96,7 @@ export class BalancesService {
       this.logger.log('No additional balances to prove');
       return {};
     }
-    const blockNumber = await this.execution.provider.getBlockNumber();
+    const blockNumber = await this.execution.getBlockNumber();
     const addedBalances = await this.stakingModule.getKeyAddedBalances(
       entries.map(([, keyInfo]) => keyInfo),
       blockNumber,
@@ -159,7 +162,7 @@ export class BalancesService {
     blockHeader: BlockHeaderResponse,
     state: State,
     balanceChanges: InvolvedKeys,
-  ): Promise<IVerifier.ProcessBalanceProofInputStruct[]> {
+  ): Promise<ProcessBalanceProofInputStruct[]> {
     const nextHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data);
     if (!nextHeader) throw new Error(`Next canonical block header after ${blockHeader.root} not found`);
     const nextHeaderTs = this.consensus.slotToTimestamp(Number(nextHeader.header.message.slot));
@@ -182,7 +185,7 @@ export class BalancesService {
     blockHeader: BlockHeaderResponse,
     state: State,
     balanceChanges: InvolvedKeys,
-  ): Promise<IVerifier.ProcessHistoricalBalanceProofInputStruct[]> {
+  ): Promise<ProcessHistoricalBalanceProofInputStruct[]> {
     // Get the freshest finalized header: A header captured at the start of the daemon iteration
     // can age out during slow historical proof generation → RootNotFound() revert.
     const recentHeader = await this.consensus.getBeaconHeader('finalized');
