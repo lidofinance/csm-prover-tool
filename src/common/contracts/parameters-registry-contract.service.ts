@@ -1,6 +1,6 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
 import { LRUCache } from 'lru-cache';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { type GetContractReturnType, type PublicClient, getContract } from 'viem';
 
 import { parametersRegistryAbi } from './abi/parameters-registry.js';
@@ -14,7 +14,7 @@ export class ParametersRegistryContract {
   private strikesThresholdCache = new LRUCache<string, bigint>({ max: 128 });
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly execution: Execution,
     protected readonly stakingModule: StakingModuleContract,
   ) {}

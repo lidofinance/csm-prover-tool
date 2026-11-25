@@ -1,6 +1,6 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import type { Hex } from 'viem';
 
 import { ConfigService } from '../../config/config.service.js';
@@ -25,7 +25,7 @@ type StrikesTreeLeaf = [number, string, number[]]; // [nodeOperatorId, pubKey, s
 @Injectable()
 export class BadPerformersService {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly consensus: Consensus,
     protected readonly ipfs: Ipfs,

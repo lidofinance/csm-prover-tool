@@ -1,6 +1,6 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import type { RootHex } from '@lodestar/types';
 import { Inject, Injectable } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
 import type { ProcessHistoricalWithdrawalInputStruct, ProcessWithdrawalInputStruct } from '../../contracts/structs.js';
@@ -27,7 +27,7 @@ type WithdrawalEntry = [string, InvolvedKeysWithWithdrawal[string]];
 @Injectable()
 export class WithdrawalsService {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
     protected readonly stakingModule: StakingModuleContract,

@@ -1,6 +1,6 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import type { RootHex } from '@lodestar/types';
 import { Inject, Injectable } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import { type RootSlot, RootsStack } from './roots-stack.js';
 import { ConfigService } from '../../common/config/config.service.js';
@@ -15,7 +15,7 @@ export class RootsProvider {
   private confirmedChild?: { parentRoot: RootHex; child: RootSlot };
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly consensus: Consensus,
     protected readonly rootsStack: RootsStack,

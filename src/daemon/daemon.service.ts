@@ -1,5 +1,5 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import buildInfo from '../build-info.js';
 import { KeysIndexer } from './services/keys-indexer.js';
@@ -24,7 +24,7 @@ export class DaemonService implements OnModuleInit {
   private rootProcessing: Promise<void> | null = null;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly prometheus: PrometheusService,
     protected readonly readiness: ReadinessService,

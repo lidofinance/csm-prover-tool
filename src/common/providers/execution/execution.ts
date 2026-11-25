@@ -1,6 +1,6 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { InquirerService } from 'nest-commander';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { oraPromise as spinnerFor } from 'ora';
 import {
   type Address,
@@ -76,7 +76,7 @@ export class Execution {
   private lastFeeHistoryBlockNumber = 0n;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     @Inject(EL_CLIENT) public readonly client: PublicClient<Transport, Chain>,
     @Optional() protected readonly prometheus: PrometheusService,

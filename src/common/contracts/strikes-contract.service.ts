@@ -1,5 +1,5 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import {
   type Address,
   type GetContractReturnType,
@@ -30,7 +30,7 @@ export class StrikesContract {
   private gateway: GetContractReturnType<typeof triggerableWithdrawalsGatewayAbi, PublicClient>;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly execution: Execution,
     protected readonly accounting: AccountingContract,

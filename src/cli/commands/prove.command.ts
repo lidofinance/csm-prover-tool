@@ -1,7 +1,7 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject } from '@nestjs/common';
 import { Command as Commander } from 'commander';
 import { Command, CommandRunner, InjectCommander, InquirerService, Option } from 'nest-commander';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import type { Hex } from 'viem';
 
 import { ConfigService } from '../../common/config/config.service.js';
@@ -45,7 +45,7 @@ export class ProveCommand extends CommandRunner {
   private pubkey: Hex;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     @InjectCommander() private readonly commander: Commander,
     protected readonly inquirerService: InquirerService,
     protected readonly config: ConfigService,

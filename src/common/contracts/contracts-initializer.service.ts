@@ -1,5 +1,5 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import { AccountingContract } from './accounting-contract.service.js';
 import { ExitPenaltiesContract } from './exit-penalties-contract.service.js';
@@ -12,7 +12,7 @@ import { type AppLogger } from '../logger/app-logger.type.js';
 @Injectable()
 export class ContractsInitializer implements OnModuleInit {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly stakingModule: StakingModuleContract,
     protected readonly accounting: AccountingContract,
     protected readonly params: ParametersRegistryContract,

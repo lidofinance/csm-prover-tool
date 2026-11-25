@@ -1,5 +1,5 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { type Address, type GetContractReturnType, type Hex, type PublicClient, getContract } from 'viem';
 
 import { csmAbi } from './abi/csm.js';
@@ -14,7 +14,7 @@ export class StakingModuleContract {
   private contract: GetContractReturnType<typeof csmAbi, PublicClient>;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly execution: Execution,
   ) {

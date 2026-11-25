@@ -1,10 +1,10 @@
 import { join } from 'node:path';
 
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import type { RootHex } from '@lodestar/types';
 import { Inject, Injectable, type OnApplicationBootstrap, type OnModuleInit } from '@nestjs/common';
 import { Low } from 'lowdb';
 import { JSONFile } from 'lowdb/node';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import { KeysIndexer } from './keys-indexer.js';
 import { ConfigService } from '../../common/config/config.service.js';
@@ -33,7 +33,7 @@ export class RootsStack implements OnModuleInit, OnApplicationBootstrap {
   private storage: Low<RootsStackServiceStorage>;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly prometheus: PrometheusService,
     protected readonly keysIndexer: KeysIndexer,
