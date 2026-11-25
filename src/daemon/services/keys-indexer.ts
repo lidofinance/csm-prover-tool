@@ -1,10 +1,10 @@
 import { join } from 'node:path';
 
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import type { Slot } from '@lodestar/types';
 import { Inject, Injectable, type OnApplicationBootstrap } from '@nestjs/common';
 import { Low } from 'lowdb';
 import { JSONFile } from 'lowdb/node';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import { ConfigService } from '../../common/config/config.service.js';
 import { WorkingMode } from '../../common/config/env.validation.js';
@@ -40,7 +40,7 @@ export class KeysIndexer implements OnApplicationBootstrap {
   private storage: Low<KeysIndexerServiceStorage>;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly prometheus: PrometheusService,
     protected readonly workers: WorkersService,

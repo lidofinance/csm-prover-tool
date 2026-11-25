@@ -1,7 +1,7 @@
 import { Worker } from 'node:worker_threads';
 
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import { ConfigService } from '../config/config.service.js';
 import { WorkingMode } from '../config/env.validation.js';
@@ -28,7 +28,7 @@ import type {
 @Injectable()
 export class WorkersService {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     @Optional() protected readonly prometheus: PrometheusService,
     protected readonly config: ConfigService,
   ) {}

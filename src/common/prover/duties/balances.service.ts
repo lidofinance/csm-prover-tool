@@ -1,5 +1,5 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import { ConfigService } from '../../config/config.service.js';
 import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
@@ -23,7 +23,7 @@ export type InvolvedKeys = { [valIndex: string]: KeyInfo };
 @Injectable()
 export class BalancesService {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,

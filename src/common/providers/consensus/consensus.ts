@@ -1,6 +1,6 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { type RootHex, ssz } from '@lodestar/types';
 import { Inject, Injectable, type OnModuleInit, Optional } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { oraPromise as spinnerFor } from 'ora';
 
 import { DownloadProgress } from './download-progress.js';
@@ -81,7 +81,7 @@ export class Consensus extends BaseRestProvider implements OnModuleInit {
   public beaconConfig: BeaconConfig;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     @Optional() protected readonly prometheus: PrometheusService,
     @Optional() protected readonly progress: DownloadProgress,
     protected readonly config: ConfigService,

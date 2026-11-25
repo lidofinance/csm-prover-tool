@@ -1,6 +1,6 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Module } from '@nestjs/common';
 import { ConditionalModule } from '@nestjs/config';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import { Consensus } from './consensus/consensus.js';
 import { DownloadProgressModule } from './consensus/download-progress.module.js';
@@ -21,7 +21,7 @@ import { PrometheusService } from '../prometheus/index.js';
     {
       provide: EL_CLIENT,
       useFactory: createElClient,
-      inject: [ConfigService, LOGGER_PROVIDER, { token: PrometheusService, optional: true }],
+      inject: [ConfigService, WINSTON_MODULE_NEST_PROVIDER, { token: PrometheusService, optional: true }],
     },
     Execution,
     Consensus,
