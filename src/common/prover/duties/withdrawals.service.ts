@@ -1,15 +1,16 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import type { RootHex } from '@lodestar/types';
 import { Inject, Injectable } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
-import type { IVerifier } from '../../contracts/types/Verifier.js';
+import type { ProcessHistoricalWithdrawalInputStruct, ProcessWithdrawalInputStruct } from '../../contracts/structs.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
 import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus, type State } from '../../providers/consensus/consensus.js';
 import type { SupportedBlock, SupportedWithdrawal } from '../../providers/consensus/forks.js';
 import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
+import { Execution } from '../../providers/execution/execution.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo, KeyInfoFn } from '../types.js';
 import { HistoricalSummaryResolutionStatus, resolveHistoricalSummaryContext } from '../utils/historical-summary.js';
@@ -26,11 +27,12 @@ type WithdrawalEntry = [string, InvolvedKeysWithWithdrawal[string]];
 @Injectable()
 export class WithdrawalsService {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
     protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
+    protected readonly execution: Execution,
   ) {}
 
   public async getUnprovenWithdrawals(
@@ -40,13 +42,16 @@ export class WithdrawalsService {
     const withdrawals = this.getFullWithdrawals(blockInfo, keyInfoFn);
     if (!Object.keys(withdrawals).length) return {};
     const entries = Object.entries(withdrawals);
-    const proved = await Promise.all(entries.map(([, k]) => this.stakingModule.isWithdrawalProved(k)));
+    const blockNumber = await this.execution.getBlockNumber();
+    const proved = await Promise.all(entries.map(([, k]) => this.stakingModule.isWithdrawalProved(k, blockNumber)));
     const unprovenEntries = entries.filter((_, i) => !proved[i]);
     if (!unprovenEntries.length) {
       this.logger.warn('All full withdrawals from this block are already proved');
       return {};
     }
-    const unproven: InvolvedKeysWithWithdrawal = Object.fromEntries(await this.filterProvable(unprovenEntries));
+    const unproven: InvolvedKeysWithWithdrawal = Object.fromEntries(
+      await this.filterProvable(unprovenEntries, blockNumber),
+    );
     const unprovenCount = Object.keys(unproven).length;
     if (!unprovenCount) return {};
     this.logger.log(`🔍 Unproven full withdrawals: ${unprovenCount}`);
@@ -54,9 +59,12 @@ export class WithdrawalsService {
   }
 
   // The Verifier reverts with `PartialWithdrawal` if the amount is below `MIN_WITHDRAWAL_RATIO` of the expected balance.
-  private async filterProvable(entries: WithdrawalEntry[]): Promise<WithdrawalEntry[]> {
+  private async filterProvable(entries: WithdrawalEntry[], blockNumber: bigint): Promise<WithdrawalEntry[]> {
     const ratioBp = await this.verifier.getMinWithdrawalRatio();
-    const addedBalancesWei = await this.stakingModule.getKeyAddedBalances(entries.map(([, k]) => k));
+    const addedBalancesWei = await this.stakingModule.getKeyAddedBalances(
+      entries.map(([, k]) => k),
+      blockNumber,
+    );
     const minActivationBalanceWei = BigInt(this.consensus.beaconConfig.MIN_ACTIVATION_BALANCE) * WEI_PER_GWEI;
     return entries.filter(([valIndex, keyInfo], i) => {
       const expectedWei = addedBalancesWei[i] + minActivationBalanceWei;
@@ -95,7 +103,7 @@ export class WithdrawalsService {
     blockInfo: SupportedBlock,
     state: State,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Promise<IVerifier.ProcessWithdrawalInputStruct[]> {
+  ): Promise<ProcessWithdrawalInputStruct[]> {
     // create proof against the state with withdrawals
     const nextBlockHeader = firstCanonical((await this.consensus.getBeaconHeadersByParentRoot(blockHeader.root)).data);
     if (!nextBlockHeader) throw new Error(`Next canonical block header after ${blockHeader.root} not found`);
@@ -121,7 +129,7 @@ export class WithdrawalsService {
     blockInfo: SupportedBlock,
     state: State,
     withdrawals: InvolvedKeysWithWithdrawal,
-  ): Promise<IVerifier.ProcessHistoricalWithdrawalInputStruct[]> {
+  ): Promise<ProcessHistoricalWithdrawalInputStruct[]> {
     // create proof against the historical state with withdrawals.
     // Anchor to the freshest finalized header, fetched as late as possible: its root must still be in
     // the EIP-4788 ring buffer (~27h) when the tx executes. A header captured at the start of the daemon

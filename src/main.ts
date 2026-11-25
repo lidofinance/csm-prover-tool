@@ -1,7 +1,7 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { type INestApplicationContext, type LogLevel, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { CommandFactory } from 'nest-commander';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import { CliModule } from './cli/cli.module.js';
 import { ConfigService } from './common/config/config.service.js';
@@ -12,6 +12,7 @@ import { DaemonService } from './daemon/daemon.service.js';
 const BOOTSTRAP_LOGGER_OPTIONS = {
   bufferLogs: true,
   autoFlushLogs: false,
+  abortOnError: false,
   logger: ['error'] as LogLevel[],
 };
 
@@ -79,12 +80,12 @@ async function bootstrapApp<TApp extends INestApplicationContext>(
 }
 
 function configureAppLogger(app: INestApplicationContext): void {
-  app.useLogger(app.get(LOGGER_PROVIDER));
+  app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
   Logger.detachBuffer();
 }
 
 async function failBootstrap(appName: string, error: unknown, app?: INestApplicationContext): Promise<never> {
-  const logger = app?.get(LOGGER_PROVIDER);
+  const logger = app?.get(WINSTON_MODULE_NEST_PROVIDER);
   const message = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack : undefined;
 
@@ -100,7 +101,7 @@ async function failBootstrap(appName: string, error: unknown, app?: INestApplica
       console.error(stack);
     }
   }
-  Logger.flush();
+  Logger.detachBuffer();
 
   if (app) {
     await app.close();

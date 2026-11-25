@@ -1,5 +1,5 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import buildInfo from '../build-info.js';
 import { KeysIndexer } from './services/keys-indexer.js';
@@ -8,7 +8,7 @@ import { RootsProvider } from './services/roots-provider.js';
 import { SingletonTask } from './utils/singleton-task.decorator.js';
 import sleep from './utils/sleep.js';
 import { ConfigService } from '../common/config/config.service.js';
-import { SECOND_MS } from '../common/config/env.validation.js';
+import { MINUTE_MS, SECOND_MS } from '../common/config/env.validation.js';
 import { ReadinessService } from '../common/health/readiness.service.js';
 import { type AppLogger } from '../common/logger/app-logger.type.js';
 import { APP_NAME, PrometheusService, TrackTask } from '../common/prometheus/index.js';
@@ -24,7 +24,7 @@ export class DaemonService implements OnModuleInit {
   private rootProcessing: Promise<void> | null = null;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
     protected readonly prometheus: PrometheusService,
     protected readonly readiness: ReadinessService,
@@ -61,6 +61,10 @@ export class DaemonService implements OnModuleInit {
         await this.baseRun();
       } catch (e) {
         this.logger.error(e);
+        if (!this.keysIndexer.isInitialized()) {
+          this.logger.warn('Keys indexer is not initialized, next attempt in 1 min');
+          await sleep(MINUTE_MS);
+        }
       } finally {
         const processing = this.rootProcessing;
         if (!processing) {

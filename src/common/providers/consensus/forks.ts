@@ -1,7 +1,12 @@
+import { setHasher } from '@chainsafe/persistent-merkle-tree';
+import { hasher } from '@chainsafe/persistent-merkle-tree/hasher/hashtree';
 import { ForkName } from '@lodestar/params';
 import { ssz, sszTypesFor } from '@lodestar/types';
 
 import type { State } from './consensus.js';
+
+// ssz hashes through this package's global hasher; the default noble one is ~5x slower on a full state.
+setHasher(hasher);
 
 const SUPPORTED_FORKS = [ForkName.capella, ForkName.deneb, ForkName.electra, ForkName.fulu] as const;
 

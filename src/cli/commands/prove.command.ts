@@ -1,7 +1,8 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject } from '@nestjs/common';
 import { Command as Commander } from 'commander';
 import { Command, CommandRunner, InjectCommander, InquirerService, Option } from 'nest-commander';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import type { Hex } from 'viem';
 
 import { ConfigService } from '../../common/config/config.service.js';
 import { StakingModuleContract } from '../../common/contracts/staking-module-contract.service.js';
@@ -10,6 +11,7 @@ import { type AppLogger } from '../../common/logger/app-logger.type.js';
 import { ProverService } from '../../common/prover/prover.service.js';
 import type { FullKeyInfoByPubKeyFn, KeyInfoFn } from '../../common/prover/types.js';
 import { Consensus } from '../../common/providers/consensus/consensus.js';
+import { Execution } from '../../common/providers/execution/execution.js';
 import {
   PROOF_TYPES,
   validateClBlock,
@@ -40,10 +42,10 @@ type ProofOptions = {
 })
 export class ProveCommand extends CommandRunner {
   private options: ProofOptions;
-  private pubkey: string;
+  private pubkey: Hex;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     @InjectCommander() private readonly commander: Commander,
     protected readonly inquirerService: InquirerService,
     protected readonly config: ConfigService,
@@ -51,6 +53,7 @@ export class ProveCommand extends CommandRunner {
     protected readonly consensus: Consensus,
     protected readonly prover: ProverService,
     protected readonly verifier: VerifierContract,
+    protected readonly execution: Execution,
   ) {
     super();
   }
@@ -62,7 +65,12 @@ export class ProveCommand extends CommandRunner {
       this.options = await this.inquirerService.ask('proof-input', { ...options, proofType });
       this.logger.debug!(this.options);
 
-      this.pubkey = await this.stakingModule.getNodeOperatorKey(this.options.nodeOperatorId, this.options.keyIndex);
+      const blockNumber = await this.execution.getBlockNumber();
+      this.pubkey = await this.stakingModule.getNodeOperatorKey(
+        Number(this.options.nodeOperatorId),
+        Number(this.options.keyIndex),
+        blockNumber,
+      );
       this.logger.debug!(`Validator public key: ${this.pubkey}`);
 
       const finalizedHeader = await this.consensus.getBeaconHeader('finalized');

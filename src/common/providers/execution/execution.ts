@@ -1,11 +1,25 @@
-import { type TransactionReceipt, type TransactionResponse } from '@ethersproject/abstract-provider';
-import { MAX_BLOCKCOUNT, SimpleFallbackJsonRpcBatchProvider } from '@lido-nestjs/execution';
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { type PopulatedTransaction, Wallet, utils } from 'ethers';
 import { InquirerService } from 'nest-commander';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { oraPromise as spinnerFor } from 'ora';
+import {
+  type Address,
+  type Chain,
+  ContractFunctionExecutionError,
+  type ContractFunctionParameters,
+  type Hex,
+  type PublicClient,
+  TransactionExecutionError,
+  type TransactionReceipt,
+  type Transport,
+  encodeFunctionData,
+  formatGwei,
+  parseGwei,
+} from 'viem';
+import { type PrivateKeyAccount, privateKeyToAccount } from 'viem/accounts';
+import { sendTransaction } from 'viem/actions';
 
+import { EL_CLIENT } from './execution-client.js';
 import { bigIntMax, bigIntMin, percentile } from './utils/common.js';
 import { ConfigService } from '../../config/config.service.js';
 import { WorkingMode } from '../../config/env.validation.js';
@@ -36,41 +50,56 @@ class NoSignerError extends ErrorWithContext {}
 class DryRunError extends ErrorWithContext {}
 
 const DEPOSIT_CONTRACT_ADDRESS = '0x00000000219ab540356cBB839Cbe05303d7705Fa';
+const MAX_BLOCKCOUNT = 1024n;
+
+type ProofTx = ContractFunctionParameters & { value?: bigint };
+
+type Simulate = (sender: { account: Address }) => Promise<{ request: ProofTx }>;
+
+function simulatedCallContext(e: unknown) {
+  if (!(e instanceof ContractFunctionExecutionError)) return undefined;
+  return {
+    payload: e.args,
+    tx: {
+      to: e.contractAddress,
+      data: encodeFunctionData({ abi: e.abi, functionName: e.functionName, args: e.args }),
+      from: e.sender,
+    },
+  };
+}
 
 @Injectable()
 export class Execution {
-  public signer?: Wallet;
+  public readonly signer?: PrivateKeyAccount;
 
   private gasFeeHistoryCache: bigint[] = [];
-  private lastFeeHistoryBlockNumber = 0;
+  private lastFeeHistoryBlockNumber = 0n;
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly config: ConfigService,
+    @Inject(EL_CLIENT) public readonly client: PublicClient<Transport, Chain>,
     @Optional() protected readonly prometheus: PrometheusService,
     @Optional() protected readonly inquirerService: InquirerService,
-    public readonly provider: SimpleFallbackJsonRpcBatchProvider,
   ) {
     const key = this.config.get('TX_SIGNER_PRIVATE_KEY');
-    if (key) this.signer = new Wallet(key, this.provider);
+    if (key) this.signer = privateKeyToAccount(key);
   }
 
-  public async execute(
-    populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
-    payload: any[],
-  ): Promise<void> {
+  public async getBlockNumber(): Promise<bigint> {
+    return await this.client.getBlockNumber({ cacheTime: 0 });
+  }
+
+  public async execute(simulate: Simulate): Promise<void> {
     if (this.isCLI()) {
-      return await this.executeCLI(populateTxCallback, payload);
+      return await this.executeCLI(simulate);
     }
-    return await this.executeDaemon(populateTxCallback, payload);
+    return await this.executeDaemon(simulate);
   }
 
-  public async executeCLI(
-    populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
-    payload: any[],
-  ): Promise<void> {
+  public async executeCLI(simulate: Simulate): Promise<void> {
     try {
-      await this._execute(populateTxCallback, payload);
+      await this._execute(simulate);
       return;
     } catch (e) {
       if (e instanceof NoSignerError || e instanceof DryRunError) {
@@ -82,15 +111,12 @@ export class Execution {
     }
   }
 
-  public async executeDaemon(
-    populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
-    payload: any[],
-  ): Promise<void> {
+  public async executeDaemon(simulate: Simulate): Promise<void> {
     let highGasAttempts = 0;
     while (true) {
       try {
         this.prometheus.transactionCount.inc({ status: TransactionStatus.pending });
-        await this._execute(populateTxCallback, payload);
+        await this._execute(simulate);
         this.prometheus.transactionCount.inc({ status: TransactionStatus.confirmed });
         return;
       } catch (e) {
@@ -117,25 +143,27 @@ export class Execution {
     }
   }
 
-  private async _execute(
-    populateTxCallback: (...payload: any[]) => Promise<PopulatedTransaction>,
-    payload: any[],
-  ): Promise<void> {
-    this.logger.debug!(payload);
-    const priorityFeeParams = await this.calcPriorityFee();
-    const txBase = {
-      ...(await populateTxCallback(...payload)),
-      maxFeePerGas: priorityFeeParams.maxFeePerGas,
-      maxPriorityFeePerGas: priorityFeeParams.maxPriorityFeePerGas,
-    };
+  private async _execute(simulate: Simulate): Promise<void> {
+    const fees = await this.calcPriorityFee();
     this.logger.log('Emulating call');
     const from = this.signer?.address ?? DEPOSIT_CONTRACT_ADDRESS;
-    const emulatedTx = { ...txBase, from };
-    const emulatedTxContext: { payload: any[]; tx: any } = { payload, tx: emulatedTx };
+    let tx: ProofTx;
+    try {
+      ({ request: tx } = await simulate({ account: from }));
+    } catch (e) {
+      throw new EmulatedCallError(e, simulatedCallContext(e));
+    }
+    this.logger.debug!(tx.args);
+    const txBase = {
+      to: tx.address,
+      data: encodeFunctionData(tx),
+      value: tx.value,
+      ...fees,
+    };
+    const emulatedTxContext = { payload: tx.args, tx: { ...txBase, from } };
     let estimatedGas: bigint;
     try {
-      await this.provider.call(emulatedTx);
-      estimatedGas = (await this.provider.estimateGas(emulatedTx)).toBigInt();
+      estimatedGas = await this.client.estimateGas({ ...txBase, account: from });
     } catch (e) {
       throw new EmulatedCallError(e, emulatedTxContext);
     }
@@ -148,31 +176,35 @@ export class Execution {
         emulatedTxContext,
       );
     }
-    const tx = { ...txBase, gasLimit };
     this.logger.log(
       `✅ Emulated call succeeded. Estimated gas: ${estimatedGas} (+${bufferPct}%) → gasLimit: ${gasLimit}`,
     );
     if (!this.signer) {
       throw new NoSignerError('No specified signer. Only emulated calls are available', emulatedTxContext);
     }
-    const populatedTx = await this.signer.populateTransaction(tx);
-    const populatedTxContext: { payload: any[]; tx: any } = { payload, tx: populatedTx };
+    const populatedTx = {
+      ...txBase,
+      gas: gasLimit,
+      chainId: this.client.chain.id,
+      nonce: await this.client.getTransactionCount({ address: this.signer.address, blockTag: 'pending' }),
+    };
+    const populatedTxContext = { payload: tx.args, tx: populatedTx };
     const isFeePerGasAcceptable = await this.isFeePerGasAcceptable();
     if (this.config.get('DRY_RUN')) {
       throw new DryRunError('Dry run mode is enabled. Transaction is prepared, but not sent', populatedTxContext);
     }
     if (this.isCLI()) {
       const txSummary = [
-        `to=${populatedTx.to ?? 'n/a'}`,
-        `nonce=${String(populatedTx.nonce ?? 'n/a')}`,
-        `gasLimit=${String(populatedTx.gasLimit ?? 'n/a')}`,
-        `maxFeePerGas=${String(populatedTx.maxFeePerGas ?? 'n/a')}`,
-        `maxPriorityFeePerGas=${String(populatedTx.maxPriorityFeePerGas ?? 'n/a')}`,
+        `to=${populatedTx.to}`,
+        `nonce=${populatedTx.nonce}`,
+        `gasLimit=${populatedTx.gas}`,
+        `maxFeePerGas=${populatedTx.maxFeePerGas}`,
+        `maxPriorityFeePerGas=${populatedTx.maxPriorityFeePerGas}`,
       ].join(' | ');
-      const opts = await this.inquirerService.ask('tx-execution', {
+      const opts = await this.inquirerService.ask<{ sendingConfirmed: boolean; txSummary: string }>('tx-execution', {
         sendingConfirmed: false,
         txSummary,
-      } as { sendingConfirmed: boolean; txSummary: string });
+      });
       if (!opts.sendingConfirmed) {
         throw new UserCancellationError('Transaction is not sent due to user cancellation', populatedTxContext);
       }
@@ -181,44 +213,44 @@ export class Execution {
         throw new HighGasFeeError('Transaction is not sent due to high gas fee', populatedTxContext);
       }
     }
-    const signed = await this.signer.signTransaction(populatedTx);
-    let submitted: TransactionResponse;
+    let hash: Hex;
     let receipt: TransactionReceipt;
     try {
-      const submittedPromise = this.provider.sendTransaction(signed);
-      let msg = `Sending transaction with nonce ${populatedTx.nonce} and gasLimit: ${populatedTx.gasLimit}, maxFeePerGas: ${populatedTx.maxFeePerGas}, maxPriorityFeePerGas: ${populatedTx.maxPriorityFeePerGas}`;
+      const submittedPromise = sendTransaction(this.client, {
+        ...populatedTx,
+        account: this.signer,
+      });
+      let msg = `Sending transaction with nonce ${populatedTx.nonce} and gasLimit: ${populatedTx.gas}, maxFeePerGas: ${populatedTx.maxFeePerGas}, maxPriorityFeePerGas: ${populatedTx.maxPriorityFeePerGas}`;
       if (this.isCLI()) {
-        spinnerFor(submittedPromise, { text: msg });
+        hash = await spinnerFor(submittedPromise, { text: msg });
       } else {
         this.logger.log(msg);
+        hash = await submittedPromise;
       }
-      submitted = await submittedPromise;
-      this.logger.log(`Transaction sent to mempool. Hash: ${submitted.hash}`);
-      const waitingPromise = this.provider.waitForTransaction(
-        submitted.hash,
-        this.config.get('TX_CONFIRMATIONS'),
-        this.config.get('TX_MINING_WAITING_TIMEOUT_MS'),
-      );
+      this.logger.log(`Transaction sent to mempool. Hash: ${hash}`);
+      const waitingPromise = this.client.waitForTransactionReceipt({
+        hash,
+        checkReplacement: false,
+        confirmations: this.config.get('TX_CONFIRMATIONS'),
+        timeout: this.config.get('TX_MINING_WAITING_TIMEOUT_MS'),
+      });
       msg = `Waiting until the transaction has been mined and confirmed ${this.config.get('TX_CONFIRMATIONS')} times`;
       if (this.isCLI()) {
-        spinnerFor(waitingPromise, { text: msg });
+        receipt = await spinnerFor(waitingPromise, { text: msg });
       } else {
         this.logger.log(msg);
+        receipt = await waitingPromise;
       }
-      receipt = await waitingPromise;
     } catch (e) {
-      // Dirty hack for switching to the next provider in case of failure in sending transaction process
-      // @ts-expect-error 'accessing protected member'
-      this.provider.switchToNextProvider();
-      throw new SendTransactionError(e, populatedTxContext);
+      throw new SendTransactionError(e instanceof TransactionExecutionError ? e.cause : e, populatedTxContext);
     }
-    if (receipt.status !== 1) {
+    if (receipt.status !== 'success') {
       throw new SendTransactionError(
-        `Transaction reverted on-chain (status ${receipt.status}). Hash: ${submitted?.hash}`,
+        `Transaction reverted on-chain (status ${receipt.status}). Hash: ${hash}`,
         populatedTxContext,
       );
     }
-    this.logger.log(`✅ Transaction succeeded! Hash: ${submitted?.hash}`);
+    this.logger.log(`✅ Transaction succeeded! Hash: ${hash}`);
   }
 
   //
@@ -227,12 +259,12 @@ export class Execution {
 
   private async isFeePerGasAcceptable(): Promise<boolean> {
     const { current, recommended } = await this.calcFeePerGas();
-    const currentGwei = utils.formatUnits(current, 'gwei');
-    const recommendedGwei = utils.formatUnits(recommended, 'gwei');
+    const currentGwei = formatGwei(current);
+    const recommendedGwei = formatGwei(recommended);
     const info = `Current: ${currentGwei} Gwei | Recommended: ${recommendedGwei} Gwei`;
     const maxBaseFeeGwei = this.config.get('TX_MAX_BASE_FEE_GWEI');
     if (maxBaseFeeGwei > 0) {
-      const cap = utils.parseUnits(String(maxBaseFeeGwei), 'gwei').toBigInt();
+      const cap = parseGwei(String(maxBaseFeeGwei));
       if (current > cap) {
         this.logger.warn(`📛 Current base fee is above the absolute cap (${maxBaseFeeGwei} Gwei)! ${info}`);
         return false;
@@ -242,7 +274,7 @@ export class Execution {
     // transactions for a saving that is not worth the delay
     const minBaseFeeGwei = this.config.get('TX_MIN_BASE_FEE_GWEI');
     if (minBaseFeeGwei > 0) {
-      const floor = utils.parseUnits(String(minBaseFeeGwei), 'gwei').toBigInt();
+      const floor = parseGwei(String(minBaseFeeGwei));
       if (current <= floor) {
         this.logger.log(`✅ Current base fee is below the always-send floor (${minBaseFeeGwei} Gwei)! ${info}`);
         return true;
@@ -257,33 +289,35 @@ export class Execution {
   }
 
   private async calcFeePerGas(): Promise<{ recommended: bigint; current: bigint }> {
-    const { baseFeePerGas: currentFee } = await this.provider.getBlock('pending');
+    const { baseFeePerGas: currentFee } = await this.client.getBlock({ blockTag: 'pending' });
     await this.updateGasFeeHistoryCache();
     const recommended = percentile(this.gasFeeHistoryCache, this.config.get('TX_GAS_FEE_HISTORY_PERCENTILE'));
-    return { recommended, current: currentFee?.toBigInt() ?? 0n };
+    return { recommended, current: currentFee ?? 0n };
   }
 
   private async calcPriorityFee(): Promise<{ maxFeePerGas: bigint; maxPriorityFeePerGas: bigint }> {
     this.logger.log('🔄 Calculating priority fee');
-    const { baseFeePerGas } = await this.provider.getBlock('pending');
-    const { reward } = await this.provider.getFeeHistory(1, 'latest', [
-      this.config.get('TX_GAS_PRIORITY_FEE_PERCENTILE'),
-    ]);
+    const { baseFeePerGas } = await this.client.getBlock({ blockTag: 'pending' });
+    const { reward } = await this.client.getFeeHistory({
+      blockCount: 1,
+      blockTag: 'latest',
+      rewardPercentiles: [this.config.get('TX_GAS_PRIORITY_FEE_PERCENTILE')],
+    });
     const maxPriorityFeePerGas = bigIntMin(
-      bigIntMax(reward.pop()?.pop()?.toBigInt() ?? 0n, BigInt(this.config.get('TX_MIN_GAS_PRIORITY_FEE'))),
+      bigIntMax(reward?.pop()?.pop() ?? 0n, BigInt(this.config.get('TX_MIN_GAS_PRIORITY_FEE'))),
       BigInt(this.config.get('TX_MAX_GAS_PRIORITY_FEE')),
     );
-    const maxFeePerGas = BigInt(Number(baseFeePerGas)) * 2n + maxPriorityFeePerGas;
+    const maxFeePerGas = (baseFeePerGas ?? 0n) * 2n + maxPriorityFeePerGas;
     this.logger.debug!(`Priority fee: ${maxPriorityFeePerGas} | Max fee: ${maxFeePerGas}`);
     return { maxPriorityFeePerGas, maxFeePerGas };
   }
 
   private async updateGasFeeHistoryCache(): Promise<void> {
-    const maxBlocksPerHour = (60 * 60) / 12;
-    const maxBlocksPerDay = 24 * maxBlocksPerHour;
-    const maxFeeHistoryCacheSize = this.config.get('TX_GAS_FEE_HISTORY_DAYS') * maxBlocksPerDay;
+    const maxBlocksPerHour = (60n * 60n) / 12n;
+    const maxBlocksPerDay = 24n * maxBlocksPerHour;
+    const maxFeeHistoryCacheSize = BigInt(this.config.get('TX_GAS_FEE_HISTORY_DAYS')) * maxBlocksPerDay;
 
-    const { number: latestBlockNumber } = await this.provider.getBlock('latest');
+    const latestBlockNumber = await this.getBlockNumber();
 
     const feeHistoryCacheBlocksDelay = latestBlockNumber - this.lastFeeHistoryBlockNumber;
     // TODO: what the buffer to update should be?
@@ -294,16 +328,20 @@ export class Execution {
     let newGasFees: bigint[] = [];
     let blockCountPerRequest = MAX_BLOCKCOUNT;
     let latestBlockToRequest = latestBlockNumber;
-    let totalBlockCountToFetch = Math.min(feeHistoryCacheBlocksDelay, maxFeeHistoryCacheSize);
-    while (totalBlockCountToFetch > 0) {
+    let totalBlockCountToFetch = bigIntMin(feeHistoryCacheBlocksDelay, maxFeeHistoryCacheSize);
+    while (totalBlockCountToFetch > 0n) {
       if (totalBlockCountToFetch < MAX_BLOCKCOUNT) {
         blockCountPerRequest = totalBlockCountToFetch;
       }
-      const stats = await this.provider.getFeeHistory(blockCountPerRequest, latestBlockToRequest, []);
+      const stats = await this.client.getFeeHistory({
+        blockCount: Number(blockCountPerRequest),
+        blockNumber: latestBlockToRequest,
+        rewardPercentiles: [],
+      });
       // NOTE: `baseFeePerGas` includes the next block after the newest of the returned range,
       // so we need to exclude it
       stats.baseFeePerGas.pop();
-      newGasFees = [...stats.baseFeePerGas.map((v) => v.toBigInt()), ...newGasFees];
+      newGasFees = [...stats.baseFeePerGas, ...newGasFees];
       latestBlockToRequest -= blockCountPerRequest;
       totalBlockCountToFetch -= blockCountPerRequest;
     }

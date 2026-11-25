@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import type { IVerifier } from '../../contracts/types/Verifier.js';
+import type { ProcessBalanceProofInputStruct } from '../../contracts/structs.js';
 import {
   generateBalanceProof,
   generateValidatorProof,
@@ -22,11 +22,11 @@ export type BuildBalanceProofArgs = {
   keys: InvolvedKeys;
 };
 
-async function buildBalanceProofPayloads(): Promise<IVerifier.ProcessBalanceProofInputStruct[]> {
+async function buildBalanceProofPayloads(): Promise<ProcessBalanceProofInputStruct[]> {
   const { currentHeader, nextHeaderTimestamp, state, keys } = workerData as BuildBalanceProofArgs;
   const stateView = getSsz(state.forkName).BeaconState.deserializeToView(state.bodyBytes);
 
-  const payloads: IVerifier.ProcessBalanceProofInputStruct[] = [];
+  const payloads: ProcessBalanceProofInputStruct[] = [];
   for (const [valIndex, keyInfo] of Object.entries(keys)) {
     const valIndexNum = Number(valIndex);
     const validator = stateView.validators.getReadonly(valIndexNum);
@@ -51,10 +51,10 @@ async function buildBalanceProofPayloads(): Promise<IVerifier.ProcessBalanceProo
     payloads.push({
       recentBlock: {
         header: toBeaconHeaderStruct(currentHeader),
-        rootsTimestamp: nextHeaderTimestamp,
+        rootsTimestamp: BigInt(nextHeaderTimestamp),
       },
       validator: {
-        index: valIndexNum,
+        index: BigInt(valIndexNum),
         nodeOperatorId: keyInfo.operatorId,
         keyIndex: keyInfo.keyIndex,
         object: toValidatorStruct(validator),

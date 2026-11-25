@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 
 import { ProofType, type SingleProof, Tree, concatGindices, createProof } from '@chainsafe/persistent-merkle-tree';
-import type { BlockTag } from '@ethersproject/abstract-provider';
 import type { RootHex } from '@lodestar/types';
+import type { Hex } from 'viem';
 
-import type { BeaconBlockHeaderStruct, ValidatorStruct, WithdrawalStruct } from '../contracts/types/Verifier.js';
+import type { BeaconBlockHeaderStruct, ValidatorStruct, WithdrawalStruct } from '../contracts/structs.js';
 import { epochToBigInt } from '../providers/consensus/epoch.js';
 import type {
   SupportedBlockRootsView,
@@ -96,12 +96,8 @@ export function verifyProof(root: Uint8Array, gI: bigint, proof: Uint8Array[], v
   }
 }
 
-export function toHex(value: Uint8Array) {
-  return '0x' + Buffer.from(value).toString('hex');
-}
-
-export function toBlockTagByHash(hashBytes: Uint8Array): BlockTag {
-  return { blockHash: toHex(hashBytes) } as unknown as BlockTag;
+export function toHex(value: Uint8Array): Hex {
+  return `0x${Buffer.from(value).toString('hex')}`;
 }
 
 export function toRootHex(value: RootHex | Uint8Array): RootHex {
@@ -111,8 +107,8 @@ export function toRootHex(value: RootHex | Uint8Array): RootHex {
 export function toBeaconHeaderStruct(header: BlockHeaderResponse): BeaconBlockHeaderStruct {
   const message = header.header.message;
   return {
-    slot: Number(message.slot),
-    proposerIndex: Number(message.proposerIndex),
+    slot: BigInt(message.slot),
+    proposerIndex: BigInt(message.proposerIndex),
     parentRoot: toHex(message.parentRoot),
     stateRoot: toHex(message.stateRoot),
     bodyRoot: toHex(message.bodyRoot),
@@ -134,8 +130,8 @@ export function toValidatorStruct(validator: SupportedValidatorView): ValidatorS
 
 export function toWithdrawalStruct(withdrawal: SupportedWithdrawal): WithdrawalStruct {
   return {
-    index: Number(withdrawal.index),
-    validatorIndex: Number(withdrawal.validatorIndex),
+    index: BigInt(withdrawal.index),
+    validatorIndex: BigInt(withdrawal.validatorIndex),
     withdrawalAddress: toHex(withdrawal.address),
     amount: BigInt(withdrawal.amount),
   };

@@ -1,5 +1,5 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
@@ -7,6 +7,7 @@ import { toRootHex } from '../../helpers/proofs.js';
 import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus, type State } from '../../providers/consensus/consensus.js';
 import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
+import { Execution } from '../../providers/execution/execution.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo } from '../types.js';
 
@@ -18,11 +19,12 @@ export class WithdrawnService {
   private readonly provenWithdrawn = new Set<string>();
 
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
     protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
+    protected readonly execution: Execution,
   ) {}
 
   public async getUnprovenWithdrawn(state: State, keys: InvolvedKeys): Promise<InvolvedKeys> {
@@ -37,12 +39,18 @@ export class WithdrawnService {
       return info !== undefined && !info.slashed && info.withdrawableEpoch <= stateEpoch;
     });
     const toCheck = candidates.filter(([, keyInfo]) => !this.provenWithdrawn.has(keyInfo.pubKey));
-    const proved = await Promise.all(toCheck.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo)));
     const unproven: InvolvedKeys = {};
-    toCheck.forEach(([valIndex, keyInfo], i) => {
-      if (proved[i]) this.provenWithdrawn.add(keyInfo.pubKey);
-      else unproven[valIndex] = keyInfo;
-    });
+    if (toCheck.length) {
+      const blockNumber = await this.execution.getBlockNumber();
+      await Promise.all(
+        toCheck.map(([valIndex, keyInfo]) =>
+          this.stakingModule.isWithdrawalProved(keyInfo, blockNumber).then((proved) => {
+            if (proved) this.provenWithdrawn.add(keyInfo.pubKey);
+            else unproven[valIndex] = keyInfo;
+          }),
+        ),
+      );
+    }
     const unprovenCount = Object.keys(unproven).length;
     if (!unprovenCount) {
       this.logger.log(

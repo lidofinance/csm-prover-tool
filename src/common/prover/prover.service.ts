@@ -1,6 +1,6 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import type { RootHex } from '@lodestar/types';
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import { type AppLogger } from '../logger/app-logger.type.js';
 import { BadPerformersService } from './duties/bad-performers.service.js';
@@ -18,7 +18,7 @@ import type { BlockHeaderResponse } from '../providers/consensus/response.interf
 @Injectable()
 export class ProverService implements OnModuleInit {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly consensus: Consensus,
     protected readonly withdrawals: WithdrawalsService,
     protected readonly strikes: BadPerformersService,

@@ -1,5 +1,5 @@
-import { LOGGER_PROVIDER } from '@lido-nestjs/logger';
 import { Inject, Injectable } from '@nestjs/common';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import { StakingModuleContract } from '../../contracts/staking-module-contract.service.js';
 import { VerifierContract } from '../../contracts/verifier-contract.service.js';
@@ -8,6 +8,7 @@ import { type AppLogger } from '../../logger/app-logger.type.js';
 import { Consensus } from '../../providers/consensus/consensus.js';
 import type { SupportedBlock } from '../../providers/consensus/forks.js';
 import { type BlockHeaderResponse, firstCanonical } from '../../providers/consensus/response.interface.js';
+import { Execution } from '../../providers/execution/execution.js';
 import { WorkersService } from '../../workers/workers.service.js';
 import type { KeyInfo, KeyInfoFn } from '../types.js';
 
@@ -16,11 +17,12 @@ export type InvolvedKeys = { [valIndex: string]: KeyInfo };
 @Injectable()
 export class SlashingsService {
   constructor(
-    @Inject(LOGGER_PROVIDER) protected readonly logger: AppLogger,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER) protected readonly logger: AppLogger,
     protected readonly workers: WorkersService,
     protected readonly consensus: Consensus,
     protected readonly stakingModule: StakingModuleContract,
     protected readonly verifier: VerifierContract,
+    protected readonly execution: Execution,
   ) {}
 
   public async getUnprovenSlashings(blockInfo: SupportedBlock, keyInfoFn: KeyInfoFn): Promise<InvolvedKeys> {
@@ -30,10 +32,13 @@ export class SlashingsService {
     };
     if (!Object.keys(slashings).length) return {};
     const entries = Object.entries(slashings);
-    const proved = await Promise.all(entries.map(([, keyInfo]) => this.stakingModule.isSlashingProved(keyInfo)));
+    const blockNumber = await this.execution.getBlockNumber();
+    const proved = await Promise.all(
+      entries.map(([, keyInfo]) => this.stakingModule.isSlashingProved(keyInfo, blockNumber)),
+    );
     const unprovenEntries = entries.filter((_, i) => !proved[i]);
     const withdrawn = await Promise.all(
-      unprovenEntries.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo)),
+      unprovenEntries.map(([, keyInfo]) => this.stakingModule.isWithdrawalProved(keyInfo, blockNumber)),
     );
     const unproven: InvolvedKeys = {};
     unprovenEntries.forEach(([valIndex, keyInfo], i) => {

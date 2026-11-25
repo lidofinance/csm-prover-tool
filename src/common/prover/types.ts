@@ -1,15 +1,18 @@
-import type { IValidatorStrikes } from '../contracts/types/Strikes.js';
+import type { Hex } from 'viem';
 
+import type { KeyStrikesStruct } from '../contracts/structs.js';
+
+// Ids are number: stored as JSON and sent to the Verifier as uint32.
 export interface KeyInfo {
   operatorId: number;
   keyIndex: number;
-  pubKey: string;
+  pubKey: Hex;
 }
 
 export interface FullKeyInfo {
   operatorId: number;
   keyIndex: number;
-  pubKey: string;
+  pubKey: Hex;
   validatorIndex: number;
 }
 
@@ -18,8 +21,8 @@ export type KeyInfoFn = (valIndex: number) => KeyInfo | undefined;
 export type FullKeyInfoByPubKeyFn = (pubKey: string) => FullKeyInfo | undefined;
 
 export type BadPerformerProofPayload = {
-  keyStrikesList: IValidatorStrikes.KeyStrikesStruct[];
-  proof: string[]; // bytes32[]
+  keyStrikesList: KeyStrikesStruct[];
+  proof: Hex[]; // bytes32[]
   proofFlags: boolean[];
   refundRecipient?: string; // Optional. Address to receive the refund from ejector contract
 };

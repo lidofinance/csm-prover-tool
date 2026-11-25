@@ -9,7 +9,7 @@ RUN corepack enable
 RUN yarn install --immutable
 
 # Build layer
-COPY ./tsconfig*.json ./nest-cli.json ./.swcrc ./
+COPY ./tsconfig*.json ./nest-cli.json ./.swcrc ./wagmi.config.ts ./
 COPY ./build-info.json ./
 COPY ./src ./src
 RUN yarn build
